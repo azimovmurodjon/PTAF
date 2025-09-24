@@ -149,7 +149,13 @@ public class PageCommonSteps {
     @And("^we click download on page (.*?) locator (.*?)$")
     public void weDownloadOnPageKey(String element, String locator) {
         String filePath = ConfigurationProperties.getValue("downloadDocument");
-        pageCommonMethods.download(page, element, locator, filePath);
+        pageCommonMethods.download(page, element, locator, filePath + ".jpeg");
+    }
+
+    @And("^we select document to upload on page (.*?) locator (.*?)$")
+    public void weSelectDocument(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        pageCommonMethods.selectFile(page, element, locator, "Mobile Automation Platforms.docx");
     }
 
     @Given("^get title of page$")

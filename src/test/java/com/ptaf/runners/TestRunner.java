@@ -8,7 +8,7 @@ import io.cucumber.junit.CucumberOptions;
 @RunWith(Cucumber.class)
 @CucumberOptions(
         // Define the output formats for the test reports
-        plugin = {"pretty",                       // Print the test results in a readable format
+        plugin = {"pretty",                      // Print the test results in a readable format
                 "html:target/cucumber-reports.html",  // Generate an HTML report in the specified location
                 "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:",  // Generate an HTML report in the specified location
                 "timeline:test-output-thread/"
