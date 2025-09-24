@@ -22,12 +22,10 @@ import java.util.List;
  * performing actions and assertions on web elements within an instance of a Playwright Page or FrameLocator.
  * It utilizes the ActionPerformer, LocatorHandler, and ElementLocatorHelper to manage interactions
  * with various elements on a web page.
- * <p>
- * Usage:
- * 1. Instantiate ElementActionImpl with a Page object.
- * 2. Call `performActionPage` or `performActionFrame` to execute specific actions on elements.
- * 3. Use the `assertElementTextPage` or `assertElementTextFrame` methods for validating the text
- * content of elements.
+ *
+ * NOTE (non-breaking additions):
+ * - Chain split now supports both " > " and "&gt;".
+ * - Tokens without "_" are treated as name-optional role/locator types (e.g., "Button", "ROW").
  */
 public class ElementActionImpl extends PageHelper implements ElementAction {
     private static final Logger logger = LoggerFactory.getLogger(ElementActionImpl.class);
@@ -36,30 +34,19 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
     private final ElementLocatorHelper elementLocatorHelper = new ElementLocatorHelper(); // Assists in locating elements
     private final LocatorHandler locatorHandler = new LocatorHandler(); // Manages Locator creation based on type
 
-    /**
-     * Constructor for ElementActionImpl. Inheritance from PageHelper allows
-     * initializing with a Page instance for element interaction.
-     *
-     * @param page The Playwright Page instance to interact with web elements.
-     * This page will be used to perform various actions and assertions on web elements.
-     */
     public ElementActionImpl(Page page) {
-        super(page); // Initialize the PageHelper with the provided Page
+        super(page);
     }
 
     /**
-     * Retrieves a Locator for the specified element by determining its type and context.
-     * This method is now the central orchestrator for locator chaining.
-     * It parses locator strings with ">" to build complex, chained locators.
-     *
-     * @param iFrame, iFrame_2, iFrame_3, element, key, page, frameLocator
-     * @return The final Locator object after resolving the entire chain.
-     * @throws RuntimeException If the locator cannot be resolved.
+     * Central orchestrator for locator chaining (frames + element chain).
      */
     @Override
     public Locator getLocator(String iFrame, String iFrame_2, String iFrame_3, String element, String key, Page page, FrameLocator frameLocator) {
         String fullLocatorString = elementLocatorHelper.getElement(element, key);
-        String[] locatorParts = fullLocatorString.split("\\s*&gt;\\s*");
+
+        // SUPPORT BOTH: " > " and "&gt;" (non-breaking)
+        String[] locatorParts = normalizeAndSplitChain(fullLocatorString);
 
         Locator currentLocator = null;
 
@@ -83,8 +70,10 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
 
             for (int i = 0; i < locatorParts.length; i++) {
                 String part = locatorParts[i].trim();
-                String locatorType = elementLocatorHelper.getLocatorType(part);
-                String locator = elementLocatorHelper.getLocator(part);
+
+                // NEW: tolerant parsing (keeps old style working, adds name-optional support)
+                String locatorType = parseType(part);
+                String locator = parseValue(part);
 
                 if (i == 0) {
                     if (context instanceof Page) {
@@ -104,6 +93,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         }
     }
 
+    // ===== Frame resolution (UNCHANGED except for parsing helpers use) =====
 
     private FrameLocator findFrameWithElement(Page page, String iframeSelector, String element, String key) {
         Locator iframeLocator = page.locator(iframeSelector);
@@ -112,11 +102,14 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         for (int i = 0; i < count; i++) {
             FrameLocator fl = page.frameLocator(iframeSelector).nth(i);
             String fullLocatorString = elementLocatorHelper.getElement(element, key);
-            String[] locatorParts = fullLocatorString.split("\\s*&gt;\\s*");
 
+            // SUPPORT BOTH: " > " and "&gt;"
+            String[] locatorParts = normalizeAndSplitChain(fullLocatorString);
+
+            // Use only FIRST segment to test visibility inside candidate frame
             String part = locatorParts[0].trim();
-            String locatorType = elementLocatorHelper.getLocatorType(part);
-            String locator = elementLocatorHelper.getLocator(part);
+            String locatorType = parseType(part);
+            String locator = parseValue(part);
 
             Locator testLocator = locatorHandler.getLocatorForType(locatorType, fl, locator);
             if (testLocator.count() > 0 && testLocator.isVisible()) {
@@ -135,11 +128,14 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         for (int i = 0; i < count; i++) {
             FrameLocator fl = parentFrame.frameLocator(iframeSelector).nth(i);
             String fullLocatorString = elementLocatorHelper.getElement(element, key);
-            String[] locatorParts = fullLocatorString.split("\\s*&gt;\\s*");
 
+            // SUPPORT BOTH: " > " and "&gt;"
+            String[] locatorParts = normalizeAndSplitChain(fullLocatorString);
+
+            // Use only FIRST segment to test visibility inside candidate frame
             String part = locatorParts[0].trim();
-            String locatorType = elementLocatorHelper.getLocatorType(part);
-            String locator = elementLocatorHelper.getLocator(part);
+            String locatorType = parseType(part);
+            String locator = parseValue(part);
 
             Locator testLocator = locatorHandler.getLocatorForType(locatorType, fl, locator);
             if (testLocator.count() > 0 && testLocator.isVisible()) {
@@ -151,6 +147,44 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         return parentFrame.frameLocator(iframeSelector);
     }
 
+    // ===== Helpers to keep your old logic and add name-optional support safely =====
+
+    /**
+     * Accept both " > " and "&gt;" in YAML. We normalize to ">" and split.
+     */
+    private String[] normalizeAndSplitChain(String raw) {
+        if (raw == null) return new String[0];
+        String normalized = raw.replace("&gt;", ">");              // HTML entity to literal
+        return normalized.split("\\s*>\\s*");                      // split on literal '>'
+    }
+
+    /**
+     * Backward compatible type parsing:
+     *  - "Button_Save" -> "Button"
+     *  - "ROW_Order #42" -> "ROW"
+     *  - "Button" -> "Button"  (name-optional/new style)
+     */
+    private String parseType(String part) {
+        if (part == null) return "";
+        String token = part.trim();
+        int idx = token.indexOf('_');
+        return (idx >= 0 ? token.substring(0, idx) : token).trim();
+    }
+
+    /**
+     * Backward compatible value parsing:
+     *  - "Button_Save" -> "Save"
+     *  - "ROW_Order #42" -> "Order #42"
+     *  - "Button" -> ""  (unnamed role; .getByRole without name, action applies .first())
+     */
+    private String parseValue(String part) {
+        if (part == null) return "";
+        String token = part.trim();
+        int idx = token.indexOf('_');
+        return (idx >= 0 ? token.substring(idx + 1) : "").trim();
+    }
+
+    // ===== The rest of your class (unchanged) =====
 
     private boolean performAction(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
         Locator targetLocator = null;
@@ -177,6 +211,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
 
         return false;
     }
+
     @Override
     public boolean performActionPage(Page page, String action, String element, String key, String value) {
         return performAction(page, null, null, null, action, element, key, value, null);
@@ -327,6 +362,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
     @Override
     public String getExactLocator(String element, String key) {
         String locatorValue = elementLocatorHelper.getElement(element, key);
-        return elementLocatorHelper.getLocator(locatorValue);
+        // For compatibility: if someone passes a single token, return the value-part of it
+        return parseValue(locatorValue);
     }
 }
