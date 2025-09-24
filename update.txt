@@ -1,0 +1,80 @@
+💬 Teams Chat — Framework Update: ElementActionImpl
+
+Hi team 👋,
+
+We’ve upgraded ElementActionImpl with new features to make locators and frames more powerful, while staying 100% backward compatible.
+
+⸻
+
+🔹 Key Changes
+	1.	Auto Frame Selection (NEW)
+	•	If multiple iframes match (e.g., dynamic popups like iframe[frameborder='0px'], 1px, 2px),
+the framework now auto-detects the correct frame that contains your element.
+	•	Works across 1st, 2nd, and 3rd nested iframes.
+	•	✅ No YAML changes required.
+Example
+
+popup_ok: "ID_okButton"
+
+Before → Could fail if 2 popups opened.
+Now → Framework loops through frames and selects the one where #okButton is visible.
+
+	2.	Flexible Chain Parsing
+	•	Supports both " > " and "&gt;" in YAML.
+	•	Example:
+
+row_save: "ROW_Order Row #42 > Button_Save"
+row_save_html: "ROW_Order Row #42 &gt; Button_Save"
+
+Both work the same way.
+
+	3.	Name-Optional Roles
+	•	Old style with _ (still works):
+	•	Button_Save → Button named “Save”
+	•	ROW_Order #42 → Row named “Order #42”
+	•	New style without _:
+	•	Button → First unnamed button
+	•	ROW → First unnamed row
+	4.	getExactLocator Fix
+	•	When splitting type + value, only returns the locator part.
+	•	Example: Button_Save → "Save".
+
+⸻
+
+🔹 YAML → Playwright Examples
+
+Named button (old style)
+
+save_btn: "Button_Save"
+→ page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Save")).click();
+
+Unnamed button (new style)
+
+unnamed_btn: "Button"
+→ page.getByRole(AriaRole.BUTTON).first().click();
+
+Row with named button
+
+row_save: "ROW_Order Row #42 > Button_Save"
+→ row.getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Save")).click();
+
+Row with unnamed button
+
+row_unnamed: "ROW_Order Row #42 > Button"
+→ row.getByRole(AriaRole.BUTTON).first().click();
+
+Auto Frame Selection (no YAML change!)
+
+popup_ok: "ID_okButton"
+→ Framework auto-selects correct iframe containing #okButton.
+
+
+⸻
+
+🔹 Key Notes
+	•	✅ Old YAML works unchanged.
+	•	✅ Frames now auto-resolve dynamically.
+	•	✅ Use > or &gt; in YAML — both supported.
+	•	✅ New name-optional roles make YAML cleaner.
+
+⚡ Please start using the new styles for rows, popups, and unnamed elements. Auto-frame handling means fewer locator failures in dynamic UIs.
