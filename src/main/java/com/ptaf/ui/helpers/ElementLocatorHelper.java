@@ -5,88 +5,91 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * ElementLocatorHelper is a utility class responsible for retrieving element locators from a
- * YAML configuration file based on specified element names and keys. It also provides methods
- * for extracting locator types and actual locator strings from a formatted locator value.
+ * ElementLocatorHelper
  *
- * Usage:
- * - Use the getElement method to retrieve a locator value for a specific element name and key.
- * - Use the getLocatorType and getLocator methods to parse and retrieve specific parts
- *   of a locator string.
+ * Responsibilities:
+ *  - Fetch element strings from YAML (elements.{element}.{key}).
+ *  - Parse a chain segment token into {type, value}, e.g.:
+ *      "Button_Save" -> type=Button, value=Save
+ *      "Button"      -> type=Button, value=""
+ *
+ * Backward compatible with existing "TYPE_value" usage and adds support for
+ * name-optional segments like "Button", "ROW", "CELL", etc.
  */
 public class ElementLocatorHelper {
-
     private static final Logger logger = LoggerFactory.getLogger(ElementLocatorHelper.class);
 
     /**
-     * Get the element locator value from the YAML configuration based on the element name and key.
-     *
-     * @param element The element name for which the locator is to be retrieved.
-     * @param key     The key used to retrieve the specific locator for the element.
-     * @return The locator value associated with the specified element and key.
+     * Returns the raw element string for the given YAML path:
+     * elements.{element}.{key}
+     * Example YAML:
+     * elements:
+     *   OrdersPage:
+     *     rowFirstButton: "ROW_Order Row #42 > Button"
      */
     public String getElement(String element, String key) {
         try {
-            // Retrieve the locator from the YAML configuration using the specified element and key
-            return (String) YamlReader.get("elements." + element + "." + key);
+            Object raw = YamlReader.get("elements." + element + "." + key);
+            if (raw == null) {
+                throw new IllegalArgumentException("YAML value is null for elements." + element + "." + key);
+            }
+            return String.valueOf(raw);
         } catch (Exception e) {
-            // Log the error and rethrow the exception if the retrieval fails
-            logger.error("Failed to retrieve selector for element '{}'", element + key, e);
+            logger.error("Failed to retrieve YAML for elements.{}.{}: {}", element, key, e.getMessage());
             throw e;
         }
     }
 
     /**
-     * Explanation:
-     * indexOf("_"): Finds the position of the first underscore in the string.
-     * substring(firstUnderscoreIndex + 1): Extracts the substring starting right after the first underscore.
-     * Validation: Ensures there is content after the first underscore to avoid exceptions.
-     * Fallback: Returns an empty string if the input is invalid or lacks an underscore.
-     * Example:
-     * Input: "CSS_button" → Output: "button"
-     * Input: "ID_field_name" → Output: "field_name"
-     * Input: "noUnderscore" → Output: "" (empty string)
+     * Extracts the locator TYPE from a segment token.
+     * Examples:
+     *  - "Button_Save"  -> "Button"
+     *  - "ROW_Order #1" -> "ROW"
+     *  - "Button"       -> "Button" (no value provided)
      */
-
-    /**
-     * Extracts the locator type (e.g., XPATH, CSS) from the locator value.
-     *
-     * @param locatorValue The full locator value formatted as "LOCATOR_TYPE_LOCATOR".
-     * @return The locator type extracted from the locator value.
-     */
-
-    public String getLocatorType(String locatorValue) {
-        // Extract the locator type by splitting the locatorValue at the first underscore
-        int firstUnderscoreIndex = locatorValue.indexOf("_");
-        if (firstUnderscoreIndex != -1) {
-            return locatorValue.substring(0, firstUnderscoreIndex); // Get substring before the first underscore
-        }
-        return ""; // Return an empty string if no underscore is found
+    public String getLocatorType(String part) {
+        if (part == null) return "";
+        String token = part.trim();
+        int idx = token.indexOf('_');
+        String type = (idx >= 0) ? token.substring(0, idx) : token;
+        return type.trim();
     }
 
     /**
-     * Explanation:
-     * indexOf("_"): Finds the position of the first underscore in the string.
-     * substring(firstUnderscoreIndex + 1): Extracts the substring starting right after the first underscore.
-     * Validation: Ensures there is content after the first underscore to avoid exceptions.
-     * Fallback: Returns an empty string if the input is invalid or lacks an underscore.
-     * Example:
-     * Input: "CSS_button" → Output: "button"
-     * Input: "ID_field_name" → Output: "field_name"
-     * Input: "noUnderscore" → Output: "" (empty string)
-     */
-    /**
-     * Extracts the actual locator from the locator value.
+     * Extracts the locator VALUE from a segment token.
+     * Examples:
+     *  - "Button_Save"  -> "Save"
+     *  - "ROW_Order #1" -> "Order #1"
+     *  - "Button"       -> "" (empty, meaning unnamed role)
      *
-     * @param locatorValue The full locator value formatted as "LOCATOR_TYPE_LOCATOR".
-     * @return The locator string, which is the part following the locator type.
+     * NOTE: Returning "" for the no-underscore case is intentional — it allows
+     * LocatorHandler to treat this as an unnamed role (e.g., getByRole(ROLE) w/o name).
      */
-    public String getLocator(String locatorValue) {
-        // Extract the actual locator by splitting the locatorValue at the first underscore
-        int firstUnderscoreIndex = locatorValue.indexOf("_");
-        if (firstUnderscoreIndex != -1 && firstUnderscoreIndex + 1 < locatorValue.length()) {
-            return locatorValue.substring(firstUnderscoreIndex + 1); // Get substring after the first underscore
+    public String getLocator(String part) {
+        if (part == null) return "";
+        String token = part.trim();
+        int idx = token.indexOf('_');
+        if (idx < 0) {
+            // No underscore => no explicit value (new style)
+            return "";
         }
-        return ""; // Return an empty string if no underscore or nothing follows the first underscore
+        // Everything after the first underscore is the value (keeps any additional underscores in value)
+        String value = token.substring(idx + 1);
+        return value.trim();
+    }
+
+    // -------- Optional helpers (not required by existing code, but handy) --------
+
+    /** Returns true if the token has an explicit value (contains underscore). */
+    public boolean hasExplicitValue(String part) {
+        if (part == null) return false;
+        return part.indexOf('_') >= 0;
+    }
+
+    /** Canonical split: returns {type, value}. If no value, returns empty string as value. */
+    public String[] splitTypeAndValue(String part) {
+        String type = getLocatorType(part);
+        String value = getLocator(part);
+        return new String[]{type, value};
     }
 }
