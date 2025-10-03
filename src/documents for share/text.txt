@@ -1,0 +1,34 @@
+import com.microsoft.playwright.*;
+import com.microsoft.playwright.options.*;
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import java.util.*;
+
+public class Example {
+  public static void main(String[] args) {
+    try (Playwright playwright = Playwright.create()) {
+      Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions()
+        .setHeadless(false));
+      BrowserContext context = browser.newContext(new Browser.NewContextOptions()
+        .setViewportSize(1920, 1080));
+      Page page = context.newPage();
+      page.locator("body").click();
+      page.navigate("https://navwebtst.myfnb.us/nav_nav1151/Nav1151.aspx");
+      page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Submit")).click();
+      page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("Password:")).click();
+      page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("Password:")).fill("Damir202010#");
+      page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Submit")).click();
+      page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Web Director")).click();
+      Page page1 = page.waitForPopup(() -> {
+        page.locator("#WebDirectorBrowser").click();
+      });
+      page1.locator("iframe[name=\"NavPanelIFrame\"]").contentFrame().getByRole(AriaRole.TEXTBOX, new FrameLocator.GetByRoleOptions().setName("(type in document type name)")).click();
+      page1.locator("iframe[name=\"NavPanelIFrame\"]").contentFrame().getByTitle("Filter Items by Name").getByRole(AriaRole.IMG).click();
+      page1.close();
+      page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Security Control")).click();
+      page.getByText("Log Out").click();
+      Page page2 = context.newPage();
+      page.close();
+    }
+  }
+}
+ 
