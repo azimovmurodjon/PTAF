@@ -82,3 +82,257 @@ public class Example {
     }
   }
 }
+
+
+
+here’s a clean, shareable doc you can hand to the team. it summarizes exactly what changed, how to use it, and why — no PicoContainer and no Hooks edits included.
+
+⸻
+
+PTAF UI Automation – Changes & Usage Guide
+
+Scope:
+This document summarizes the non-breaking improvements made to our PTAF UI automation stack. It focuses on dynamic iframe/modal handling, reusable role-based locators, a rich assertion layer, and generic reusable steps.
+No changes were made to Hooks or any PicoContainer wiring.
+
+⸻
+
+1) What’s new (at a glance)
+	•	Dynamic modal/iframe resolution (non-breaking):
+	•	Automatically targets the topmost/visible modal frame when multiple modals match.
+	•	Works with existing step definitions; no changes required in features.
+	•	Robust chain parsing for locators:
+	•	Supports both " > " and "&gt;".
+	•	Supports unnamed role segments (e.g., "Button" or "ROW") for first-match behavior.
+	•	Assertion layer (UIAssert):
+	•	Rich assertions mirroring ActionPerformer semantics, with clean overloads (page / iframe / nested).
+	•	Centralized screenshot capture on failure (re-uses your existing failure flow).
+	•	Generic reusable steps (optional glue):
+	•	Single step class you can drop in to cover “millions” of cases (page, modal, nested iframes, bulk tables, placeholders).
+
+⸻
+
+2) Files touched / added
+
+2.1 ElementActionImpl (updated)
+	•	Location: com.ptaf.ui.action_performer.ElementActionImpl
+	•	Key changes (non-breaking):
+	•	Dynamic frame resolution in:
+	•	private FrameLocator findFrameWithElement(Page page, String iframeSelector, String element, String key)
+	•	private FrameLocator findFrameWithElement(FrameLocator parentFrame, String iframeSelector, String element, String key)
+	•	Strategy:
+	1.	Try the provided selector with :visible
+	2.	Try the selector as-is
+	3.	Fallback to well-known modal patterns:
+	•	iframe[name^='iframeWindowModal']:visible
+	•	iframe[frameborder='0px']:visible
+	•	iframe[name^='iframeWindowModal']
+	•	iframe[frameborder='0px']
+	4.	Ultimate fallback: first match of the original selector
+	•	Reverse order scan (last → first) to prefer newest/topmost modal.
+	•	Chain parsing unchanged but tolerant: " > " and "&gt;", unnamed roles allowed.
+	•	No public signature changes; all existing steps & YAML remain valid.
+	•	Imports: ensure import com.microsoft.playwright.options.WaitForSelectorState; exists.
+
+Example (unchanged usage)
+
+// Will click the "Add" button in the active/topmost modal even if multiple modals exist
+elementAction.performActionPageFrame(
+    page,
+    "iframe[frameborder='0px']", null, null,
+    "click",
+    "Modal", "addBtn",
+    null,
+    null
+);
+
+2.2 LocatorHandler (minor fix)
+	•	Location: com.ptaf.ui.handlers.LocatorHandler
+	•	Fix: Corrected a malformed SPINBUTTON line in the Frame context to use:
+
+return isUnnamed(locator, t) ? frame.getByRole(AriaRole.SPINBUTTON)
+    : frame.getByRole(AriaRole.SPINBUTTON, new FrameLocator.GetByRoleOptions().setName(locator));
+
+	•	Keeps consistency across Page / FrameLocator / Locator contexts.
+
+2.3 ElementLocatorHelper (unchanged behavior, documented)
+	•	Location: com.ptaf.ui.helpers.ElementLocatorHelper
+	•	Purpose: YAML access + tolerant split helpers.
+	•	Notes:
+	•	getLocatorType("Button_Save") -> "Button"
+	•	getLocator("Button_Save") -> "Save"
+	•	For "Button", value is "" (unnamed role → .getByRole(ROLE)).
+
+2.4 UIAssert (new)
+	•	Location: com.ptaf.ui.assertions.UIAssert
+	•	Purpose: Assertion layer aligned to ActionPerformer operations with ergonomic overloads and richer helpers.
+	•	Highlights:
+	•	Core: textEquals, textContains, valueEquals, attributeEquals, attributeContains
+	•	State: isVisible, isHidden, isEnabled, isDisabled, isChecked, hasClass
+	•	Existence: exists, notExists
+	•	Waits: waitForText, waitForValue
+	•	Extended: textEqualsTrimmed (whitespace-normalized), countEquals (node count)
+	•	Overloads without iframe args for simple cases.
+	•	Failures call your screenshot handler (via Hooks.getCurrentScenario()), so reporting remains consistent.
+
+Example (assertions)
+
+// Page-level
+uiAssert.textEquals(page, "Home", "welcomeHeader", "Welcome John");
+
+// In iframe
+uiAssert.textContains(page, "iframe[frameborder='0px']", null, null,
+                      "Modal", "bodyText", "Success");
+
+2.5 Generic Reusable Steps (optional glue)
+	•	Location suggestion: com.ptaf.steps.common.GenericSteps
+	•	What it gives you:
+	•	Generic {word} action steps on element.key with/without value.
+	•	Iframe and nested iframes (up to 3) variants.
+	•	Assertions mirrored from UIAssert.
+	•	DataTable bulk actions.
+	•	Value placeholders via ${var} which you can set/get using your own world/stash mechanism (if you have one), or adapt to your current utilities.
+	•	Note: This is additive glue. If you adopt it, most bespoke step defs can be deleted over time.
+
+⸻
+
+3) YAML patterns (unchanged, just clearer)
+
+Recommended entries:
+
+elements:
+  NavPanel:
+    documentTypeTextbox: "TEXTBOX_(type in document type name)"
+    filterItemsIcon: "TITLE_Filter Items by Name > IMAGE"
+
+  Modal:
+    addBtn: "BUTTON_Add"
+    previousBtn: "BUTTON_Previous"
+    header: "HEADING_Modal Title"
+
+	•	TEXTBOX_(...) → role TEXTBOX with name = (type in document type name).
+	•	TITLE_... > IMAGE → .getByTitle("...").getByRole(IMG).
+	•	BUTTON_Add / "BUTTON" (unnamed) are both supported; unnamed picks the first match.
+
+⸻
+
+4) How dynamic modal selection works (under the hood)
+
+When you pass an iframe selector (e.g., "iframe[frameborder='0px']" or "iframe[name^='iframeWindowModal']"), the framework:
+	1.	Tries selector:visible.
+	2.	If none, tries selector.
+	3.	If none, tries known modal fallbacks.
+	4.	Finally, falls back to the first match of your original selector (legacy behavior to avoid breakage).
+
+Within the matches, it scans from last to first, and picks the first where the first chain segment of your YAML element is visible. This naturally targets the newest/topmost modal, even if identical controls exist in multiple modals.
+
+⸻
+
+5) Existing step examples that continue to work
+
+A) FrameLocator style (works as-is)
+
+page1.frameLocator("iframe[name='NavPanelIFrame']")
+    .getByRole(AriaRole.TEXTBOX, new FrameLocator.GetByRoleOptions().setName("(type in document type name)"))
+    .click();
+
+page1.frameLocator("iframe[name='NavPanelIFrame']")
+    .getByTitle("Filter Items by Name")
+    .getByRole(AriaRole.IMG)
+    .click();
+
+B) Framework-driven (preferred for consistency)
+
+// Click textbox inside NavPanel iframe
+elementAction.performActionPageFrame(
+    page1,
+    "iframe[name='NavPanelIFrame']", null, null,
+    "click",
+    "NavPanel", "documentTypeTextbox",
+    null, null
+);
+
+// Click filter icon
+elementAction.performActionPageFrame(
+    page1,
+    "iframe[name='NavPanelIFrame']", null, null,
+    "click",
+    "NavPanel", "filterItemsIcon",
+    null, null
+);
+
+// Click Add in the active modal (dynamic frame)
+elementAction.performActionPageFrame(
+    page1,
+    "iframe[frameborder='0px']", null, null,
+    "click",
+    "Modal", "addBtn",
+    null, null
+);
+
+
+⸻
+
+6) Do / Don’t
+
+Do
+	•	Keep using your existing step definitions and YAML — these changes are backward compatible.
+	•	Use semantic roles in YAML (BUTTON, TEXTBOX, HEADING, TITLE > IMAGE, etc.).
+	•	For modals, pass a generic iframe selector like "iframe[frameborder='0px']"; the framework will pick the right one.
+
+Don’t
+	•	Hardcode modal indices like (//iframe[...])[2].
+	•	Duplicate fragile selectors in step code — put them in YAML with role chains.
+
+⸻
+
+7) FAQ
+
+Q: Two modals both have "BUTTON_Add". Which gets clicked?
+A: The topmost/visible modal that actually contains a visible "BUTTON_Add".
+
+Q: Do I need to change my Hooks?
+A: No. We made no changes to Hooks for these features.
+
+Q: Will existing features or teams break?
+A: No. All changes are additive/non-breaking. Public signatures stayed the same.
+
+Q: Do I need to reauthor YAML?
+A: No. Existing TYPE_value entries still work. You can optionally use unnamed role segments (e.g., "BUTTON") where first match is OK.
+
+⸻
+
+8) Quick reference – assertion methods
+
+Page-level (no iframe):
+
+uiAssert.textEquals(page, "Home", "header", "Welcome");
+uiAssert.textContains(page, "Toast", "message", "Success");
+uiAssert.valueEquals(page, "Form", "email", "user@company.com");
+uiAssert.isVisible(page, "Login", "submitButton");
+uiAssert.exists(page, "List", "firstRow");
+uiAssert.waitForText(page, "Toast", "message", "Saved");
+
+Iframe-level:
+
+uiAssert.textEquals(page, "iframe[frameborder='0px']", null, null,
+                    "Modal", "header", "Create Record");
+
+uiAssert.textContains(page, "iframe[name='NavPanelIFrame']", null, null,
+                      "NavPanel", "counter", "10");
+
+Extended:
+
+uiAssert.textEqualsTrimmed(page, "Home", "header", "Welcome user");
+uiAssert.countEquals(page, "List", "rows", 5);
+
+
+⸻
+
+9) What to paste into your repo
+	1.	ElementActionImpl.java – updated with dynamic frame selection & helpers (no signature changes).
+	2.	LocatorHandler.java – SPINBUTTON frame context fix.
+	3.	UIAssert.java – new assertion layer class (drop-in).
+	4.	(Optional) GenericSteps.java – reusable step definitions for broad coverage.
+
+If you want the full, ready-to-paste versions of these files in a bundle, say the word and I’ll produce them exactly as we’ve standardized above.
