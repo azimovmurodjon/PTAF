@@ -31,4 +31,54 @@ public class Example {
     }
   }
 }
- 
+
+
+import com.microsoft.playwright.*;
+import com.microsoft.playwright.options.*;
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import java.util.*;
+
+public class Example {
+  public static void main(String[] args) {
+    try (Playwright playwright = Playwright.create()) {
+      Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions()
+        .setHeadless(false));
+      BrowserContext context = browser.newContext();
+      Page page = context.newPage();
+      page.navigate("https://vsargwebqa01.myfnb.us:5048/");
+      Page page1 = page.waitForPopup(() -> {
+        page.frameLocator("iframe[name=\"iframe35030\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Continue")).click();
+      });
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").locator("select[name=\"selectRegionID\"]").selectOption("0029");
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Sign On")).click();
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").locator("#divSelectedView7").click();
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").locator("#divSelectedView7").click();
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").locator("#selectSearchBy").selectOption("T");
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").locator("#textTaxIDNumber").click();
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").getByRole(AriaRole.CELL, new FrameLocator.GetByRoleOptions().setName("SEARCH").setExact(true)).click();
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("SEARCH")).click();
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").frameLocator("iframe[name=\"iframeContent\"]").getByRole(AriaRole.LINK, new FrameLocator.GetByRoleOptions().setName("AUTOTEST_LISA CUSTOMER")).click();
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").getByRole(AriaRole.LINK, new FrameLocator.GetByRoleOptions().setName("Business Financial Solutions")).click();
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").getByText("Service and Maintenance").click();
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").getByText("Update Account Ownership").click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal4017\"]").locator("#selectOwnershipType").selectOption("454");
+      page1.frameLocator("iframe[name=\"iframeWindowModal4017\"]").locator("#selectConsumer").selectOption("AUTOTEST_LISA CUSTOMER");
+      page1.frameLocator("iframe[name=\"iframeWindowModal4017\"]").locator("#selectRelationship").selectOption("793");
+      page1.frameLocator("iframe[name=\"iframeWindowModal4017\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Add")).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal4017\"]").getByRole(AriaRole.LINK, new FrameLocator.GetByRoleOptions().setName("Search...")).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal330\"]").locator("#selectSearchBy").selectOption("T");
+      page1.frameLocator("iframe[name=\"iframeWindowModal330\"]").locator("#textTaxIDNumber").click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal330\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Search")).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal330\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Select")).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal4017\"]").locator("#selectRelationship").selectOption("729");
+      page1.frameLocator("iframe[name=\"iframeWindowModal4017\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Add")).click();
+      page1.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("OK")).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal1857\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Previous")).click();
+      page1.onceDialog(dialog -> {
+        System.out.println(String.format("Dialog message: %s", dialog.message()));
+        dialog.dismiss();
+      });
+      page1.frameLocator("iframe[name=\"iframeWindowModal1857\"]").getByRole(AriaRole.CELL, new FrameLocator.GetByRoleOptions().setName("Client").setExact(true)).getByRole(AriaRole.RADIO).check();
+    }
+  }
+}
