@@ -119,6 +119,18 @@
             <artifactId>extentreports</artifactId>
             <version>5.0.9</version>
         </dependency>
+        <!-- PDF parsing -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>2.0.30</version>
+        </dependency>
+        <!-- Handy file utils for newest-file lookup, etc. -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.15.1</version>
+        </dependency>
 
         <dependency>
             <groupId>org.projectlombok</groupId>

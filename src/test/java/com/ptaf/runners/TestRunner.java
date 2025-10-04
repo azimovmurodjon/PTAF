@@ -13,7 +13,7 @@ import io.cucumber.junit.CucumberOptions;
                 "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:",  // Generate an HTML report in the specified location
                 "timeline:test-output-thread/"
         },
-        tags = "@secondPageTest",
+        tags = "@pdf",
         // Specify the location of the feature files
         features = "src/test/resources/features",
         // Specify the packages containing the step definitions and hooks
