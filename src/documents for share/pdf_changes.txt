@@ -1,0 +1,139 @@
+Perfect 👍
+Since you already have the UI/Frame changes document, here’s a dedicated PDF Validation Documentation only. It’s structured so even a new intern can understand why, how, and when to use it.
+
+⸻
+
+📄 PTAF Framework – PDF Validation Enhancements
+
+🔹 1. Why Do We Need PDF Validation?
+
+In many enterprise applications (like banking, insurance, e-commerce, healthcare), the system generates PDF documents such as:
+	•	Invoices
+	•	Statements
+	•	Contracts
+	•	Reports
+
+These documents contain critical information. Testing only the UI message is not enough — we must validate the actual PDF content that the end-user downloads.
+
+✅ That’s why we added PDF validation support into PTAF.
+
+⸻
+
+🔹 2. New Classes Added
+
+1. PdfUtils
+	•	A low-level helper class.
+	•	Responsibilities:
+	•	Open PDF files (using Apache PDFBox).
+	•	Extract text from whole PDF or specific pages.
+	•	Read metadata like author, title, page count.
+
+Example:
+
+String text = PdfUtils.extractTextFromPdf("invoice.pdf");
+System.out.println(text);
+
+
+⸻
+
+2. PdfValidator
+	•	A higher-level class built on top of PdfUtils.
+	•	Provides assertion methods so testers don’t have to write parsing logic.
+	•	Methods include:
+	•	assertContainsText(pdfPath, text)
+	•	assertDoesNotContainText(pdfPath, text)
+	•	assertMatchesRegex(pdfPath, regex)
+	•	assertPageContainsText(pdfPath, page, text)
+	•	assertMetadata(pdfPath, key, expectedValue)
+	•	assertPageCount(pdfPath, expectedPages)
+
+Example:
+
+PdfValidator.assertContainsText("invoice.pdf", "Invoice #12345");
+PdfValidator.assertMatchesRegex("invoice.pdf", "Total\\s*\\$\\s*1,234\\.56");
+
+
+⸻
+
+3. PdfSteps (Cucumber Glue Code)
+	•	Connects Gherkin feature files with Java implementation.
+	•	Reusable across millions of test cases.
+
+Example:
+
+Then the last PDF should contain "Invoice #12345"
+And the last PDF should match regex "Total\\s*\\$\\s*1,234\\.56"
+
+
+⸻
+
+🔹 3. Example Feature File
+
+This is a realistic test case for invoice validation:
+
+Feature: Validate Invoice PDF
+
+  Background:
+    When I set last PDF from directory "target/downloads"
+    Then the last PDF should exist
+    And the last PDF should be a valid PDF
+    And the last PDF should have 2 pages
+
+  Scenario: Validate page 1 content
+    Then page 1 of the last PDF should contain "Invoice #12345"
+    And page 1 of the last PDF should contain "Total $1,234.56"
+
+  Scenario: Validate page 2 content
+    Then page 2 of the last PDF should contain "Payment Details"
+    And page 2 of the last PDF should contain "Total: $378.00"
+
+  Scenario: Validate using regex
+    Then the last PDF should match regex "Subtotal\\s*:\\s*\\$\\s*350\\.00"
+    And the last PDF should match regex "Tax\\s*\\(8%\\)\\s*:\\s*\\$\\s*28\\.00"
+
+
+⸻
+
+🔹 4. How Interns & New Users Should Use It
+
+Step 1 – Save Locators in YAML
+
+Example for download button:
+
+elements:
+  ReportsPage:
+    downloadInvoiceButton: "BUTTON_Download Invoice"
+
+Step 2 – Write Scenario in Feature File
+
+When I click on "downloadInvoiceButton" from "ReportsPage"
+Then the last PDF should contain "Invoice #12345"
+And the last PDF should match regex "Total\\s*\\$\\s*1,234\\.56"
+
+Step 3 – Run Tests
+	•	Framework automatically finds the latest downloaded PDF.
+	•	Extracts text.
+	•	Validates according to steps.
+
+⸻
+
+🔹 5. Benefits
+	•	✅ Reusable – One set of steps works for all PDFs.
+	•	✅ Intern-friendly – No coding needed, just write Gherkin.
+	•	✅ Regex support – Powerful validation (amounts, dates, IDs).
+	•	✅ Scalable – Works for millions of test cases across projects.
+	•	✅ Seamless Integration – Works with your existing step definitions and YAML locators.
+
+⸻
+
+🔹 6. Key Takeaway
+
+Now our framework can validate UI + PDF output together.
+	•	UI tests check if buttons, forms, and flows work.
+	•	PDF tests check if the generated document is correct.
+
+This ensures end-to-end coverage for critical business scenarios.
+
+⸻
+
+👉 Do you want me to now create this as a proper Word/PDF document with formatting and diagrams so you can directly circulate among your team?
