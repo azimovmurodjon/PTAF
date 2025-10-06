@@ -1,24 +1,109 @@
 [main] ERROR com.ptaf.ui.action_performer.ActionPerformer - Failed to wait for the element to be displayed
-com.microsoft.playwright.PlaywrightException: Error {
-  message='Error: strict mode violation: locator("iframe[frameborder='0px']") resolved to 2 elements:
-    1) <iframe scrolling="no" frameborder="0px" class="ui-widget-content" id="iframeWindowModal8075" name="iframeWindowModal8075"></iframe> aka locator("iframe[name=\"iframeWindowModal8075\"]")
-    2) <iframe scrolling="no" frameborder="0px" class="ui-widget-content" id="iframeWindowModal7266" name="iframeWindowModal7266" src="/modules/platform_search/content/platform_search.htm?DesktopMode=Sales"></iframe> aka locator("iframe[name=\"iframeWindowModal7266\"]")
-
-  name='Error
-  stack='Error: Error: strict mode violation: locator("iframe[frameborder='0px']") resolved to 2 elements:
-    1) <iframe scrolling="no" frameborder="0px" class="ui-widget-content" id="iframeWindowModal8075" name="iframeWindowModal8075"></iframe> aka locator("iframe[name=\"iframeWindowModal8075\"]")
-    2) <iframe scrolling="no" frameborder="0px" class="ui-widget-content" id="iframeWindowModal7266" name="iframeWindowModal7266" src="/modules/platform_search/content/platform_search.htm?DesktopMode=Sales"></iframe> aka locator("iframe[name=\"iframeWindowModal7266\"]")
-
-    at CRExecutionContext.evaluateWithArguments (C:\Users\azimovm\AppData\Local\Temp\playwright-java-3681528557128015227\package\lib\server\chromium\crExecutionContext.js:92:33)
-    at async LongStandingScope._race (C:\Users\azimovm\AppData\Local\Temp\playwright-java-3681528557128015227\package\lib\utils\manualPromise.js:96:14)
-    at async evaluateExpression (C:\Users\azimovm\AppData\Local\Temp\playwright-java-3681528557128015227\package\lib\server\javascript.js:242:12)
-    at async FrameSelectors.resolveFrameForSelector (C:\Users\azimovm\AppData\Local\Temp\playwright-java-3681528557128015227\package\lib\server\frameSelectors.js:123:22)
-    at async FrameSelectors.resolveInjectedForSelector (C:\Users\azimovm\AppData\Local\Temp\playwright-java-3681528557128015227\package\lib\server\frameSelectors.js:152:22)
-    at async C:\Users\azimovm\AppData\Local\Temp\playwright-java-3681528557128015227\package\lib\server\frames.js:629:24
-    at async Frame.retryWithProgressAndTimeouts (C:\Users\azimovm\AppData\Local\Temp\playwright-java-3681528557128015227\package\lib\server\frames.js:923:24)
-    at async C:\Users\azimovm\AppData\Local\Temp\playwright-java-3681528557128015227\package\lib\server\frames.js:621:14
-    at async ProgressController.run (C:\Users\azimovm\AppData\Local\Temp\playwright-java-3681528557128015227\package\lib\server\progress.js:82:22)
-    at async FrameDispatcher.waitForSelector (C:\Users\azimovm\AppData\Local\Temp\playwright-java-3681528557128015227\package\lib\server\dispatchers\frameDispatcher.js:105:85)
+com.microsoft.playwright.TimeoutError: Error {
+  message='Timeout 30000ms exceeded.
+  name='TimeoutError
+  stack='TimeoutError: Timeout 30000ms exceeded.
+    at ProgressController.run (C:\Users\azimovm\AppData\Local\Temp\playwright-java-9805761689353999520\package\lib\server\progress.js:78:26)
+    at Frame.waitForSelector (C:\Users\azimovm\AppData\Local\Temp\playwright-java-9805761689353999520\package\lib\server\frames.js:619:23)
+    at FrameDispatcher.waitForSelector (C:\Users\azimovm\AppData\Local\Temp\playwright-java-9805761689353999520\package\lib\server\dispatchers\frameDispatcher.js:105:103)
+    at FrameDispatcher._handleCommand (C:\Users\azimovm\AppData\Local\Temp\playwright-java-9805761689353999520\package\lib\server\dispatchers\dispatcher.js:94:40)
+    at DispatcherConnection.dispatch (C:\Users\azimovm\AppData\Local\Temp\playwright-java-9805761689353999520\package\lib\server\dispatchers\dispatcher.js:361:39)
 }
 Call log:
-- waiting for frameLocator("iframe[frameborder='0px']").locator("#textTaxIDNumber").first() to be visible
+- waiting for frameLocator("iframe[name^='iframeWindowModal'], iframe[frameborder='0px']").nth(1).locator("//*[@id='textTaxIDNumber']").first() to be visible
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+-   locator resolved to hidden <input type="text" required="Y" tabindex="0" maxlength="9" isreadonly="false" class="taxIdNumber" tinbusiness="false" id="textTaxIDNumber" name="textTaxIDNumber" description="Tax ID Number"/>
+
+	at com.microsoft.playwright.impl.WaitableResult.get(WaitableResult.java:52)
+	at com.microsoft.playwright.impl.ChannelOwner.runUntil(ChannelOwner.java:120)
+	at com.microsoft.playwright.impl.Connection.sendMessage(Connection.java:130)
+	at com.microsoft.playwright.impl.ChannelOwner.sendMessage(ChannelOwner.java:106)
+	at com.microsoft.playwright.impl.FrameImpl.waitForSelectorImpl(FrameImpl.java:1060)
+	at com.microsoft.playwright.impl.LocatorImpl.lambda$waitForImpl$7(LocatorImpl.java:619)
+	at com.microsoft.playwright.impl.LoggingSupport.withLogging(LoggingSupport.java:47)
+	at com.microsoft.playwright.impl.ChannelOwner.withLogging(ChannelOwner.java:89)
+	at com.microsoft.playwright.impl.LocatorImpl.waitForImpl(LocatorImpl.java:619)
+	at com.microsoft.playwright.impl.LocatorImpl.waitFor(LocatorImpl.java:615)
+	at com.ptaf.ui.action_performer.ActionPerformer.waitForLocator(ActionPerformer.java:260)
+	at com.ptaf.ui.action_performer.ElementActionImpl.performAction(ElementActionImpl.java:293)
+	at com.ptaf.ui.action_performer.ElementActionImpl.performActionPageFrame(ElementActionImpl.java:315)
+	at com.ptaf.ui.pages.FrameCommonMethods.lambda$performAction$0(FrameCommonMethods.java:827)
+	at com.ptaf.ui.pages.FrameCommonMethods.executeStep(FrameCommonMethods.java:982)
+	at com.ptaf.ui.pages.FrameCommonMethods.performAction(FrameCommonMethods.java:826)
+	at com.ptaf.ui.pages.FrameCommonMethods.click(FrameCommonMethods.java:68)
+	at com.ptaf.stepdefinitions.FrameCommonSteps.weClickActionOnPop_UpFrame(FrameCommonSteps.java:912)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at io.cucumber.java.Invoker.doInvoke(Invoker.java:66)
+	at io.cucumber.java.Invoker.invoke(Invoker.java:24)
+	at io.cucumber.java.AbstractGlueDefinition.invokeMethod(AbstractGlueDefinition.java:47)
+	at io.cucumber.java.JavaStepDefinition.execute(JavaStepDefinition.java:29)
+	at io.cucumber.core.runner.CoreStepDefinition.execute(CoreStepDefinition.java:66)
+	at io.cucumber.core.runner.PickleStepDefinitionMatch.runStep(PickleStepDefinitionMatch.java:62)
+	at io.cucumber.core.runner.ExecutionMode$1.execute(ExecutionMode.java:10)
+	at io.cucumber.core.runner.TestStep.executeStep(TestStep.java:81)
+	at io.cucumber.core.runner.TestStep.run(TestStep.java:53)
+	at io.cucumber.core.runner.PickleStepTestStep.run(PickleStepTestStep.java:51)
+	at io.cucumber.core.runner.TestCase.run(TestCase.java:84)
+	at io.cucumber.core.runner.Runner.runPickle(Runner.java:75)
