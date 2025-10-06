@@ -22,12 +22,17 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * ElementActionImpl
+ * ElementActionImpl (Auto-Frame Selection)
  *
- * Backward-compatible element orchestration with enhanced, resilient iframe/modal handling.
- * NEW: Supports XPath-like indexed iframe selectors e.g. "(iframe[frameborder='0px'])[2]".
- *       We parse, convert to frameLocator(base).nth(index-1), verify target visibility,
- *       otherwise fall back to modal probing and legacy scanning.
+ * What’s new (without breaking existing code):
+ * - Handles XPath-like indexed iframe selectors: (iframe[...])[N]
+ *   → Tries that specific index first, then auto-probes others if needed.
+ * - Modal-aware: for iframeWindowModal#### and iframe[frameborder='0px']
+ *   → Orders by z-index, then probes the ENTIRE chained locator to find the frame
+ *     where the final target is actually VISIBLE (or best match by count).
+ * - Legacy fallback scanning retained for compatibility.
+ *
+ * You do NOT need to change step definitions or YAML.
  */
 public class ElementActionImpl extends PageHelper implements ElementAction {
     private static final Logger logger = LoggerFactory.getLogger(ElementActionImpl.class);
@@ -89,201 +94,275 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
     }
 
     // ============================================================
-    // Frame resolution (ENHANCED: index-aware + modal-aware probing)
+    // Frame resolution (Index-aware + Modal-aware + Auto-probing)
     // ============================================================
+
     private FrameLocator findFrameWithElement(Page page, String iframeSelector, String element, String key) {
-        // Parse first chain segment (used for visibility probing)
-        String full = elementLocatorHelper.getElement(element, key);
-        String[] parts = normalizeAndSplitChain(full);
-        String firstPart = parts[0].trim();
-        String firstType = parseType(firstPart);
-        String firstValue = parseValue(firstPart);
-
-        // 1) Handle XPath-like index form: (iframe[...])[N]
+        // 1) If XPath-like index selector present, try that index first
         IndexedSelector idxSel = parseIndexedIframeSelector(iframeSelector);
+
+        String selBase = (idxSel != null) ? idxSel.base : iframeSelector;
+        String selNormalized = relaxModalSelectorIfNeeded(selBase);
+
+        boolean looksModal = selNormalized != null &&
+                (selNormalized.contains("iframeWindowModal") || selNormalized.contains("frameborder"));
+
+        String candidateSelector = looksModal
+                ? "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']"
+                : selNormalized;
+
+        // Short, non-fatal wait for candidate frames to attach
+        try {
+            page.waitForSelector(candidateSelector, new Page.WaitForSelectorOptions().setTimeout(1500));
+        } catch (Throwable ignored) {}
+
+        // 2) Try explicit index first (if provided)
         if (idxSel != null) {
-            // Try the specific index first (0-based)
             FrameLocator candidate = page.frameLocator(idxSel.base).nth(idxSel.indexZeroBased);
-            Locator test = locatorHandler.getLocatorForType(firstType, candidate, firstValue);
-            if (isLocatorVisibleQuick(test)) {
-                logger.info("Resolved indexed iframe {}[{}] for target [{}:{}]", idxSel.base, idxSel.indexZeroBased, firstType, firstValue);
+            if (isFinalChainVisibleInContext(candidate, element, key)) {
+                logger.info("Resolved indexed iframe {}[{}] for element '{}':'{}'",
+                        idxSel.base, idxSel.indexZeroBased, element, key);
                 return candidate;
+            } else {
+                logger.info("Indexed iframe {}[{}] did not expose the target; auto-probing others...",
+                        idxSel.base, idxSel.indexZeroBased);
             }
-            // If not visible there, continue with modal/legacy fallback below.
         }
 
-        // 2) Relax/normalize modal selector if needed
-        String sel = relaxModalSelectorIfNeeded( (idxSel != null) ? idxSel.base : iframeSelector );
+        // 3) Auto-probe all candidates (modal-aware ordering + chain probing)
+        FrameLocator best = pickBestFrameByChainProbe(page, candidateSelector, element, key);
+        if (best != null) return best;
 
-        // 3) If it's modal-like, probe all modal frames in z-index order
-        if (sel != null && (sel.contains("iframeWindowModal") || sel.contains("frameborder"))) {
-            String modalSelector = "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']";
-            try {
-                page.waitForSelector(modalSelector, new Page.WaitForSelectorOptions().setTimeout(1500));
-            } catch (Throwable ignored) {}
-
-            FrameLocator probed = probeModalFramesForTarget(page, modalSelector, firstType, firstValue);
-            if (probed != null) return probed;
-        }
-
-        // 4) Legacy fallback scanning (kept for backward compatibility)
-        Locator iframeLocator = page.locator(sel);
+        // 4) Legacy fallback scanning (kept for compatibility)
+        Locator iframeLocator = page.locator(selNormalized);
         int count = iframeLocator.count();
-
         for (int i = 0; i < count; i++) {
-            FrameLocator fl = page.frameLocator(sel).nth(i);
-            Locator testLocator = locatorHandler.getLocatorForType(firstType, fl, firstValue);
-            if (testLocator.count() > 0 && testLocator.isVisible()) {
-                return fl;
-            }
+            FrameLocator fl = page.frameLocator(selNormalized).nth(i);
+            if (isFirstTokenVisibleInContext(fl, element, key)) return fl;
         }
 
         // 5) Final fallback to first matching frame
-        return page.frameLocator(sel);
+        return page.frameLocator(selNormalized);
     }
 
     private FrameLocator findFrameWithElement(FrameLocator parentFrame, String iframeSelector, String element, String key) {
-        // Parse first chain segment (used for visibility probing)
-        String full = elementLocatorHelper.getElement(element, key);
-        String[] parts = normalizeAndSplitChain(full);
-        String firstPart = parts[0].trim();
-        String firstType = parseType(firstPart);
-        String firstValue = parseValue(firstPart);
-
-        // 1) Handle XPath-like index form: (iframe[...])[N]
+        // 1) If XPath-like index selector present, try that index first
         IndexedSelector idxSel = parseIndexedIframeSelector(iframeSelector);
+
+        String selBase = (idxSel != null) ? idxSel.base : iframeSelector;
+        String selNormalized = relaxModalSelectorIfNeeded(selBase);
+
+        boolean looksModal = selNormalized != null &&
+                (selNormalized.contains("iframeWindowModal") || selNormalized.contains("frameborder"));
+
+        String candidateSelector = looksModal
+                ? "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']"
+                : selNormalized;
+
+        // Short, non-fatal wait for candidate frames to attach in nested context
+        try {
+            parentFrame.locator(candidateSelector).first()
+                    .waitFor(new Locator.WaitForOptions()
+                            .setState(WaitForSelectorState.ATTACHED)
+                            .setTimeout(1500));
+        } catch (Throwable ignored) {}
+
+        // 2) Try explicit index first (if provided)
         if (idxSel != null) {
             FrameLocator candidate = parentFrame.frameLocator(idxSel.base).nth(idxSel.indexZeroBased);
-            Locator test = locatorHandler.getLocatorForType(firstType, candidate, firstValue);
-            if (isLocatorVisibleQuick(test)) {
-                logger.info("Resolved nested indexed iframe {}[{}] for target [{}:{}]", idxSel.base, idxSel.indexZeroBased, firstType, firstValue);
+            if (isFinalChainVisibleInContext(candidate, element, key)) {
+                logger.info("Resolved nested indexed iframe {}[{}] for element '{}':'{}'",
+                        idxSel.base, idxSel.indexZeroBased, element, key);
                 return candidate;
+            } else {
+                logger.info("Nested indexed iframe {}[{}] did not expose the target; auto-probing others...",
+                        idxSel.base, idxSel.indexZeroBased);
             }
-            // else continue
         }
 
-        // 2) Relax/normalize modal selector if needed
-        String sel = relaxModalSelectorIfNeeded( (idxSel != null) ? idxSel.base : iframeSelector );
-
-        // 3) Modal probing in nested context
-        if (sel != null && (sel.contains("iframeWindowModal") || sel.contains("frameborder"))) {
-            String modalSelector = "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']";
-            try {
-                parentFrame.locator(modalSelector).first()
-                        .waitFor(new Locator.WaitForOptions()
-                                .setState(WaitForSelectorState.ATTACHED)
-                                .setTimeout(1500));
-            } catch (Throwable ignored) {}
-
-            FrameLocator probed = probeModalFramesForTarget(parentFrame, modalSelector, firstType, firstValue);
-            if (probed != null) return probed;
-        }
+        // 3) Auto-probe all candidates (modal-aware ordering + chain probing)
+        FrameLocator best = pickBestFrameByChainProbe(parentFrame, candidateSelector, element, key);
+        if (best != null) return best;
 
         // 4) Legacy fallback scanning
-        Locator iframeLocator = parentFrame.locator(sel);
+        Locator iframeLocator = parentFrame.locator(selNormalized);
         int count = iframeLocator.count();
-
         for (int i = 0; i < count; i++) {
-            FrameLocator fl = parentFrame.frameLocator(sel).nth(i);
-            Locator testLocator = locatorHandler.getLocatorForType(firstType, fl, firstValue);
-            if (testLocator.count() > 0 && testLocator.isVisible()) {
-                return fl;
-            }
+            FrameLocator fl = parentFrame.frameLocator(selNormalized).nth(i);
+            if (isFirstTokenVisibleInContext(fl, element, key)) return fl;
         }
 
         // 5) Final fallback
-        return parentFrame.frameLocator(sel);
+        return parentFrame.frameLocator(selNormalized);
     }
 
     // ============================================================
-    // Modal helpers: candidate ordering + visibility probing
+    // Auto-probing by full chain (preferred), with z-index ordering
     // ============================================================
-    private List<Integer> getModalCandidateOrder(Page page, String modalSelector) {
-        Locator iframes = page.locator(modalSelector);
+
+    private FrameLocator pickBestFrameByChainProbe(Page page, String candidateSelector, String element, String key) {
+        Locator iframes = page.locator(candidateSelector);
         int count = iframes.count();
-        List<Integer> order = new ArrayList<>();
-        for (int i = 0; i < count; i++) order.add(i);
+        if (count == 0) return null;
 
-        order.sort((a, b) -> {
-            int za = 0, zb = 0;
-            try {
-                Object va = iframes.nth(a).evaluate("e => { const z = getComputedStyle(e).zIndex; const n = parseInt(z,10); return isNaN(n) ? 0 : n; }");
-                if (va instanceof Number) za = ((Number) va).intValue();
-            } catch (Throwable ignored) {}
-            try {
-                Object vb = iframes.nth(b).evaluate("e => { const z = getComputedStyle(e).zIndex; const n = parseInt(z,10); return isNaN(n) ? 0 : n; }");
-                if (vb instanceof Number) zb = ((Number) vb).intValue();
-            } catch (Throwable ignored) {}
-            return Integer.compare(zb, za);
-        });
-        return order;
-    }
+        List<Integer> order = indicesByZIndexDesc(iframes);
 
-    private List<Integer> getModalCandidateOrder(FrameLocator parentFrame, String modalSelector) {
-        Locator iframes = parentFrame.locator(modalSelector);
-        int count = iframes.count();
-        List<Integer> order = new ArrayList<>();
-        for (int i = 0; i < count; i++) order.add(i);
+        // 1) First pass: return as soon as final chain is VISIBLE
+        for (Integer idx : order) {
+            if (!safeIsVisible(iframes.nth(idx))) continue;
+            FrameLocator fl = page.frameLocator(candidateSelector).nth(idx);
+            if (isFinalChainVisibleInContext(fl, element, key)) return fl;
+        }
 
-        order.sort((a, b) -> {
-            int za = 0, zb = 0;
-            try {
-                Object va = iframes.nth(a).evaluate("e => { const z = getComputedStyle(e).zIndex; const n = parseInt(z,10); return isNaN(n) ? 0 : n; }");
-                if (va instanceof Number) za = ((Number) va).intValue();
-            } catch (Throwable ignored) {}
-            try {
-                Object vb = iframes.nth(b).evaluate("e => { const z = getComputedStyle(e).zIndex; const n = parseInt(z,10); return isNaN(n) ? 0 : n; }");
-                if (vb instanceof Number) zb = ((Number) vb).intValue();
-            } catch (Throwable ignored) {}
-            return Integer.compare(zb, za);
-        });
-        return order;
-    }
-
-    private FrameLocator probeModalFramesForTarget(Page page, String modalSelector, String firstType, String firstValue) {
-        Locator modalEls = page.locator(modalSelector);
-        List<Integer> order = getModalCandidateOrder(page, modalSelector);
+        // 2) Second pass: pick best by match count (fallback)
+        int bestIdx = -1;
+        int bestCount = -1;
+        int bestZ = Integer.MIN_VALUE;
 
         for (Integer idx : order) {
-            try {
-                Locator modalEl = modalEls.nth(idx);
-                if (!modalEl.isVisible()) continue;
+            FrameLocator fl = page.frameLocator(candidateSelector).nth(idx);
+            int countMatches = countFinalChainMatches(fl, element, key);
+            int z = safeZIndex(iframes.nth(idx));
 
-                FrameLocator fl = page.frameLocator(modalSelector).nth(idx);
-                Locator test = locatorHandler.getLocatorForType(firstType, fl, firstValue);
+            if (countMatches > bestCount || (countMatches == bestCount && z > bestZ)) {
+                bestCount = countMatches;
+                bestZ = z;
+                bestIdx = idx;
+            }
+        }
 
-                if (isLocatorVisibleQuick(test)) {
-                    logger.info("Resolved modal frame index {} for target [{}:{}]", idx, firstType, firstValue);
-                    return fl;
-                }
-            } catch (Throwable ignored) {}
+        if (bestIdx >= 0) {
+            logger.info("Picked frame index {} by best count={} zIndex={}", bestIdx, bestCount, bestZ);
+            return page.frameLocator(candidateSelector).nth(bestIdx);
         }
         return null;
     }
 
-    private FrameLocator probeModalFramesForTarget(FrameLocator parentFrame, String modalSelector, String firstType, String firstValue) {
-        Locator modalEls = parentFrame.locator(modalSelector);
-        List<Integer> order = getModalCandidateOrder(parentFrame, modalSelector);
+    private FrameLocator pickBestFrameByChainProbe(FrameLocator parentFrame, String candidateSelector, String element, String key) {
+        Locator iframes = parentFrame.locator(candidateSelector);
+        int count = iframes.count();
+        if (count == 0) return null;
+
+        List<Integer> order = indicesByZIndexDesc(iframes);
+
+        // 1) First pass: return as soon as final chain is VISIBLE
+        for (Integer idx : order) {
+            if (!safeIsVisible(iframes.nth(idx))) continue;
+            FrameLocator fl = parentFrame.frameLocator(candidateSelector).nth(idx);
+            if (isFinalChainVisibleInContext(fl, element, key)) return fl;
+        }
+
+        // 2) Second pass: pick best by match count (fallback)
+        int bestIdx = -1;
+        int bestCount = -1;
+        int bestZ = Integer.MIN_VALUE;
 
         for (Integer idx : order) {
-            try {
-                Locator modalEl = modalEls.nth(idx);
-                if (!modalEl.isVisible()) continue;
+            FrameLocator fl = parentFrame.frameLocator(candidateSelector).nth(idx);
+            int countMatches = countFinalChainMatches(fl, element, key);
+            int z = safeZIndex(iframes.nth(idx));
 
-                FrameLocator fl = parentFrame.frameLocator(modalSelector).nth(idx);
-                Locator test = locatorHandler.getLocatorForType(firstType, fl, firstValue);
+            if (countMatches > bestCount || (countMatches == bestCount && z > bestZ)) {
+                bestCount = countMatches;
+                bestZ = z;
+                bestIdx = idx;
+            }
+        }
 
-                if (isLocatorVisibleQuick(test)) {
-                    logger.info("Resolved nested modal frame index {} for target [{}:{}]", idx, firstType, firstValue);
-                    return fl;
-                }
-            } catch (Throwable ignored) {}
+        if (bestIdx >= 0) {
+            logger.info("Picked nested frame index {} by best count={} zIndex={}", bestIdx, bestCount, bestZ);
+            return parentFrame.frameLocator(candidateSelector).nth(bestIdx);
         }
         return null;
     }
 
     // ============================================================
-    // Selector parsing helpers
+    // Visibility & scoring helpers
+    // ============================================================
+
+    /** Build FULL chained locator inside a given frame context and check VISIBLE quickly. */
+    private boolean isFinalChainVisibleInContext(FrameLocator frame, String element, String key) {
+        try {
+            Locator finalLocator = buildLocatorInContext(frame, element, key);
+            finalLocator.first().waitFor(new Locator.WaitForOptions()
+                    .setState(WaitForSelectorState.VISIBLE)
+                    .setTimeout(1200));
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** Count matches for the FULL chained locator inside a frame. */
+    private int countFinalChainMatches(FrameLocator frame, String element, String key) {
+        try {
+            Locator finalLocator = buildLocatorInContext(frame, element, key);
+            return finalLocator.count();
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    /** Quick probe: is FIRST token visible in this frame? (legacy compatibility) */
+    private boolean isFirstTokenVisibleInContext(FrameLocator frame, String element, String key) {
+        String[] parts = normalizeAndSplitChain(elementLocatorHelper.getElement(element, key));
+        String first = parts[0].trim();
+        String t = parseType(first);
+        String v = parseValue(first);
+        Locator test = locatorHandler.getLocatorForType(t, frame, v);
+        try {
+            test.first().waitFor(new Locator.WaitForOptions()
+                    .setState(WaitForSelectorState.VISIBLE)
+                    .setTimeout(1000));
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** Build the FULL chained locator starting from a frame context. */
+    private Locator buildLocatorInContext(FrameLocator frame, String element, String key) {
+        String full = elementLocatorHelper.getElement(element, key);
+        String[] chain = normalizeAndSplitChain(full);
+
+        Locator current = null;
+        for (int i = 0; i < chain.length; i++) {
+            String part = chain[i].trim();
+            String type = parseType(part);
+            String value = parseValue(part);
+            if (i == 0) {
+                current = locatorHandler.getLocatorForType(type, frame, value);
+            } else {
+                current = locatorHandler.getLocatorForType(type, current, value);
+            }
+        }
+        return current;
+    }
+
+    private boolean safeIsVisible(Locator loc) {
+        try { return loc.isVisible(); } catch (Throwable t) { return false; }
+    }
+
+    private int safeZIndex(Locator iframeEl) {
+        try {
+            Object val = iframeEl.evaluate("e => { const z = getComputedStyle(e).zIndex; const n = parseInt(z,10); return isNaN(n) ? 0 : n; }");
+            return (val instanceof Number) ? ((Number) val).intValue() : 0;
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    private List<Integer> indicesByZIndexDesc(Locator iframes) {
+        int count = iframes.count();
+        List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < count; i++) order.add(i);
+
+        order.sort((a, b) -> Integer.compare(safeZIndex(iframes.nth(b)), safeZIndex(iframes.nth(a))));
+        return order;
+    }
+
+    // ============================================================
+    // Selector parsing & normalization
     // ============================================================
 
     /** Accept both " > " and "&gt;"; normalize to '>' and split. */
@@ -331,17 +410,6 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
             return "iframe[name^=\"iframeWindowModal\"]";
         }
         return s;
-    }
-
-    private boolean isLocatorVisibleQuick(Locator test) {
-        try {
-            test.first().waitFor(new Locator.WaitForOptions()
-                    .setState(WaitForSelectorState.VISIBLE)
-                    .setTimeout(1000));
-            return true;
-        } catch (Throwable t) {
-            return false;
-        }
     }
 
     private static final class IndexedSelector {
