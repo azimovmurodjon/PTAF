@@ -22,17 +22,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * ElementActionImpl (Auto-Frame Selection)
+ * ElementActionImpl (Auto-Frame Selection + XPath index support)
  *
- * What’s new (without breaking existing code):
- * - Handles XPath-like indexed iframe selectors: (iframe[...])[N]
- *   → Tries that specific index first, then auto-probes others if needed.
- * - Modal-aware: for iframeWindowModal#### and iframe[frameborder='0px']
- *   → Orders by z-index, then probes the ENTIRE chained locator to find the frame
- *     where the final target is actually VISIBLE (or best match by count).
- * - Legacy fallback scanning retained for compatibility.
- *
- * You do NOT need to change step definitions or YAML.
+ * What this version adds (without breaking your existing steps):
+ * - Understands both CSS and XPath iframe selectors, including indexed forms:
+ *     • CSS:  (iframe[frameborder='0px'])[2]
+ *     • XPath: (//iframe[@frameborder='0px'])[2]   ✅
+ * - If an index is given, we try that index FIRST; if the target chain isn’t visible there,
+ *   we auto-probe all candidates (modal-aware, using z-index and full-chain visibility).
+ * - Modal handling kept: "iframeWindowModal####" & "iframe[frameborder='0px']" prioritized.
+ * - No changes required in your step definitions or YAML.
  */
 public class ElementActionImpl extends PageHelper implements ElementAction {
     private static final Logger logger = LoggerFactory.getLogger(ElementActionImpl.class);
@@ -44,7 +43,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
     public ElementActionImpl(Page page) { super(page); }
 
     // ============================================================
-    // Core locator building across optional frames & chained parts
+    // Core locator building (frames + element chain)
     // ============================================================
     @Override
     public Locator getLocator(String iFrame, String iFrame_2, String iFrame_3,
@@ -98,102 +97,112 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
     // ============================================================
 
     private FrameLocator findFrameWithElement(Page page, String iframeSelector, String element, String key) {
-        // 1) If XPath-like index selector present, try that index first
-        IndexedSelector idxSel = parseIndexedIframeSelector(iframeSelector);
-
+        IndexedSelector idxSel = parseIndexedIframeSelector(iframeSelector); // now supports XPath form
         String selBase = (idxSel != null) ? idxSel.base : iframeSelector;
-        String selNormalized = relaxModalSelectorIfNeeded(selBase);
 
+        // Normalize modal strict selectors (CSS or XPath) → we’ll still use generic candidate list for probing
+        String selNormalized = relaxModalSelectorIfNeeded(selBase);
         boolean looksModal = selNormalized != null &&
                 (selNormalized.contains("iframeWindowModal") || selNormalized.contains("frameborder"));
 
-        String candidateSelector = looksModal
-                ? "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']"
-                : selNormalized;
+        // Generic candidate selector for modals
+        String modalCandidateCSS = "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']";
 
-        // Short, non-fatal wait for candidate frames to attach
+        // Short, non-fatal wait for candidates to appear
         try {
-            page.waitForSelector(candidateSelector, new Page.WaitForSelectorOptions().setTimeout(1500));
+            if (isXPathSelector(selNormalized)) {
+                page.waitForSelector("xpath=//iframe", new Page.WaitForSelectorOptions().setTimeout(1500));
+            } else {
+                page.waitForSelector(looksModal ? modalCandidateCSS : selNormalized,
+                        new Page.WaitForSelectorOptions().setTimeout(1500));
+            }
         } catch (Throwable ignored) {}
 
-        // 2) Try explicit index first (if provided)
+        // 1) Try the explicit index first (respecting selector engine)
         if (idxSel != null) {
-            FrameLocator candidate = page.frameLocator(idxSel.base).nth(idxSel.indexZeroBased);
+            FrameLocator candidate = frameLocatorForSelector(page, idxSel.base).nth(idxSel.indexZeroBased);
             if (isFinalChainVisibleInContext(candidate, element, key)) {
                 logger.info("Resolved indexed iframe {}[{}] for element '{}':'{}'",
                         idxSel.base, idxSel.indexZeroBased, element, key);
                 return candidate;
             } else {
-                logger.info("Indexed iframe {}[{}] did not expose the target; auto-probing others...",
-                        idxSel.base, idxSel.indexZeroBased);
+                logger.info("Indexed iframe {}[{}] did not expose target; auto-probing others...", idxSel.base, idxSel.indexZeroBased);
             }
         }
 
-        // 3) Auto-probe all candidates (modal-aware ordering + chain probing)
-        FrameLocator best = pickBestFrameByChainProbe(page, candidateSelector, element, key);
-        if (best != null) return best;
+        // 2) Auto-probe: for modals → CSS candidates; otherwise → use given selector
+        if (looksModal) {
+            FrameLocator best = pickBestFrameByChainProbe(page, modalCandidateCSS, element, key);
+            if (best != null) return best;
+        } else {
+            FrameLocator best = pickBestFrameByChainProbe(page, selNormalized, element, key);
+            if (best != null) return best;
+        }
 
-        // 4) Legacy fallback scanning (kept for compatibility)
-        Locator iframeLocator = page.locator(selNormalized);
+        // 3) Legacy fallback scanning on selNormalized (engine-aware)
+        Locator iframeLocator = locatorForSelector(page, selNormalized);
         int count = iframeLocator.count();
         for (int i = 0; i < count; i++) {
-            FrameLocator fl = page.frameLocator(selNormalized).nth(i);
+            FrameLocator fl = frameLocatorForSelector(page, selNormalized).nth(i);
             if (isFirstTokenVisibleInContext(fl, element, key)) return fl;
         }
 
-        // 5) Final fallback to first matching frame
-        return page.frameLocator(selNormalized);
+        // 4) Final fallback
+        return frameLocatorForSelector(page, selNormalized);
     }
 
     private FrameLocator findFrameWithElement(FrameLocator parentFrame, String iframeSelector, String element, String key) {
-        // 1) If XPath-like index selector present, try that index first
         IndexedSelector idxSel = parseIndexedIframeSelector(iframeSelector);
-
         String selBase = (idxSel != null) ? idxSel.base : iframeSelector;
-        String selNormalized = relaxModalSelectorIfNeeded(selBase);
 
+        String selNormalized = relaxModalSelectorIfNeeded(selBase);
         boolean looksModal = selNormalized != null &&
                 (selNormalized.contains("iframeWindowModal") || selNormalized.contains("frameborder"));
 
-        String candidateSelector = looksModal
-                ? "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']"
-                : selNormalized;
+        String modalCandidateCSS = "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']";
 
-        // Short, non-fatal wait for candidate frames to attach in nested context
+        // Short, non-fatal wait for candidates in nested context
         try {
-            parentFrame.locator(candidateSelector).first()
-                    .waitFor(new Locator.WaitForOptions()
-                            .setState(WaitForSelectorState.ATTACHED)
-                            .setTimeout(1500));
+            if (isXPathSelector(selNormalized)) {
+                parentFrame.locator("xpath=//iframe").first()
+                        .waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.ATTACHED).setTimeout(1500));
+            } else {
+                parentFrame.locator(looksModal ? modalCandidateCSS : selNormalized).first()
+                        .waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.ATTACHED).setTimeout(1500));
+            }
         } catch (Throwable ignored) {}
 
-        // 2) Try explicit index first (if provided)
+        // 1) Try the explicit index first
         if (idxSel != null) {
-            FrameLocator candidate = parentFrame.frameLocator(idxSel.base).nth(idxSel.indexZeroBased);
+            FrameLocator candidate = frameLocatorForSelector(parentFrame, idxSel.base).nth(idxSel.indexZeroBased);
             if (isFinalChainVisibleInContext(candidate, element, key)) {
                 logger.info("Resolved nested indexed iframe {}[{}] for element '{}':'{}'",
                         idxSel.base, idxSel.indexZeroBased, element, key);
                 return candidate;
             } else {
-                logger.info("Nested indexed iframe {}[{}] did not expose the target; auto-probing others...",
-                        idxSel.base, idxSel.indexZeroBased);
+                logger.info("Nested indexed iframe {}[{}] did not expose target; auto-probing others...", idxSel.base, idxSel.indexZeroBased);
             }
         }
 
-        // 3) Auto-probe all candidates (modal-aware ordering + chain probing)
-        FrameLocator best = pickBestFrameByChainProbe(parentFrame, candidateSelector, element, key);
-        if (best != null) return best;
+        // 2) Auto-probe
+        if (looksModal) {
+            FrameLocator best = pickBestFrameByChainProbe(parentFrame, modalCandidateCSS, element, key);
+            if (best != null) return best;
+        } else {
+            FrameLocator best = pickBestFrameByChainProbe(parentFrame, selNormalized, element, key);
+            if (best != null) return best;
+        }
 
-        // 4) Legacy fallback scanning
-        Locator iframeLocator = parentFrame.locator(selNormalized);
+        // 3) Legacy fallback scanning
+        Locator iframeLocator = locatorForSelector(parentFrame, selNormalized);
         int count = iframeLocator.count();
         for (int i = 0; i < count; i++) {
-            FrameLocator fl = parentFrame.frameLocator(selNormalized).nth(i);
+            FrameLocator fl = frameLocatorForSelector(parentFrame, selNormalized).nth(i);
             if (isFirstTokenVisibleInContext(fl, element, key)) return fl;
         }
 
-        // 5) Final fallback
-        return parentFrame.frameLocator(selNormalized);
+        // 4) Final fallback
+        return frameLocatorForSelector(parentFrame, selNormalized);
     }
 
     // ============================================================
@@ -201,26 +210,24 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
     // ============================================================
 
     private FrameLocator pickBestFrameByChainProbe(Page page, String candidateSelector, String element, String key) {
-        Locator iframes = page.locator(candidateSelector);
+        Locator iframes = locatorForSelector(page, candidateSelector);
         int count = iframes.count();
         if (count == 0) return null;
 
         List<Integer> order = indicesByZIndexDesc(iframes);
-
-        // 1) First pass: return as soon as final chain is VISIBLE
         for (Integer idx : order) {
             if (!safeIsVisible(iframes.nth(idx))) continue;
-            FrameLocator fl = page.frameLocator(candidateSelector).nth(idx);
+            FrameLocator fl = frameLocatorForSelector(page, candidateSelector).nth(idx);
             if (isFinalChainVisibleInContext(fl, element, key)) return fl;
         }
 
-        // 2) Second pass: pick best by match count (fallback)
+        // Fallback by match count + z-index
         int bestIdx = -1;
         int bestCount = -1;
         int bestZ = Integer.MIN_VALUE;
 
         for (Integer idx : order) {
-            FrameLocator fl = page.frameLocator(candidateSelector).nth(idx);
+            FrameLocator fl = frameLocatorForSelector(page, candidateSelector).nth(idx);
             int countMatches = countFinalChainMatches(fl, element, key);
             int z = safeZIndex(iframes.nth(idx));
 
@@ -230,35 +237,28 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
                 bestIdx = idx;
             }
         }
-
-        if (bestIdx >= 0) {
-            logger.info("Picked frame index {} by best count={} zIndex={}", bestIdx, bestCount, bestZ);
-            return page.frameLocator(candidateSelector).nth(bestIdx);
-        }
+        if (bestIdx >= 0) return frameLocatorForSelector(page, candidateSelector).nth(bestIdx);
         return null;
     }
 
     private FrameLocator pickBestFrameByChainProbe(FrameLocator parentFrame, String candidateSelector, String element, String key) {
-        Locator iframes = parentFrame.locator(candidateSelector);
+        Locator iframes = locatorForSelector(parentFrame, candidateSelector);
         int count = iframes.count();
         if (count == 0) return null;
 
         List<Integer> order = indicesByZIndexDesc(iframes);
-
-        // 1) First pass: return as soon as final chain is VISIBLE
         for (Integer idx : order) {
             if (!safeIsVisible(iframes.nth(idx))) continue;
-            FrameLocator fl = parentFrame.frameLocator(candidateSelector).nth(idx);
+            FrameLocator fl = frameLocatorForSelector(parentFrame, candidateSelector).nth(idx);
             if (isFinalChainVisibleInContext(fl, element, key)) return fl;
         }
 
-        // 2) Second pass: pick best by match count (fallback)
         int bestIdx = -1;
         int bestCount = -1;
         int bestZ = Integer.MIN_VALUE;
 
         for (Integer idx : order) {
-            FrameLocator fl = parentFrame.frameLocator(candidateSelector).nth(idx);
+            FrameLocator fl = frameLocatorForSelector(parentFrame, candidateSelector).nth(idx);
             int countMatches = countFinalChainMatches(fl, element, key);
             int z = safeZIndex(iframes.nth(idx));
 
@@ -268,11 +268,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
                 bestIdx = idx;
             }
         }
-
-        if (bestIdx >= 0) {
-            logger.info("Picked nested frame index {} by best count={} zIndex={}", bestIdx, bestCount, bestZ);
-            return parentFrame.frameLocator(candidateSelector).nth(bestIdx);
-        }
+        if (bestIdx >= 0) return frameLocatorForSelector(parentFrame, candidateSelector).nth(bestIdx);
         return null;
     }
 
@@ -280,7 +276,6 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
     // Visibility & scoring helpers
     // ============================================================
 
-    /** Build FULL chained locator inside a given frame context and check VISIBLE quickly. */
     private boolean isFinalChainVisibleInContext(FrameLocator frame, String element, String key) {
         try {
             Locator finalLocator = buildLocatorInContext(frame, element, key);
@@ -293,7 +288,6 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         }
     }
 
-    /** Count matches for the FULL chained locator inside a frame. */
     private int countFinalChainMatches(FrameLocator frame, String element, String key) {
         try {
             Locator finalLocator = buildLocatorInContext(frame, element, key);
@@ -303,7 +297,6 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         }
     }
 
-    /** Quick probe: is FIRST token visible in this frame? (legacy compatibility) */
     private boolean isFirstTokenVisibleInContext(FrameLocator frame, String element, String key) {
         String[] parts = normalizeAndSplitChain(elementLocatorHelper.getElement(element, key));
         String first = parts[0].trim();
@@ -320,7 +313,6 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         }
     }
 
-    /** Build the FULL chained locator starting from a frame context. */
     private Locator buildLocatorInContext(FrameLocator frame, String element, String key) {
         String full = elementLocatorHelper.getElement(element, key);
         String[] chain = normalizeAndSplitChain(full);
@@ -356,13 +348,12 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         int count = iframes.count();
         List<Integer> order = new ArrayList<>();
         for (int i = 0; i < count; i++) order.add(i);
-
         order.sort((a, b) -> Integer.compare(safeZIndex(iframes.nth(b)), safeZIndex(iframes.nth(a))));
         return order;
     }
 
     // ============================================================
-    // Selector parsing & normalization
+    // Selector parsing & normalization (CSS + XPath)
     // ============================================================
 
     /** Accept both " > " and "&gt;"; normalize to '>' and split. */
@@ -388,33 +379,54 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         return (idx >= 0 ? token.substring(idx + 1) : "").trim();
     }
 
-    /** If selector is like "(iframe[...])[2]" return base + zero-based index; else null. */
+    /**
+     * Parse indexed iframe selector.
+     * Supports:
+     *   (iframe[...])[2]                    // CSS-like
+     *   (//iframe[@attr='v'])[2]            // XPath ✅
+     */
     private IndexedSelector parseIndexedIframeSelector(String raw) {
         if (raw == null) return null;
         String s = raw.trim();
-        // Pattern matches: (iframe[...])[N]  where N is 1-based integer
-        Pattern p = Pattern.compile("^\\(\\s*(iframe\\[[^\\]]+\\])\\s*\\)\\s*\\[(\\d+)\\]\\s*$");
-        Matcher m = p.matcher(s);
-        if (!m.find()) return null;
-        String base = m.group(1);
-        int oneBased = Integer.parseInt(m.group(2));
-        int zeroBased = Math.max(0, oneBased - 1);
-        return new IndexedSelector(base, zeroBased);
+
+        // XPath form: (//iframe[@...])[2]
+        Pattern xPathIndexed = Pattern.compile("^\\(\\s*(//iframe\\[[^\\]]+\\])\\s*\\)\\s*\\[(\\d+)\\]\\s*$", Pattern.CASE_INSENSITIVE);
+        Matcher mx = xPathIndexed.matcher(s);
+        if (mx.find()) {
+            String base = mx.group(1); // //iframe[@frameborder='0px']
+            int oneBased = Integer.parseInt(mx.group(2));
+            return new IndexedSelector(base, Math.max(0, oneBased - 1)); // zero-based
+        }
+
+        // CSS-like form: (iframe[...])[2]
+        Pattern cssIndexed = Pattern.compile("^\\(\\s*(iframe\\[[^\\]]+\\])\\s*\\)\\s*\\[(\\d+)\\]\\s*$", Pattern.CASE_INSENSITIVE);
+        Matcher mc = cssIndexed.matcher(s);
+        if (mc.find()) {
+            String base = mc.group(1); // iframe[frameborder='0px']
+            int oneBased = Integer.parseInt(mc.group(2));
+            return new IndexedSelector(base, Math.max(0, oneBased - 1));
+        }
+
+        return null;
     }
 
-    /** Relax strict modal name like iframe[name="iframeWindowModal1857"] -> iframe[name^="iframeWindowModal"] */
-    private String relaxModalSelectorIfNeeded(String iframeSelector) {
-        if (iframeSelector == null) return null;
-        String s = iframeSelector.trim();
+    /** If strict modal name like iframe[name="iframeWindowModal1857"] → relax to starts-with */
+    private String relaxModalSelectorIfNeeded(String sel) {
+        if (sel == null) return null;
+        String s = sel.trim();
+
+        // CSS strict → relax
         if (s.matches("iframe\\[name\\s*=\\s*\"iframeWindowModal\\d+\"\\]")) {
             return "iframe[name^=\"iframeWindowModal\"]";
         }
+
+        // XPath strict → leave as is; auto-probe will use generic modal CSS anyway.
         return s;
     }
 
     private static final class IndexedSelector {
-        final String base;           // e.g. iframe[frameborder='0px']
-        final int indexZeroBased;    // converted from 1-based
+        final String base;           // e.g. iframe[frameborder='0px'] OR //iframe[@frameborder='0px']
+        final int indexZeroBased;
         IndexedSelector(String base, int indexZeroBased) {
             this.base = base;
             this.indexZeroBased = indexZeroBased;
@@ -422,13 +434,40 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
     }
 
     // ============================================================
-    // Action execution wrappers (unchanged public surface)
+    // Engine-aware helpers (CSS vs XPath)
     // ============================================================
+
+    private boolean isXPathSelector(String sel) {
+        if (sel == null) return false;
+        String s = sel.trim();
+        return s.startsWith("//") || s.startsWith("("); // simple heuristic
+    }
+
+    private Locator locatorForSelector(Page page, String sel) {
+        return isXPathSelector(sel) ? page.locator("xpath=" + sel) : page.locator(sel);
+    }
+
+    private Locator locatorForSelector(FrameLocator frame, String sel) {
+        return isXPathSelector(sel) ? frame.locator("xpath=" + sel) : frame.locator(sel);
+    }
+
+    private FrameLocator frameLocatorForSelector(Page page, String sel) {
+        return isXPathSelector(sel) ? page.frameLocator("xpath=" + sel) : page.frameLocator(sel);
+    }
+
+    private FrameLocator frameLocatorForSelector(FrameLocator frame, String sel) {
+        return isXPathSelector(sel) ? frame.frameLocator("xpath=" + sel) : frame.frameLocator(sel);
+    }
+
+    // ============================================================
+    // Action execution wrappers (public API unchanged)
+    // ============================================================
+
     private boolean performAction(Page page, String iFrame, String iFrame_2, String iFrame_3,
                                   String action, String element, String key, String value, FrameLocator frameLocator) {
         Locator targetLocator = null;
         try {
-            // Small non-fatal wait for modals to attach, if any are opening
+            // small non-fatal wait in case a modal is animating in
             if (page != null) {
                 try {
                     page.waitForSelector("iframe[name^='iframeWindowModal'], iframe[frameborder='0px']",
