@@ -1,109 +1,11 @@
+not sure why it is looking for this element waiting for frameLocator("iframe[name^='iframeWindowModal'], iframe[frameborder='0px']").first().locator("select[name='selectAddressType']").first()
 
-Here’s a refined email draft that includes:
-	•	Exact sprint date ranges from Sprint 44 (09/09/2025) onward
-	•	Script creation goals per sprint (2025)
-	•	Quarterly breakdown for 2026 with sprint mapping
-	•	Clear professional tone suitable for senior management or stakeholders
-	•	Risks, dependencies, and workload explanation
-
-⸻
-
-📧 Final Professional Email Draft
-
-Subject: Detailed Regression Test Case Automation Plan & Timeline (2025–2026)
-
-Dear [Team/Manager],
-
-I am sharing a comprehensive regression test case automation plan that consolidates our current status, resource allocation, and a realistic sprint-by-sprint and quarterly roadmap through 2025 and 2026. This plan reflects the complexity of automation tasks, application/data challenges, and available engineering capacity.
-
-⸻
-
-📊 Current Regression Test Case Status (as of 09/09/2025)
-	•	Total Test Cases: 2,938
-	•	Automated: 1,140
-	•	Blocked: 33
-	•	Cancelled: 8
-	•	Not Automated: 1,757
-
-⚠️ Note: The remaining test cases are not trivial to automate. They require multi-framing, multi-paging, and integration scenarios, which significantly increase script development time.
-
-⸻
-
-🔎 Change Requests (CRs) in Active Focus
-	•	CR32 → 314 total | 37 Automated | 16 Blocked | 0 Cancelled | 261 Not Automated
-	•	CR6 → 232 total | 29 Automated | 0 Blocked | 0 Cancelled | 203 Not Automated
-	•	CR24 + CR25 + CR29 + CR11 → 232 total | 0 Automated | 0 Blocked | 0 Cancelled | 232 Not Automated
-
-➡️ Total Active CR Test Cases: 591
-
-⸻
-
-👥 Team Allocation & Effective Capacity
-	•	MJ – 50% allocation
-	•	Mohammed – 60% allocation
-	•	Vizarat – 100% allocation
-
-➡️ Effective Automation Engineering Capacity = ~2.1 FTE
-
-Adjustments included:
-	•	Daily 30-minute KT sessions (workdays only)
-	•	Holidays, vacations, and sick days
-	•	Application downtime & test data resets
-
-⸻
-
-📆 2025 Sprint-by-Sprint Automation Timeline
-
-Each sprint = 10 working days (2 weeks). Starting from Sprint 44 on 09/09/2025.
-
-Sprint	Dates	Focus Area	Target Automation	Cumulative Total
-Sprint 44	Sep 09 – Sep 22, 2025	CR32 (initial focus)	~40 scripts	40
-Sprint 45	Sep 23 – Oct 06, 2025	CR32 + CR6	~40 scripts	80
-Sprint 46	Oct 07 – Oct 20, 2025	CR6 continuation	~40 scripts	120
-Sprint 47	Oct 21 – Nov 03, 2025	CR6 + CR24/25 prep	~45 scripts	165
-Sprint 48	Nov 04 – Nov 17, 2025	CR24/25 execution	~45 scripts	210
-Sprint 49	Nov 18 – Dec 01, 2025	CR29/11 start	~45 scripts	255
-Sprint 50	Dec 02 – Dec 15, 2025	CR29/11 + regression backlog	~45 scripts	300
-Sprint 51	Dec 16 – Dec 29, 2025	Spillover + stabilization	~40 scripts	~340*
-
-➡️ 2025 Goal: Deliver ~300 new automated scripts (priority CR coverage). Sprint 51 is buffer/stabilization.
-
-⸻
-
-📆 2026 Quarterly Roadmap (Remaining ~1,457 scripts)
-
-Starting with Sprint 52 (Jan 06, 2026) after year-end holidays.
-	•	Q1 2026 (Sprints 52–57 | Jan 06 – Mar 30, 2026): Target ~350 scripts
-	•	Q2 2026 (Sprints 58–63 | Mar 31 – Jun 22, 2026): Target ~370 scripts
-	•	Q3 2026 (Sprints 64–69 | Jun 23 – Sep 14, 2026): Target ~370 scripts
-	•	Q4 2026 (Sprints 70–75 | Sep 15 – Dec 07, 2026): Target ~367 scripts + stabilization, regression fine-tuning, and automation gap closure
-
-➡️ By end of Q3 2026: All test cases automated
-➡️ By end of Q4 2026: Regression suite stabilized, validated, and optimized for integration runs
-
-⸻
-
-✅ Expected Deliverables
-	1.	Full recount of automated, blocked, cancelled, and pending test cases per CR.
-	2.	Sprint-by-sprint delivery plan (2025) and quarterly milestones (2026).
-	3.	Deadline alignment with CR numbers and script creation progress.
-	4.	Consideration of risks: downtime, data resets, reduced engineer availability.
-	5.	Confirmation of 300 scripts by end of 2025 and complete automation by Q3 2026.
-
-⸻
-
-📌 Summary
-
-This roadmap ensures:
-	•	Prioritization of CR-related test cases in 2025.
-	•	~300 new automation scripts completed by end of 2025.
-	•	Remaining 1,457 scripts completed by Q3 2026, with Q4 used for stabilization.
-	•	Adjustments for realistic engineering effort, daily KT, and organizational constraints.
-
-With this plan, we will achieve full regression automation coverage across all CRs and baseline test cases while maintaining stability and accuracy.
-
-Thank you,
-[Your Name]
-
-⸻
-
+Steps that I'm following corrently is like folowing please check 
+      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").getByText("edit", new FrameLocator.GetByTextOptions().setExact(true)).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal7543\"]").getByText("Communication Preferences").click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal7543\"]").getByRole(AriaRole.ROW, new FrameLocator.GetByRoleOptions().setName("Remove Residence 140 OAKVILLE DR PITTSBURGH, PA 15220-4418").setExact(true)).getByRole(AriaRole.IMG).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal7543\"]").getByRole(AriaRole.IMG, new FrameLocator.GetByRoleOptions().setName("Remove")).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal7543\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Add")).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal1524\"]").locator("select[name=\"selectAddressType\"]").selectOption("RM");
+      page1.frameLocator("iframe[name=\"iframeWindowModal1524\"]").getByRole(AriaRole.TEXTBOX).first().click();
+it is switching from one frame to second and on modal frame is ending with diffrent numbering  for the first whitch ending with 7543 I'm using fofollowing iframe "iframe[frameborder='0px']" normally it is working fine when there is only one of that frame some thimes I have inner frames like 1524 since it is inside of the 7543 my "iframe[frameborder='0px']" is not working there can you help me to fix my code by revewing it please ?
