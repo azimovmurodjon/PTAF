@@ -1,11 +1,12 @@
-not sure why it is looking for this element waiting for frameLocator("iframe[name^='iframeWindowModal'], iframe[frameborder='0px']").first().locator("select[name='selectAddressType']").first()
-
-Steps that I'm following corrently is like folowing please check 
-      page1.frameLocator("iframe[name=\"iframeApplicationContent\"]").getByText("edit", new FrameLocator.GetByTextOptions().setExact(true)).click();
-      page1.frameLocator("iframe[name=\"iframeWindowModal7543\"]").getByText("Communication Preferences").click();
-      page1.frameLocator("iframe[name=\"iframeWindowModal7543\"]").getByRole(AriaRole.ROW, new FrameLocator.GetByRoleOptions().setName("Remove Residence 140 OAKVILLE DR PITTSBURGH, PA 15220-4418").setExact(true)).getByRole(AriaRole.IMG).click();
-      page1.frameLocator("iframe[name=\"iframeWindowModal7543\"]").getByRole(AriaRole.IMG, new FrameLocator.GetByRoleOptions().setName("Remove")).click();
-      page1.frameLocator("iframe[name=\"iframeWindowModal7543\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Add")).click();
-      page1.frameLocator("iframe[name=\"iframeWindowModal1524\"]").locator("select[name=\"selectAddressType\"]").selectOption("RM");
-      page1.frameLocator("iframe[name=\"iframeWindowModal1524\"]").getByRole(AriaRole.TEXTBOX).first().click();
-it is switching from one frame to second and on modal frame is ending with diffrent numbering  for the first whitch ending with 7543 I'm using fofollowing iframe "iframe[frameborder='0px']" normally it is working fine when there is only one of that frame some thimes I have inner frames like 1524 since it is inside of the 7543 my "iframe[frameborder='0px']" is not working there can you help me to fix my code by revewing it please ?
+      page1.frameLocator("iframe[name=\"iframeWindowModal8968\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Save")).click();
+      page1.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("OK")).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal8968\"]").locator("#radioEmailDocumentDeliveryNo").check();
+      page1.frameLocator("iframe[name=\"iframeWindowModal8968\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Next")).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal8968\"]").locator("#CountryOfCitizenship").dblclick();
+      page1.frameLocator("iframe[name=\"iframeWindowModal8968\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Next")).click(new Locator.ClickOptions()
+        .setClickCount(3));
+      page1.frameLocator("iframe[name=\"iframeWindowModal8968\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Save")).click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal1147\"]").getByRole(AriaRole.ROW, new FrameLocator.GetByRoleOptions().setName("Freestyle Checking 8765546 $0.00 INDIV/SINGLE/SOLE OW 166600014").setExact(true)).getByRole(AriaRole.CHECKBOX).check();
+      page1.frameLocator("iframe[name=\"iframeWindowModal1147\"]").locator(".RowHover > td").first().click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal1147\"]").locator(".RowHover > td").first().click();
+      page1.frameLocator("iframe[name=\"iframeWindowModal1147\"]").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Save")).click();
