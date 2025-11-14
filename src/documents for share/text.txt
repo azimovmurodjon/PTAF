@@ -1,36 +1,173 @@
-[main] INFO com.ptaf.ui.action_performer.ElementActionImpl - Topmost visible modal selected (page): iframe[name^='iframeWindowModal']
-[main] ERROR com.ptaf.ui.action_performer.ActionPerformer - Error while performing action: click for Target Locator Locator@iframe[name^='iframeWindowModal'] >> nth=0 >> internal:control=enter-frame >> internal:role=button[name="Save"i]
-com.microsoft.playwright.TimeoutError: Error {
-  message='Timeout 30000ms exceeded.
-  name='TimeoutError
-  stack='TimeoutError: Timeout 30000ms exceeded.
-    at ProgressController.run (C:\Users\azimovm\AppData\Local\Temp\playwright-java-9160625700854864730\package\lib\server\progress.js:78:26)
-    at Frame.click (C:\Users\azimovm\AppData\Local\Temp\playwright-java-9160625700854864730\package\lib\server\frames.js:1007:23)
-    at FrameDispatcher.click (C:\Users\azimovm\AppData\Local\Temp\playwright-java-9160625700854864730\package\lib\server\dispatchers\frameDispatcher.js:157:30)
-    at FrameDispatcher._handleCommand (C:\Users\azimovm\AppData\Local\Temp\playwright-java-9160625700854864730\package\lib\server\dispatchers\dispatcher.js:94:40)
-    at DispatcherConnection.dispatch (C:\Users\azimovm\AppData\Local\Temp\playwright-java-9160625700854864730\package\lib\server\dispatchers\dispatcher.js:361:39)
-    at runNextTicks (node:internal/process/task_queues:60:5)
-    at process.processImmediate (node:internal/timers:449:9)
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by FernFlower decompiler)
+//
+
+package com.ptaf.hooks;
+
+import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.BrowserContext;
+import com.microsoft.playwright.Page;
+import com.ptaf.ui.pages.PageCommonMethods;
+import com.ptaf.utils.BrowserFactory;
+import com.ptaf.utils.ConfigurationProperties;
+import com.ptaf.utils.BrowserFactory.BrowserTypeEnum;
+import io.cucumber.java.After;
+import io.cucumber.java.Before;
+import io.cucumber.java.Scenario;
+import io.cucumber.java.Status;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class Hooks {
+    private static final ThreadLocal<Browser> browserThreadLocal = new ThreadLocal();
+    private static final ThreadLocal<BrowserContext> contextThreadLocal = new ThreadLocal();
+    private static final ThreadLocal<Page> pageThreadLocal = new ThreadLocal();
+    private static final ThreadLocal<Scenario> scenarioThreadLocal = new ThreadLocal();
+    private static final ThreadLocal<PageCommonMethods> pageCommonMethodsThreadLocal = new ThreadLocal();
+    private static final Logger logger = LoggerFactory.getLogger(Hooks.class);
+    private static boolean isLastScenarioFeature = false;
+    private static boolean isFirstScenarioInFeature = true;
+
+    public Hooks() {
+    }
+
+    @Before
+    public void setUp(Scenario scenario) {
+        scenarioThreadLocal.set(scenario);
+        if (scenario.getSourceTagNames().contains("@LastScenario")) {
+            isLastScenarioFeature = true;
+        }
+
+        if (isLastScenarioFeature && !isFirstScenarioInFeature) {
+            logger.info("Reusing browser instance for feature with @LastScenario tag.");
+        } else {
+            try {
+                String browserName = ConfigurationProperties.getBrowser();
+                BrowserFactory.BrowserTypeEnum var10000;
+                switch (browserName.toUpperCase()) {
+                    case "CHROME" -> var10000 = BrowserTypeEnum.CHROME;
+                    case "FIREFOX" -> var10000 = BrowserTypeEnum.FIREFOX;
+                    case "WEBKIT" -> var10000 = BrowserTypeEnum.WEBKIT;
+                    case "EDGE" -> var10000 = BrowserTypeEnum.EDGE;
+                    default -> throw new IllegalArgumentException("Unsupported browser type: " + browserName);
+                }
+
+                BrowserFactory.BrowserTypeEnum browserTypeEnum = var10000;
+                Browser browser = BrowserFactory.createBrowser(browserTypeEnum);
+                browserThreadLocal.set(browser);
+                BrowserContext context = BrowserFactory.createContextWithVideo(browser);
+                contextThreadLocal.set(context);
+                Page page = context.newPage();
+                pageThreadLocal.set(page);
+                PageCommonMethods pageCommonMethods = new PageCommonMethods(page);
+                pageCommonMethodsThreadLocal.set(pageCommonMethods);
+                logger.info("Browser setup completed for scenario: {}", scenario.getName());
+            } catch (Exception var8) {
+                Exception e = var8;
+                logger.error("Error setting up the browser for scenario: {}", e.getMessage());
+                throw new RuntimeException("Browser setup failed", e);
+            }
+        }
+    }
+
+    @After
+    public void tearDown(Scenario scenario) {
+        try {
+            if (scenario.getStatus() == Status.PASSED) {
+                PageCommonMethods pageCommonMethods = (PageCommonMethods)pageCommonMethodsThreadLocal.get();
+                if (pageCommonMethods != null) {
+                    pageCommonMethods.finalizeScenario();
+                }
+            }
+        } catch (Exception var6) {
+            Exception e = var6;
+            logger.error("Error during scenario teardown: {}", e.getMessage(), e);
+        } finally {
+            if (isLastScenarioFeature) {
+                logger.info("Skipping browser closure for feature with @LastScenario tag.");
+                isFirstScenarioInFeature = false;
+            } else {
+                this.closeBrowserResources();
+            }
+
+        }
+
+    }
+
+    private void closeBrowserResources() {
+        Exception e;
+        try {
+            Page page = (Page)pageThreadLocal.get();
+            if (page != null && !page.isClosed()) {
+                page.close();
+            }
+        } catch (Exception var27) {
+            e = var27;
+            logger.error("Error closing the page: {}", e.getMessage(), e);
+        } finally {
+            pageThreadLocal.remove();
+        }
+
+        try {
+            BrowserContext context = (BrowserContext)contextThreadLocal.get();
+            if (context != null) {
+                context.close();
+            }
+        } catch (Exception var25) {
+            e = var25;
+            logger.error("Error closing the browser context: {}", e.getMessage(), e);
+        } finally {
+            contextThreadLocal.remove();
+        }
+
+        try {
+            Browser browser = (Browser)browserThreadLocal.get();
+            if (browser != null) {
+                browser.close();
+                logger.info("Browser closed.");
+            }
+        } catch (Exception var23) {
+            e = var23;
+            logger.error("Error closing the browser: {}", e.getMessage(), e);
+        } finally {
+            browserThreadLocal.remove();
+        }
+
+    }
+
+    public static Page getPage() {
+        Page page = (Page)pageThreadLocal.get();
+        if (page != null && !page.isClosed()) {
+            return page;
+        } else {
+            throw new IllegalStateException("The page is closed or not initialized.");
+        }
+    }
+
+    public static Browser getBrowser() {
+        Browser browser = (Browser)browserThreadLocal.get();
+        if (browser == null) {
+            throw new IllegalStateException("The browser is not initialized.");
+        } else {
+            return browser;
+        }
+    }
+
+    public static Scenario getCurrentScenario() {
+        return (Scenario)scenarioThreadLocal.get();
+    }
+
+    public static void setCurrentScenario(Scenario scenario) {
+        scenarioThreadLocal.set(scenario);
+    }
+
+    public static BrowserContext getContext() {
+        BrowserContext context = (BrowserContext)contextThreadLocal.get();
+        if (context == null) {
+            throw new IllegalStateException("The browser context is not initialized.");
+        } else {
+            return context;
+        }
+    }
 }
-Call log:
-- waiting for frameLocator("iframe[name^='iframeWindowModal']").first().getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Save")).first()
--   locator resolved to <button type="button" tabindex="26" class="global" id="buttonSave" onclick="SaveSetup()" functionid="ConsumerMaintenance">Save</button>
-- attempting click action
--   waiting for element to be visible, enabled and stable
--   element is visible, enabled and stable
--   scrolling into view if needed
--   done scrolling
--   <div onkeydown="UI.CancelKey()" id="TranslucentOverlay__root" onclick="UI.ContainModalFocus()">…</div> intercepts pointer events
-- retrying click action, attempt #1
--   waiting for element to be visible, enabled and stable
--   element is visible, enabled and stable
--   scrolling into view if needed
--   done scrolling
--   <div onkeydown="UI.CancelKey()" id="TranslucentOverlay__root" onclick="UI.ContainModalFocus()">…</div> intercepts pointer events
-- retrying click action, attempt #2
--   waiting 20ms
--   waiting for element to be visible, enabled and stable
--   element is visible, enabled and stable
--   scrolling into view if needed
--   done scrolling
--   <div onkeydown="UI.CancelKey()" id="TranslucentOverlay__root" onclick="UI.ContainModalFocus()">…</div> intercepts pointer events
