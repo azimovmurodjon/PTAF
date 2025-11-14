@@ -1,5 +1,6 @@
 package com.ptaf.stepdefinitions;
 
+import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.Page;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.ui.pages.PageCommonMethods;
@@ -15,6 +16,7 @@ public class PageCommonSteps {
     private final Page page = Hooks.getPage();
     private final PageCommonMethods pageCommonMethods = new PageCommonMethods(page);
     private static final Logger logger = LoggerFactory.getLogger(PageCommonSteps.class);
+    private final BrowserContext browserContext = Hooks.getContext();
 
 //    public void switchToIframe() {
 //        Page iframePage = page.waitForPopup(() -> {
@@ -174,5 +176,10 @@ public class PageCommonSteps {
     {
         Thread.sleep(30000);
 
+    }
+
+    @Then("^we close all browsers$")
+    public void weCloseAllBrowsers() throws Exception{
+        Hooks.closeBrowserResources();
     }
 }

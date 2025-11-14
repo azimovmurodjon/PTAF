@@ -3,29 +3,29 @@ package com.ptaf.hooks;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.Page;
-import com.ptaf.api.handlers.ApiRequestHandler;
-import com.ptaf.db.handlers.DatabaseHandler;
 import com.ptaf.ui.pages.PageCommonMethods;
-import com.ptaf.utils.ConfigurationProperties;
 import com.ptaf.utils.BrowserFactory;
+import com.ptaf.utils.ConfigurationProperties;
+import com.ptaf.utils.BrowserFactory.BrowserTypeEnum;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.Scenario;
+import io.cucumber.java.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Hooks {
-
     private static final ThreadLocal<Browser> browserThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<BrowserContext> contextThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<Page> pageThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<Scenario> scenarioThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<PageCommonMethods> pageCommonMethodsThreadLocal = new ThreadLocal<>();
-
     private static final Logger logger = LoggerFactory.getLogger(Hooks.class);
-
     private static boolean isLastScenarioFeature = false;
     private static boolean isFirstScenarioInFeature = true;
+
+    public Hooks() {
+    }
 
     @Before
     public void setUp(Scenario scenario) {
@@ -37,70 +37,72 @@ public class Hooks {
 
         if (isLastScenarioFeature && !isFirstScenarioInFeature) {
             logger.info("Reusing browser instance for feature with @LastScenario tag.");
-            return;
-        }
+        } else {
+            try {
+                String browserName = ConfigurationProperties.getBrowser();
+                BrowserFactory.BrowserTypeEnum browserTypeEnum;
 
-        try {
-            String browserName = ConfigurationProperties.getBrowser();
-            BrowserFactory.BrowserTypeEnum browserTypeEnum = switch (browserName.toUpperCase()) {
-                case "CHROME" -> BrowserFactory.BrowserTypeEnum.CHROME;
-                case "FIREFOX" -> BrowserFactory.BrowserTypeEnum.FIREFOX;
-                case "WEBKIT" -> BrowserFactory.BrowserTypeEnum.WEBKIT;
-                case "EDGE" -> BrowserFactory.BrowserTypeEnum.EDGE;
-                default -> throw new IllegalArgumentException("Unsupported browser type: " + browserName);
-            };
+                switch (browserName.toUpperCase()) {
+                    case "CHROME" -> browserTypeEnum = BrowserTypeEnum.CHROME;
+                    case "FIREFOX" -> browserTypeEnum = BrowserTypeEnum.FIREFOX;
+                    case "WEBKIT" -> browserTypeEnum = BrowserTypeEnum.WEBKIT;
+                    case "EDGE" -> browserTypeEnum = BrowserTypeEnum.EDGE;
+                    default -> throw new IllegalArgumentException("Unsupported browser type: " + browserName);
+                }
 
-            Browser browser = BrowserFactory.createBrowser(browserTypeEnum);
-            browserThreadLocal.set(browser);
+                Browser browser = BrowserFactory.createBrowser(browserTypeEnum);
+                browserThreadLocal.set(browser);
 
-            BrowserContext context = BrowserFactory.createContextWithVideo(browser);
-            contextThreadLocal.set(context);
+                BrowserContext context = BrowserFactory.createContextWithVideo(browser);
+                contextThreadLocal.set(context);
 
-            Page page = context.newPage();
-            pageThreadLocal.set(page);
+                Page page = context.newPage();
+                pageThreadLocal.set(page);
 
-            PageCommonMethods pageCommonMethods = new PageCommonMethods(page);
-            pageCommonMethodsThreadLocal.set(pageCommonMethods);
+                PageCommonMethods pageCommonMethods = new PageCommonMethods(page);
+                pageCommonMethodsThreadLocal.set(pageCommonMethods);
 
-            logger.info("Browser setup completed for scenario: {}", scenario.getName());
-        } catch (Exception e) {
-            logger.error("Error setting up the browser for scenario: {}", e.getMessage());
-            throw new RuntimeException("Browser setup failed", e);
+                logger.info("Browser setup completed for scenario: {}", scenario.getName());
+            } catch (Exception e) {
+                logger.error("Error setting up the browser for scenario: {}", e.getMessage());
+                throw new RuntimeException("Browser setup failed", e);
+            }
         }
     }
 
     @After
     public void tearDown(Scenario scenario) {
         try {
-            if (scenario.isFailed()) {
-                // Your failure handling logic can go here, e.g., taking screenshots.
+            if (scenario.getStatus() == Status.PASSED) {
+                PageCommonMethods pageCommonMethods = pageCommonMethodsThreadLocal.get();
+                if (pageCommonMethods != null) {
+                    pageCommonMethods.finalizeScenario();
+                }
             }
         } catch (Exception e) {
             logger.error("Error during scenario teardown: {}", e.getMessage(), e);
         } finally {
-
-            ApiRequestHandler.disposeContext();
-
-            // Safely close the database connection for the current thread.
-            DatabaseHandler.closeConnection();
-
-            // Your existing browser teardown logic follows.
             if (isLastScenarioFeature) {
                 logger.info("Skipping browser closure for feature with @LastScenario tag.");
                 isFirstScenarioInFeature = false;
             } else {
-                closeBrowserResources();
+                // ⚠️ Only change here: call the now-static method
+                Hooks.closeBrowserResources();
             }
         }
     }
 
-    private void closeBrowserResources() {
+    // ⚠️ Changed: made public and static so it can be reused from step defs
+    public static void closeBrowserResources() {
+        Exception e;
+
         try {
             Page page = pageThreadLocal.get();
             if (page != null && !page.isClosed()) {
                 page.close();
             }
-        } catch (Exception e) {
+        } catch (Exception ex) {
+            e = ex;
             logger.error("Error closing the page: {}", e.getMessage(), e);
         } finally {
             pageThreadLocal.remove();
@@ -109,9 +111,11 @@ public class Hooks {
         try {
             BrowserContext context = contextThreadLocal.get();
             if (context != null) {
+                // This closes all pages, tabs, and frames in the context
                 context.close();
             }
-        } catch (Exception e) {
+        } catch (Exception ex) {
+            e = ex;
             logger.error("Error closing the browser context: {}", e.getMessage(), e);
         } finally {
             contextThreadLocal.remove();
@@ -123,7 +127,8 @@ public class Hooks {
                 browser.close();
                 logger.info("Browser closed.");
             }
-        } catch (Exception e) {
+        } catch (Exception ex) {
+            e = ex;
             logger.error("Error closing the browser: {}", e.getMessage(), e);
         } finally {
             browserThreadLocal.remove();
@@ -132,18 +137,20 @@ public class Hooks {
 
     public static Page getPage() {
         Page page = pageThreadLocal.get();
-        if (page == null || page.isClosed()) {
+        if (page != null && !page.isClosed()) {
+            return page;
+        } else {
             throw new IllegalStateException("The page is closed or not initialized.");
         }
-        return page;
     }
 
     public static Browser getBrowser() {
         Browser browser = browserThreadLocal.get();
         if (browser == null) {
             throw new IllegalStateException("The browser is not initialized.");
+        } else {
+            return browser;
         }
-        return browser;
     }
 
     public static Scenario getCurrentScenario() {
@@ -152,5 +159,14 @@ public class Hooks {
 
     public static void setCurrentScenario(Scenario scenario) {
         scenarioThreadLocal.set(scenario);
+    }
+
+    public static BrowserContext getContext() {
+        BrowserContext context = contextThreadLocal.get();
+        if (context == null) {
+            throw new IllegalStateException("The browser context is not initialized.");
+        } else {
+            return context;
+        }
     }
 }
