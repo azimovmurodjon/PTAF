@@ -1,3 +1,8 @@
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by FernFlower decompiler)
+//
+
 package com.ptaf.hooks;
 
 import com.microsoft.playwright.Browser;
@@ -21,6 +26,8 @@ public class Hooks {
     private static final ThreadLocal<Scenario> scenarioThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<PageCommonMethods> pageCommonMethodsThreadLocal = new ThreadLocal<>();
     private static final Logger logger = LoggerFactory.getLogger(Hooks.class);
+
+    // Reuse flags
     private static boolean isLastScenarioFeature = false;
     private static boolean isFirstScenarioInFeature = true;
 
@@ -31,42 +38,58 @@ public class Hooks {
     public void setUp(Scenario scenario) {
         scenarioThreadLocal.set(scenario);
 
+        // If this scenario has @LastScenario tag – mark it
         if (scenario.getSourceTagNames().contains("@LastScenario")) {
             isLastScenarioFeature = true;
         }
 
-        if (isLastScenarioFeature && !isFirstScenarioInFeature) {
-            logger.info("Reusing browser instance for feature with @LastScenario tag.");
-        } else {
-            try {
-                String browserName = ConfigurationProperties.getBrowser();
-                BrowserFactory.BrowserTypeEnum browserTypeEnum;
+        // Check if we can safely reuse existing browser (for LastScenario feature logic)
+        Browser existingBrowser = browserThreadLocal.get();
+        BrowserContext existingContext = contextThreadLocal.get();
+        Page existingPage = pageThreadLocal.get();
 
-                switch (browserName.toUpperCase()) {
-                    case "CHROME" -> browserTypeEnum = BrowserTypeEnum.CHROME;
-                    case "FIREFOX" -> browserTypeEnum = BrowserTypeEnum.FIREFOX;
-                    case "WEBKIT" -> browserTypeEnum = BrowserTypeEnum.WEBKIT;
-                    case "EDGE" -> browserTypeEnum = BrowserTypeEnum.EDGE;
-                    default -> throw new IllegalArgumentException("Unsupported browser type: " + browserName);
-                }
+        boolean canReuse =
+                isLastScenarioFeature &&
+                        !isFirstScenarioInFeature &&
+                        existingBrowser != null &&
+                        existingContext != null &&
+                        existingPage != null &&
+                        !existingPage.isClosed();
 
-                Browser browser = BrowserFactory.createBrowser(browserTypeEnum);
-                browserThreadLocal.set(browser);
+        if (canReuse) {
+            logger.info("Reusing browser instance for feature with @LastScenario tag. Scenario: {}", scenario.getName());
+            return;
+        }
 
-                BrowserContext context = BrowserFactory.createContextWithVideo(browser);
-                contextThreadLocal.set(context);
+        // Otherwise create a brand new browser/context/page
+        try {
+            String browserName = ConfigurationProperties.getBrowser();
+            BrowserFactory.BrowserTypeEnum browserTypeEnum;
 
-                Page page = context.newPage();
-                pageThreadLocal.set(page);
-
-                PageCommonMethods pageCommonMethods = new PageCommonMethods(page);
-                pageCommonMethodsThreadLocal.set(pageCommonMethods);
-
-                logger.info("Browser setup completed for scenario: {}", scenario.getName());
-            } catch (Exception e) {
-                logger.error("Error setting up the browser for scenario: {}", e.getMessage());
-                throw new RuntimeException("Browser setup failed", e);
+            switch (browserName.toUpperCase()) {
+                case "CHROME" -> browserTypeEnum = BrowserTypeEnum.CHROME;
+                case "FIREFOX" -> browserTypeEnum = BrowserTypeEnum.FIREFOX;
+                case "WEBKIT" -> browserTypeEnum = BrowserTypeEnum.WEBKIT;
+                case "EDGE" -> browserTypeEnum = BrowserTypeEnum.EDGE;
+                default -> throw new IllegalArgumentException("Unsupported browser type: " + browserName);
             }
+
+            Browser browser = BrowserFactory.createBrowser(browserTypeEnum);
+            browserThreadLocal.set(browser);
+
+            BrowserContext context = BrowserFactory.createContextWithVideo(browser);
+            contextThreadLocal.set(context);
+
+            Page page = context.newPage();
+            pageThreadLocal.set(page);
+
+            PageCommonMethods pageCommonMethods = new PageCommonMethods(page);
+            pageCommonMethodsThreadLocal.set(pageCommonMethods);
+
+            logger.info("Browser setup completed for scenario: {}", scenario.getName());
+        } catch (Exception e) {
+            logger.error("Error setting up the browser for scenario: {}", e.getMessage(), e);
+            throw new RuntimeException("Browser setup failed", e);
         }
     }
 
@@ -83,16 +106,26 @@ public class Hooks {
             logger.error("Error during scenario teardown: {}", e.getMessage(), e);
         } finally {
             if (isLastScenarioFeature) {
+                // Keep current behavior: for @LastScenario feature, do not auto-close here
                 logger.info("Skipping browser closure for feature with @LastScenario tag.");
                 isFirstScenarioInFeature = false;
             } else {
-                // ⚠️ Only change here: call the now-static method
+                // For normal runs, close and reset everything
                 Hooks.closeBrowserResources();
             }
         }
     }
 
-    // ⚠️ Changed: made public and static so it can be reused from step defs
+    /**
+     * Global "kill switch" – can be called from:
+     *  - @After (normal scenarios)
+     *  - Step definition: "Then we close all browsers"
+     *
+     * It:
+     *  - Closes Page, Context, Browser
+     *  - Clears ThreadLocals
+     *  - Resets LastScenario flags so the next scenario will start a fresh browser
+     */
     public static void closeBrowserResources() {
         Exception e;
 
@@ -111,7 +144,7 @@ public class Hooks {
         try {
             BrowserContext context = contextThreadLocal.get();
             if (context != null) {
-                // This closes all pages, tabs, and frames in the context
+                // This closes all tabs and frames inside this context
                 context.close();
             }
         } catch (Exception ex) {
@@ -133,6 +166,12 @@ public class Hooks {
         } finally {
             browserThreadLocal.remove();
         }
+
+        // 🔁 IMPORTANT:
+        // After a full manual close we want the next scenario (including one with @LastScenario)
+        // to behave as a fresh start.
+        isLastScenarioFeature = false;
+        isFirstScenarioInFeature = true;
     }
 
     public static Page getPage() {
