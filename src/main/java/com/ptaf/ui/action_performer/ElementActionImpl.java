@@ -15,7 +15,6 @@ import com.ptaf.utils.YamlReader;
 
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -252,7 +251,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
     }
 
     // ============================================================
-    // Frame resolution (no long waits, still modal-aware)
+    // Frame resolution (FAST for indexed, modal-aware for generic)
     // ============================================================
 
     private FrameLocator findFrameWithElement(Page page, String iframeSelector, String element, String key) {
@@ -261,6 +260,11 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         String selNormalized = relaxModalSelectorIfNeeded(selBase);
         boolean looksModal = selNormalized != null &&
                 (selNormalized.contains("iframeWindowModal") || selNormalized.contains("frameborder"));
+
+        // *** FAST PATH for indexed iframe: use exactly that index, no waits, no probing ***
+        if (idxSel != null) {
+            return frameLocatorForSelector(page, idxSel.base).nth(idxSel.indexZeroBased);
+        }
 
         // 0) If caller already uses generic modal selector, just pick topmost visible.
         if (looksModal &&
@@ -272,15 +276,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
             }
         }
 
-        // 1) Indexed iframe first (no waits)
-        if (idxSel != null) {
-            FrameLocator candidate = frameLocatorForSelector(page, idxSel.base).nth(idxSel.indexZeroBased);
-            if (isFinalChainVisibleInContext(candidate, element, key)) {
-                return candidate;
-            }
-        }
-
-        // 2) Auto-probe by chain
+        // 1) Auto-probe by chain
         FrameLocator best;
         if (looksModal) {
             best = pickBestFrameByChainProbe(page, MODAL_IFRAME_CSS, element, key);
@@ -291,7 +287,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
             return best;
         }
 
-        // 3) Legacy fallback scanning
+        // 2) Legacy fallback scanning
         Locator iframeLocator = locatorForSelector(page, selNormalized);
         int count = iframeLocator.count();
         for (int i = 0; i < count; ++i) {
@@ -301,7 +297,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
             }
         }
 
-        // 4) Final fallback
+        // 3) Final fallback
         return frameLocatorForSelector(page, selNormalized);
     }
 
@@ -311,6 +307,11 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
         String selNormalized = relaxModalSelectorIfNeeded(selBase);
         boolean looksModal = selNormalized != null &&
                 (selNormalized.contains("iframeWindowModal") || selNormalized.contains("frameborder"));
+
+        // *** FAST PATH for indexed iframe in nested frame context ***
+        if (idxSel != null) {
+            return frameLocatorForSelector(parentFrame, idxSel.base).nth(idxSel.indexZeroBased);
+        }
 
         if (looksModal &&
                 ("iframe[name^=\"iframeWindowModal\"]".equals(selNormalized)
@@ -323,15 +324,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
 
         // No explicit waits here – we rely on locator chain + actionPerformer to wait.
 
-        // 1) Indexed
-        if (idxSel != null) {
-            FrameLocator candidate = frameLocatorForSelector(parentFrame, idxSel.base).nth(idxSel.indexZeroBased);
-            if (isFinalChainVisibleInContext(candidate, element, key)) {
-                return candidate;
-            }
-        }
-
-        // 2) Auto-probe
+        // 1) Auto-probe
         FrameLocator best;
         if (looksModal) {
             best = pickBestFrameByChainProbe(parentFrame, MODAL_IFRAME_CSS, element, key);
@@ -342,7 +335,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
             return best;
         }
 
-        // 3) Legacy scan
+        // 2) Legacy scan
         Locator iframeLocator = locatorForSelector(parentFrame, selNormalized);
         int count = iframeLocator.count();
         for (int i = 0; i < count; ++i) {
