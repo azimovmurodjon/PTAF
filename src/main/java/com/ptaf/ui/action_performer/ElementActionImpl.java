@@ -251,51 +251,54 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
     }
 
     // ============================================================
-    // Frame resolution (FAST for indexed; modal-aware otherwise)
+    // Frame resolution (FAST modal handling)
     // ============================================================
 
     /**
-     * PAGE context.
-     * If iframeSelector is indexed, e.g. (iframe[frameborder='0px'])[1],
-     * we trust the index and return that FrameLocator immediately (no probing).
+     * Page-level frame resolution.
+     * For modal iframes (iframeWindowModal / frameborder='0px'):
+     *   - Ignore any explicit index like (iframe[frameborder='0px'])[2]
+     *   - Always take the current TOPMOST visible modal (fast).
+     * For non-modal iframes:
+     *   - Keep previous behavior, including explicit index support.
      */
     private FrameLocator findFrameWithElement(Page page, String iframeSelector, String element, String key) {
         IndexedSelector idxSel = parseIndexedIframeSelector(iframeSelector);
-
-        // --- FAST PATH: explicit index provided ---
-        if (idxSel != null) {
-            // Directly return that iframe; no auto-probing, no loops.
-            return frameLocatorForSelector(page, idxSel.base).nth(idxSel.indexZeroBased);
-        }
-
-        // --- Original behavior for NON-indexed selectors ---
-        String selBase = iframeSelector;
+        String selBase = (idxSel != null) ? idxSel.base : iframeSelector;
         String selNormalized = relaxModalSelectorIfNeeded(selBase);
-        boolean looksModal = selNormalized != null &&
-                (selNormalized.contains("iframeWindowModal") || selNormalized.contains("frameborder"));
 
-        // 0) If caller already uses generic modal selector, just pick topmost visible.
-        if (looksModal &&
-                ("iframe[name^=\"iframeWindowModal\"]".equals(selNormalized)
-                        || MODAL_IFRAME_CSS.equals(selNormalized))) {
+        boolean isModalFamily =
+                selNormalized != null &&
+                        (selNormalized.contains("iframeWindowModal")
+                                || selNormalized.contains("frameborder"));
+
+        // -------- MODAL FAMILY (iframeWindowModal / frameborder='0px') ----------
+        if (isModalFamily) {
+            // ALWAYS pick the topmost visible modal, ignoring any indexing.
             FrameLocator top = topmostVisibleModal(page);
             if (top != null) {
                 return top;
             }
+            // Fallback: if nothing visible (rare), just first matching modal (fast).
+            return page.frameLocator(MODAL_IFRAME_CSS).first();
         }
 
-        // 1) Auto-probe by chain
-        FrameLocator best;
-        if (looksModal) {
-            best = pickBestFrameByChainProbe(page, MODAL_IFRAME_CSS, element, key);
-        } else {
-            best = pickBestFrameByChainProbe(page, selNormalized, element, key);
+        // -------- NON-MODAL IFRAMES (keep old logic, but no modal probing) ------
+        // 1) Explicit index, if any
+        if (idxSel != null) {
+            FrameLocator candidate = frameLocatorForSelector(page, idxSel.base).nth(idxSel.indexZeroBased);
+            if (isFinalChainVisibleInContext(candidate, element, key)) {
+                return candidate;
+            }
         }
+
+        // 2) Try probing by full chain on the given selector
+        FrameLocator best = pickBestFrameByChainProbe(page, selNormalized, element, key);
         if (best != null) {
             return best;
         }
 
-        // 2) Legacy fallback scanning (first token visibility)
+        // 3) Legacy fallback: scan all iframes with this selector
         Locator iframeLocator = locatorForSelector(page, selNormalized);
         int count = iframeLocator.count();
         for (int i = 0; i < count; ++i) {
@@ -305,46 +308,44 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
             }
         }
 
-        // 3) Final fallback
+        // 4) Last resort: just return frameLocator on selector
         return frameLocatorForSelector(page, selNormalized);
     }
 
     /**
-     * NESTED FrameLocator context.
-     * Same fast-path logic for indexed selectors.
+     * Nested-frame version of findFrameWithElement.
+     * Same modal behavior: topmost modal inside this parent frame.
      */
     private FrameLocator findFrameWithElement(FrameLocator parentFrame, String iframeSelector, String element, String key) {
         IndexedSelector idxSel = parseIndexedIframeSelector(iframeSelector);
-
-        // --- FAST PATH for indexed selectors ---
-        if (idxSel != null) {
-            return frameLocatorForSelector(parentFrame, idxSel.base).nth(idxSel.indexZeroBased);
-        }
-
-        // --- Original behavior for NON-indexed selectors ---
-        String selBase = iframeSelector;
+        String selBase = (idxSel != null) ? idxSel.base : iframeSelector;
         String selNormalized = relaxModalSelectorIfNeeded(selBase);
-        boolean looksModal = selNormalized != null &&
-                (selNormalized.contains("iframeWindowModal") || selNormalized.contains("frameborder"));
 
-        if (looksModal &&
-                ("iframe[name^=\"iframeWindowModal\"]".equals(selNormalized)
-                        || MODAL_IFRAME_CSS.equals(selNormalized))) {
+        boolean isModalFamily =
+                selNormalized != null &&
+                        (selNormalized.contains("iframeWindowModal")
+                                || selNormalized.contains("frameborder"));
+
+        // -------- MODAL FAMILY (nested) ----------
+        if (isModalFamily) {
             FrameLocator top = topmostVisibleModal(parentFrame);
             if (top != null) {
                 return top;
             }
+            return parentFrame.frameLocator(MODAL_IFRAME_CSS).first();
         }
 
-        // 1) Indexed (already handled above) – skip here.
-
-        // 2) Auto-probe
-        FrameLocator best;
-        if (looksModal) {
-            best = pickBestFrameByChainProbe(parentFrame, MODAL_IFRAME_CSS, element, key);
-        } else {
-            best = pickBestFrameByChainProbe(parentFrame, selNormalized, element, key);
+        // -------- NON-MODAL (nested) ------------
+        // 1) Explicit index
+        if (idxSel != null) {
+            FrameLocator candidate = frameLocatorForSelector(parentFrame, idxSel.base).nth(idxSel.indexZeroBased);
+            if (isFinalChainVisibleInContext(candidate, element, key)) {
+                return candidate;
+            }
         }
+
+        // 2) Chain probe
+        FrameLocator best = pickBestFrameByChainProbe(parentFrame, selNormalized, element, key);
         if (best != null) {
             return best;
         }
@@ -499,7 +500,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
             Locator finalLocator = buildLocatorInContext(frame, element, key);
             finalLocator.first().waitFor(new Locator.WaitForOptions()
                     .setState(WaitForSelectorState.VISIBLE)
-                    .setTimeout(80.0)); // very short timeout
+                    .setTimeout(80.0)); // shorter timeout
             return true;
         } catch (Throwable e) {
             return false;
