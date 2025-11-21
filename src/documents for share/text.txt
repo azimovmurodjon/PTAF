@@ -1,8 +1,3 @@
-//
-// Source code recreated from a .class file by IntelliJ IDEA
-// (powered by FernFlower decompiler)
-//
-
 package com.ptaf.ui.action_performer;
 
 import com.microsoft.playwright.ElementHandle;
@@ -17,563 +12,595 @@ import com.ptaf.ui.helpers.ElementLocatorHelper;
 import com.ptaf.ui.interfaces.ElementAction;
 import com.ptaf.ui.page_helper.PageHelper;
 import com.ptaf.utils.YamlReader;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * ElementActionImpl (Auto-Frame Selection + XPath index support + Top-most modal preference)
+ *
+ * - Understands both CSS and XPath iframe selectors, including indexed forms:
+ *     • CSS:  (iframe[frameborder='0px'])[2]
+ *     • XPath: (//iframe[@frameborder='0px'])[2]
+ * - If an index is given, tries that index FIRST; if the target chain isn’t visible there,
+ *   auto-probes all candidates (modal-aware, using z-index and full-chain visibility).
+ * - Modal handling:
+ *     • Strict names like iframe[name="iframeWindowModal7543"] are relaxed to starts-with for CSS and XPath.
+ *     • Always prefers the TOP-MOST modal (highest z-index) when probing candidates.
+ * - No changes required in your step definitions or YAML.
+ */
 public class ElementActionImpl extends PageHelper implements ElementAction {
     private static final Logger logger = LoggerFactory.getLogger(ElementActionImpl.class);
+
+    private static final String MODAL_IFRAME_CSS = "iframe[name^='iframeWindowModal']";
+    private static final String MODAL_CANDIDATE_CSS = "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']";
+
     private final ActionPerformer actionPerformer = new ActionPerformer();
     private final ElementLocatorHelper elementLocatorHelper = new ElementLocatorHelper();
     private final LocatorHandler locatorHandler = new LocatorHandler();
 
-    public ElementActionImpl(Page page) {
-        super(page);
-    }
+    public ElementActionImpl(Page page) { super(page); }
 
-    public Locator getLocator(String iFrame, String iFrame_2, String iFrame_3, String element, String key, Page page, FrameLocator frameLocator) {
-        String fullLocatorString = this.elementLocatorHelper.getElement(element, key);
-        String[] locatorParts = this.normalizeAndSplitChain(fullLocatorString);
+    // ============================================================
+    // Core locator building (frames + element chain)
+    // ============================================================
+    @Override
+    public Locator getLocator(String iFrame, String iFrame_2, String iFrame_3,
+                              String element, String key, Page page, FrameLocator frameLocator) {
+        String fullLocatorString = elementLocatorHelper.getElement(element, key);
+        String[] locatorParts = normalizeAndSplitChain(fullLocatorString);
+
         Locator currentLocator = null;
 
         try {
             Object context = page;
+
             if (frameLocator != null) {
                 context = frameLocator;
             } else if (iFrame != null && !iFrame.isEmpty()) {
-                FrameLocator fl = this.findFrameWithElement(page, iFrame, element, key);
+                FrameLocator fl = findFrameWithElement(page, iFrame, element, key);
                 if (iFrame_2 != null && !iFrame_2.isEmpty()) {
-                    fl = this.findFrameWithElement(fl, iFrame_2, element, key);
+                    fl = findFrameWithElement(fl, iFrame_2, element, key);
                 }
-
                 if (iFrame_3 != null && !iFrame_3.isEmpty()) {
-                    fl = this.findFrameWithElement(fl, iFrame_3, element, key);
+                    fl = findFrameWithElement(fl, iFrame_3, element, key);
                 }
-
                 context = fl;
             }
 
-            for(int i = 0; i < locatorParts.length; ++i) {
+            for (int i = 0; i < locatorParts.length; i++) {
                 String part = locatorParts[i].trim();
-                String locatorType = this.parseType(part);
-                String locator = this.parseValue(part);
+                String locatorType = parseType(part);
+                String locator = parseValue(part);
+
                 if (i == 0) {
                     if (context instanceof Page) {
-                        currentLocator = this.locatorHandler.getLocatorForType(locatorType, (Page)context, locator);
+                        currentLocator = locatorHandler.getLocatorForType(locatorType, (Page) context, locator);
                     } else {
-                        currentLocator = this.locatorHandler.getLocatorForType(locatorType, (FrameLocator)context, locator);
+                        currentLocator = locatorHandler.getLocatorForType(locatorType, (FrameLocator) context, locator);
                     }
                 } else {
-                    currentLocator = this.locatorHandler.getLocatorForType(locatorType, currentLocator, locator);
+                    currentLocator = locatorHandler.getLocatorForType(locatorType, currentLocator, locator);
                 }
             }
 
             return currentLocator;
-        } catch (Exception var16) {
-            Exception e = var16;
+
+        } catch (Exception e) {
             throw new RuntimeException("Failed to get locator for: '" + fullLocatorString + "'", e);
         }
     }
 
+    // ============================================================
+    // Frame resolution (Index-aware + Modal-aware + Auto-probing)
+    // ============================================================
+
     private FrameLocator findFrameWithElement(Page page, String iframeSelector, String element, String key) {
-        IndexedSelector idxSel = this.parseIndexedIframeSelector(iframeSelector);
-        String selBase = idxSel != null ? idxSel.base : iframeSelector;
-        String selNormalized = this.relaxModalSelectorIfNeeded(selBase);
-        boolean looksModal = selNormalized != null && (selNormalized.contains("iframeWindowModal") || selNormalized.contains("frameborder"));
-        String modalCandidateCSS = "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']";
+        IndexedSelector idxSel = parseIndexedIframeSelector(iframeSelector); // supports XPath form too
+        String selBase = (idxSel != null) ? idxSel.base : iframeSelector;
 
+        // Relax strict modal selectors (CSS or XPath) so we can probe generically
+        String selNormalized = relaxModalSelectorIfNeeded(selBase);
+        boolean looksModal = looksLikeModal(selNormalized);
+
+        // Short, non-fatal wait for candidates to appear
         try {
-            if (this.isXPathSelector(selNormalized)) {
-                page.waitForSelector("xpath=//iframe", (new Page.WaitForSelectorOptions()).setTimeout(1500.0));
+            if (isXPathSelector(selNormalized)) {
+                page.waitForSelector("xpath=//iframe", new Page.WaitForSelectorOptions().setTimeout(1500));
             } else {
-                page.waitForSelector(looksModal ? modalCandidateCSS : selNormalized, (new Page.WaitForSelectorOptions()).setTimeout(1500.0));
+                page.waitForSelector(looksModal ? MODAL_CANDIDATE_CSS : selNormalized,
+                        new Page.WaitForSelectorOptions().setTimeout(1500));
             }
-        } catch (Throwable var14) {
-        }
+        } catch (Throwable ignored) {}
 
-        FrameLocator best;
+        // 1) Try the explicit index first (respecting selector engine)
         if (idxSel != null) {
-            best = this.frameLocatorForSelector(page, idxSel.base).nth(idxSel.indexZeroBased);
-            if (this.isFinalChainVisibleInContext(best, element, key)) {
-                logger.info("Resolved indexed iframe {}[{}] for element '{}':'{}'", new Object[]{idxSel.base, idxSel.indexZeroBased, element, key});
-                return best;
+            FrameLocator candidate = frameLocatorForSelector(page, idxSel.base).nth(idxSel.indexZeroBased);
+            if (isFinalChainVisibleInContext(candidate, element, key)) {
+                logger.info("Resolved indexed iframe {}[{}] for element '{}':'{}'",
+                        idxSel.base, idxSel.indexZeroBased, element, key);
+                return candidate;
+            } else {
+                logger.info("Indexed iframe {}[{}] did not expose target; auto-probing others...", idxSel.base, idxSel.indexZeroBased);
             }
-
-            logger.info("Indexed iframe {}[{}] did not expose target; auto-probing others...", idxSel.base, idxSel.indexZeroBased);
         }
 
+        // 2) Prefer TOP-MOST modal when probing (z-index desc), else probe by given selector
         if (looksModal) {
-            best = this.pickBestFrameByChainProbe(page, modalCandidateCSS, element, key);
-            if (best != null) {
-                return best;
-            }
+            FrameLocator best = pickBestFrameByChainProbe(page, MODAL_CANDIDATE_CSS, element, key);
+            if (best != null) return best;
         } else {
-            best = this.pickBestFrameByChainProbe(page, selNormalized, element, key);
-            if (best != null) {
-                return best;
-            }
+            FrameLocator best = pickBestFrameByChainProbe(page, selNormalized, element, key);
+            if (best != null) return best;
         }
 
-        Locator iframeLocator = this.locatorForSelector(page, selNormalized);
+        // 3) Legacy fallback scanning on selNormalized (engine-aware)
+        Locator iframeLocator = locatorForSelector(page, selNormalized);
         int count = iframeLocator.count();
-
-        for(int i = 0; i < count; ++i) {
-            FrameLocator fl = this.frameLocatorForSelector(page, selNormalized).nth(i);
-            if (this.isFirstTokenVisibleInContext(fl, element, key)) {
-                return fl;
-            }
+        for (int i = 0; i < count; i++) {
+            FrameLocator fl = frameLocatorForSelector(page, selNormalized).nth(i);
+            if (isFirstTokenVisibleInContext(fl, element, key)) return fl;
         }
 
-        return this.frameLocatorForSelector(page, selNormalized);
+        // 4) Final fallback
+        return frameLocatorForSelector(page, selNormalized);
     }
 
     private FrameLocator findFrameWithElement(FrameLocator parentFrame, String iframeSelector, String element, String key) {
-        IndexedSelector idxSel = this.parseIndexedIframeSelector(iframeSelector);
-        String selBase = idxSel != null ? idxSel.base : iframeSelector;
-        String selNormalized = this.relaxModalSelectorIfNeeded(selBase);
-        boolean looksModal = selNormalized != null && (selNormalized.contains("iframeWindowModal") || selNormalized.contains("frameborder"));
-        String modalCandidateCSS = "iframe[name^='iframeWindowModal'], iframe[frameborder='0px']";
+        IndexedSelector idxSel = parseIndexedIframeSelector(iframeSelector);
+        String selBase = (idxSel != null) ? idxSel.base : iframeSelector;
 
+        String selNormalized = relaxModalSelectorIfNeeded(selBase);
+        boolean looksModal = looksLikeModal(selNormalized);
+
+        // Short, non-fatal wait for candidates in nested context
         try {
-            if (this.isXPathSelector(selNormalized)) {
-                parentFrame.locator("xpath=//iframe").first().waitFor((new Locator.WaitForOptions()).setState(WaitForSelectorState.ATTACHED).setTimeout(1500.0));
+            if (isXPathSelector(selNormalized)) {
+                parentFrame.locator("xpath=//iframe").first()
+                        .waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.ATTACHED).setTimeout(1500));
             } else {
-                parentFrame.locator(looksModal ? modalCandidateCSS : selNormalized).first().waitFor((new Locator.WaitForOptions()).setState(WaitForSelectorState.ATTACHED).setTimeout(1500.0));
+                parentFrame.locator(looksModal ? MODAL_CANDIDATE_CSS : selNormalized).first()
+                        .waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.ATTACHED).setTimeout(1500));
             }
-        } catch (Throwable var14) {
-        }
+        } catch (Throwable ignored) {}
 
-        FrameLocator best;
+        // 1) Try the explicit index first
         if (idxSel != null) {
-            best = this.frameLocatorForSelector(parentFrame, idxSel.base).nth(idxSel.indexZeroBased);
-            if (this.isFinalChainVisibleInContext(best, element, key)) {
-                logger.info("Resolved nested indexed iframe {}[{}] for element '{}':'{}'", new Object[]{idxSel.base, idxSel.indexZeroBased, element, key});
-                return best;
+            FrameLocator candidate = frameLocatorForSelector(parentFrame, idxSel.base).nth(idxSel.indexZeroBased);
+            if (isFinalChainVisibleInContext(candidate, element, key)) {
+                logger.info("Resolved nested indexed iframe {}[{}] for element '{}':'{}'",
+                        idxSel.base, idxSel.indexZeroBased, element, key);
+                return candidate;
+            } else {
+                logger.info("Nested indexed iframe {}[{}] did not expose target; auto-probing others...", idxSel.base, idxSel.indexZeroBased);
             }
-
-            logger.info("Nested indexed iframe {}[{}] did not expose target; auto-probing others...", idxSel.base, idxSel.indexZeroBased);
         }
 
+        // 2) Prefer TOP-MOST modal when probing
         if (looksModal) {
-            best = this.pickBestFrameByChainProbe(parentFrame, modalCandidateCSS, element, key);
-            if (best != null) {
-                return best;
-            }
+            FrameLocator best = pickBestFrameByChainProbe(parentFrame, MODAL_CANDIDATE_CSS, element, key);
+            if (best != null) return best;
         } else {
-            best = this.pickBestFrameByChainProbe(parentFrame, selNormalized, element, key);
-            if (best != null) {
-                return best;
-            }
+            FrameLocator best = pickBestFrameByChainProbe(parentFrame, selNormalized, element, key);
+            if (best != null) return best;
         }
 
-        Locator iframeLocator = this.locatorForSelector(parentFrame, selNormalized);
+        // 3) Legacy fallback scanning
+        Locator iframeLocator = locatorForSelector(parentFrame, selNormalized);
         int count = iframeLocator.count();
-
-        for(int i = 0; i < count; ++i) {
-            FrameLocator fl = this.frameLocatorForSelector(parentFrame, selNormalized).nth(i);
-            if (this.isFirstTokenVisibleInContext(fl, element, key)) {
-                return fl;
-            }
+        for (int i = 0; i < count; i++) {
+            FrameLocator fl = frameLocatorForSelector(parentFrame, selNormalized).nth(i);
+            if (isFirstTokenVisibleInContext(fl, element, key)) return fl;
         }
 
-        return this.frameLocatorForSelector(parentFrame, selNormalized);
+        // 4) Final fallback
+        return frameLocatorForSelector(parentFrame, selNormalized);
     }
 
+    private boolean looksLikeModal(String selNormalized) {
+        if (selNormalized == null) return false;
+        String s = selNormalized.toLowerCase();
+        return s.contains("iframewindowmodal") || s.contains("frameborder");
+    }
+
+    // ============================================================
+    // Auto-probing by full chain (preferred), with z-index ordering
+    // ============================================================
+
     private FrameLocator pickBestFrameByChainProbe(Page page, String candidateSelector, String element, String key) {
-        Locator iframes = this.locatorForSelector(page, candidateSelector);
+        Locator iframes = locatorForSelector(page, candidateSelector);
         int count = iframes.count();
-        if (count == 0) {
-            return null;
-        } else {
-            List<Integer> order = this.indicesByZIndexDesc(iframes);
-            Iterator var8 = order.iterator();
+        if (count == 0) return null;
 
-            while(var8.hasNext()) {
-                Integer idx = (Integer)var8.next();
-                if (this.safeIsVisible(iframes.nth(idx))) {
-                    FrameLocator fl = this.frameLocatorForSelector(page, candidateSelector).nth(idx);
-                    if (this.isFinalChainVisibleInContext(fl, element, key)) {
-                        return fl;
-                    }
-                }
-            }
+        // Order by z-index DESC to prioritize the TOP-MOST modal automatically
+        List<Integer> order = indicesByZIndexDesc(iframes);
+        for (Integer idx : order) {
+            if (!safeIsVisible(iframes.nth(idx))) continue;
+            FrameLocator fl = frameLocatorForSelector(page, candidateSelector).nth(idx);
+            if (isFinalChainVisibleInContext(fl, element, key)) return fl;
+        }
 
-            int bestIdx = -1;
-            int bestCount = -1;
-            int bestZ = Integer.MIN_VALUE;
-            Iterator var11 = order.iterator();
+        // Fallback by match count + z-index
+        int bestIdx = -1;
+        int bestCount = -1;
+        int bestZ = Integer.MIN_VALUE;
 
-            while(true) {
-                Integer idx;
-                int countMatches;
-                int z;
-                do {
-                    if (!var11.hasNext()) {
-                        if (bestIdx >= 0) {
-                            return this.frameLocatorForSelector(page, candidateSelector).nth(bestIdx);
-                        }
+        for (Integer idx : order) {
+            FrameLocator fl = frameLocatorForSelector(page, candidateSelector).nth(idx);
+            int countMatches = countFinalChainMatches(fl, element, key);
+            int z = safeZIndex(iframes.nth(idx));
 
-                        return null;
-                    }
-
-                    idx = (Integer)var11.next();
-                    FrameLocator fl = this.frameLocatorForSelector(page, candidateSelector).nth(idx);
-                    countMatches = this.countFinalChainMatches(fl, element, key);
-                    z = this.safeZIndex(iframes.nth(idx));
-                } while(countMatches <= bestCount && (countMatches != bestCount || z <= bestZ));
-
+            if (countMatches > bestCount || (countMatches == bestCount && z > bestZ)) {
                 bestCount = countMatches;
                 bestZ = z;
                 bestIdx = idx;
             }
         }
+        if (bestIdx >= 0) return frameLocatorForSelector(page, candidateSelector).nth(bestIdx);
+        return null;
     }
 
     private FrameLocator pickBestFrameByChainProbe(FrameLocator parentFrame, String candidateSelector, String element, String key) {
-        Locator iframes = this.locatorForSelector(parentFrame, candidateSelector);
+        Locator iframes = locatorForSelector(parentFrame, candidateSelector);
         int count = iframes.count();
-        if (count == 0) {
-            return null;
-        } else {
-            List<Integer> order = this.indicesByZIndexDesc(iframes);
-            Iterator var8 = order.iterator();
+        if (count == 0) return null;
 
-            while(var8.hasNext()) {
-                Integer idx = (Integer)var8.next();
-                if (this.safeIsVisible(iframes.nth(idx))) {
-                    FrameLocator fl = this.frameLocatorForSelector(parentFrame, candidateSelector).nth(idx);
-                    if (this.isFinalChainVisibleInContext(fl, element, key)) {
-                        return fl;
-                    }
-                }
-            }
+        List<Integer> order = indicesByZIndexDesc(iframes);
+        for (Integer idx : order) {
+            if (!safeIsVisible(iframes.nth(idx))) continue;
+            FrameLocator fl = frameLocatorForSelector(parentFrame, candidateSelector).nth(idx);
+            if (isFinalChainVisibleInContext(fl, element, key)) return fl;
+        }
 
-            int bestIdx = -1;
-            int bestCount = -1;
-            int bestZ = Integer.MIN_VALUE;
-            Iterator var11 = order.iterator();
+        int bestIdx = -1;
+        int bestCount = -1;
+        int bestZ = Integer.MIN_VALUE;
 
-            while(true) {
-                Integer idx;
-                int countMatches;
-                int z;
-                do {
-                    if (!var11.hasNext()) {
-                        if (bestIdx >= 0) {
-                            return this.frameLocatorForSelector(parentFrame, candidateSelector).nth(bestIdx);
-                        }
+        for (Integer idx : order) {
+            FrameLocator fl = frameLocatorForSelector(parentFrame, candidateSelector).nth(idx);
+            int countMatches = countFinalChainMatches(fl, element, key);
+            int z = safeZIndex(iframes.nth(idx));
 
-                        return null;
-                    }
-
-                    idx = (Integer)var11.next();
-                    FrameLocator fl = this.frameLocatorForSelector(parentFrame, candidateSelector).nth(idx);
-                    countMatches = this.countFinalChainMatches(fl, element, key);
-                    z = this.safeZIndex(iframes.nth(idx));
-                } while(countMatches <= bestCount && (countMatches != bestCount || z <= bestZ));
-
+            if (countMatches > bestCount || (countMatches == bestCount && z > bestZ)) {
                 bestCount = countMatches;
                 bestZ = z;
                 bestIdx = idx;
             }
         }
+        if (bestIdx >= 0) return frameLocatorForSelector(parentFrame, candidateSelector).nth(bestIdx);
+        return null;
     }
+
+    // ============================================================
+    // Visibility & scoring helpers
+    // ============================================================
 
     private boolean isFinalChainVisibleInContext(FrameLocator frame, String element, String key) {
         try {
-            Locator finalLocator = this.buildLocatorInContext(frame, element, key);
-            finalLocator.first().waitFor((new Locator.WaitForOptions()).setState(WaitForSelectorState.VISIBLE).setTimeout(1200.0));
+            Locator finalLocator = buildLocatorInContext(frame, element, key);
+            finalLocator.first().waitFor(new Locator.WaitForOptions()
+                    .setState(WaitForSelectorState.VISIBLE)
+                    .setTimeout(1200));
             return true;
-        } catch (Throwable var5) {
+        } catch (Throwable t) {
             return false;
         }
     }
 
     private int countFinalChainMatches(FrameLocator frame, String element, String key) {
         try {
-            Locator finalLocator = this.buildLocatorInContext(frame, element, key);
+            Locator finalLocator = buildLocatorInContext(frame, element, key);
             return finalLocator.count();
-        } catch (Throwable var5) {
+        } catch (Throwable t) {
             return 0;
         }
     }
 
     private boolean isFirstTokenVisibleInContext(FrameLocator frame, String element, String key) {
-        String[] parts = this.normalizeAndSplitChain(this.elementLocatorHelper.getElement(element, key));
+        String[] parts = normalizeAndSplitChain(elementLocatorHelper.getElement(element, key));
         String first = parts[0].trim();
-        String t = this.parseType(first);
-        String v = this.parseValue(first);
-        Locator test = this.locatorHandler.getLocatorForType(t, frame, v);
-
+        String t = parseType(first);
+        String v = parseValue(first);
+        Locator test = locatorHandler.getLocatorForType(t, frame, v);
         try {
-            test.first().waitFor((new Locator.WaitForOptions()).setState(WaitForSelectorState.VISIBLE).setTimeout(1000.0));
+            test.first().waitFor(new Locator.WaitForOptions()
+                    .setState(WaitForSelectorState.VISIBLE)
+                    .setTimeout(1000));
             return true;
-        } catch (Throwable var10) {
+        } catch (Throwable ignored) {
             return false;
         }
     }
 
     private Locator buildLocatorInContext(FrameLocator frame, String element, String key) {
-        String full = this.elementLocatorHelper.getElement(element, key);
-        String[] chain = this.normalizeAndSplitChain(full);
-        Locator current = null;
+        String full = elementLocatorHelper.getElement(element, key);
+        String[] chain = normalizeAndSplitChain(full);
 
-        for(int i = 0; i < chain.length; ++i) {
+        Locator current = null;
+        for (int i = 0; i < chain.length; i++) {
             String part = chain[i].trim();
-            String type = this.parseType(part);
-            String value = this.parseValue(part);
+            String type = parseType(part);
+            String value = parseValue(part);
             if (i == 0) {
-                current = this.locatorHandler.getLocatorForType(type, frame, value);
+                current = locatorHandler.getLocatorForType(type, frame, value);
             } else {
-                current = this.locatorHandler.getLocatorForType(type, current, value);
+                current = locatorHandler.getLocatorForType(type, current, value);
             }
         }
-
         return current;
     }
 
     private boolean safeIsVisible(Locator loc) {
-        try {
-            return loc.isVisible();
-        } catch (Throwable var3) {
-            return false;
-        }
+        try { return loc.isVisible(); } catch (Throwable t) { return false; }
     }
 
     private int safeZIndex(Locator iframeEl) {
         try {
             Object val = iframeEl.evaluate("e => { const z = getComputedStyle(e).zIndex; const n = parseInt(z,10); return isNaN(n) ? 0 : n; }");
-            return val instanceof Number ? ((Number)val).intValue() : 0;
-        } catch (Throwable var3) {
+            return (val instanceof Number) ? ((Number) val).intValue() : 0;
+        } catch (Throwable t) {
             return 0;
         }
     }
 
     private List<Integer> indicesByZIndexDesc(Locator iframes) {
         int count = iframes.count();
-        List<Integer> order = new ArrayList();
-
-        for(int i = 0; i < count; ++i) {
-            order.add(i);
-        }
-
-        order.sort((a, b) -> {
-            return Integer.compare(this.safeZIndex(iframes.nth(b)), this.safeZIndex(iframes.nth(a)));
-        });
+        List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < count; i++) order.add(i);
+        order.sort((a, b) -> Integer.compare(safeZIndex(iframes.nth(b)), safeZIndex(iframes.nth(a))));
         return order;
     }
 
+    // ============================================================
+    // Selector parsing & normalization (CSS + XPath)
+    // ============================================================
+
+    /** Accept both " > " and "&gt;"; normalize to '>' and split. */
     private String[] normalizeAndSplitChain(String raw) {
-        if (raw == null) {
-            return new String[0];
-        } else {
-            String normalized = raw.replace("&gt;", ">");
-            return normalized.split("\\s*>\\s*");
-        }
+        if (raw == null) return new String[0];
+        String normalized = raw.replace("&gt;", ">");
+        return normalized.split("\\s*>\\s*");
     }
 
+    /** Extract TYPE from "TYPE_value" or return token itself if no underscore. */
     private String parseType(String part) {
-        if (part == null) {
-            return "";
-        } else {
-            String token = part.trim();
-            int idx = token.indexOf(95);
-            return (idx >= 0 ? token.substring(0, idx) : token).trim();
-        }
+        if (part == null) return "";
+        String token = part.trim();
+        int idx = token.indexOf('_');
+        return (idx >= 0 ? token.substring(0, idx) : token).trim();
     }
 
+    /** Extract value from "TYPE_value"; returns "" if no underscore (unnamed role). */
     private String parseValue(String part) {
-        if (part == null) {
-            return "";
-        } else {
-            String token = part.trim();
-            int idx = token.indexOf(95);
-            return (idx >= 0 ? token.substring(idx + 1) : "").trim();
-        }
+        if (part == null) return "";
+        String token = part.trim();
+        int idx = token.indexOf('_');
+        return (idx >= 0 ? token.substring(idx + 1) : "").trim();
     }
 
+    /**
+     * Parse indexed iframe selector.
+     * Supports:
+     *   (iframe[...])[2]                    // CSS-like
+     *   (//iframe[@attr='v'])[2]            // XPath
+     */
     private IndexedSelector parseIndexedIframeSelector(String raw) {
-        if (raw == null) {
-            return null;
-        } else {
-            String s = raw.trim();
-            Pattern xPathIndexed = Pattern.compile("^\\(\\s*(//iframe\\[[^\\]]+\\])\\s*\\)\\s*\\[(\\d+)\\]\\s*$", 2);
-            Matcher mx = xPathIndexed.matcher(s);
-            if (mx.find()) {
-                String base = mx.group(1);
-                int oneBased = Integer.parseInt(mx.group(2));
-                return new IndexedSelector(base, Math.max(0, oneBased - 1));
-            } else {
-                Pattern cssIndexed = Pattern.compile("^\\(\\s*(iframe\\[[^\\]]+\\])\\s*\\)\\s*\\[(\\d+)\\]\\s*$", 2);
-                Matcher mc = cssIndexed.matcher(s);
-                if (mc.find()) {
-                    String base = mc.group(1);
-                    int oneBased = Integer.parseInt(mc.group(2));
-                    return new IndexedSelector(base, Math.max(0, oneBased - 1));
-                } else {
-                    return null;
-                }
-            }
+        if (raw == null) return null;
+        String s = raw.trim();
+
+        // XPath form: (//iframe[@...])[2]
+        Pattern xPathIndexed = Pattern.compile("^\\(\\s*(//iframe\\[[^\\]]+\\])\\s*\\)\\s*\\[(\\d+)\\]\\s*$", Pattern.CASE_INSENSITIVE);
+        Matcher mx = xPathIndexed.matcher(s);
+        if (mx.find()) {
+            String base = mx.group(1); // //iframe[@frameborder='0px']
+            int oneBased = Integer.parseInt(mx.group(2));
+            return new IndexedSelector(base, Math.max(0, oneBased - 1)); // zero-based
+        }
+
+        // CSS-like form: (iframe[...])[2]
+        Pattern cssIndexed = Pattern.compile("^\\(\\s*(iframe\\[[^\\]]+\\])\\s*\\)\\s*\\[(\\d+)\\]\\s*$", Pattern.CASE_INSENSITIVE);
+        Matcher mc = cssIndexed.matcher(s);
+        if (mc.find()) {
+            String base = mc.group(1); // iframe[frameborder='0px']
+            int oneBased = Integer.parseInt(mc.group(2));
+            return new IndexedSelector(base, Math.max(0, oneBased - 1));
+        }
+
+        return null;
+    }
+
+    /**
+     * Relax strict modal selectors:
+     *   CSS  : iframe[name="iframeWindowModal7543"] -> iframe[name^="iframeWindowModal"]
+     *   XPath: //iframe[@name='iframeWindowModal7543'] -> //iframe[starts-with(@name,'iframeWindowModal')]
+     */
+    private String relaxModalSelectorIfNeeded(String sel) {
+        if (sel == null) return null;
+        String s = sel.trim();
+
+        // CSS strict → relax
+        if (s.matches("iframe\\[name\\s*=\\s*\"iframeWindowModal\\d+\"\\]")) {
+            return "iframe[name^=\"iframeWindowModal\"]";
+        }
+
+        // XPath strict → relax to starts-with
+        // Examples matched:
+        //   //iframe[@name='iframeWindowModal7543']
+        //   (//iframe[@name="iframeWindowModal1524"])[1]
+        Pattern xpStrict = Pattern.compile("^(?:\\(|)?\\s*//iframe\\s*\\[\\s*@name\\s*=\\s*['\"]iframeWindowModal\\d+['\"]\\s*]\\s*(?:\\))?\\s*(?:\\[\\d+\\])?\\s*$",
+                Pattern.CASE_INSENSITIVE);
+        if (xpStrict.matcher(s).find()) {
+            return s.replaceAll("@name\\s*=\\s*['\"]iframeWindowModal\\d+['\"]",
+                    "starts-with(@name,'iframeWindowModal')");
+        }
+
+        return s;
+    }
+
+    private static final class IndexedSelector {
+        final String base;           // e.g. iframe[frameborder='0px'] OR //iframe[@frameborder='0px']
+        final int indexZeroBased;
+        IndexedSelector(String base, int indexZeroBased) {
+            this.base = base;
+            this.indexZeroBased = indexZeroBased;
         }
     }
 
-    private String relaxModalSelectorIfNeeded(String sel) {
-        if (sel == null) {
-            return null;
-        } else {
-            String s = sel.trim();
-            return s.matches("iframe\\[name\\s*=\\s*\"iframeWindowModal\\d+\"\\]") ? "iframe[name^=\"iframeWindowModal\"]" : s;
-        }
-    }
+    // ============================================================
+    // Engine-aware helpers (CSS vs XPath)
+    // ============================================================
 
     private boolean isXPathSelector(String sel) {
-        if (sel == null) {
-            return false;
-        } else {
-            String s = sel.trim();
-            return s.startsWith("//") || s.startsWith("(");
-        }
+        if (sel == null) return false;
+        String s = sel.trim();
+        // Heuristic: raw XPath typically starts with // or .// or (//...
+        return s.startsWith("//") || s.startsWith(".//") || s.startsWith("(");
     }
 
     private Locator locatorForSelector(Page page, String sel) {
-        return this.isXPathSelector(sel) ? page.locator("xpath=" + sel) : page.locator(sel);
+        return isXPathSelector(sel) ? page.locator("xpath=" + sel) : page.locator(sel);
     }
 
     private Locator locatorForSelector(FrameLocator frame, String sel) {
-        return this.isXPathSelector(sel) ? frame.locator("xpath=" + sel) : frame.locator(sel);
+        return isXPathSelector(sel) ? frame.locator("xpath=" + sel) : frame.locator(sel);
     }
 
     private FrameLocator frameLocatorForSelector(Page page, String sel) {
-        return this.isXPathSelector(sel) ? page.frameLocator("xpath=" + sel) : page.frameLocator(sel);
+        return isXPathSelector(sel) ? page.frameLocator("xpath=" + sel) : page.frameLocator(sel);
     }
 
     private FrameLocator frameLocatorForSelector(FrameLocator frame, String sel) {
-        return this.isXPathSelector(sel) ? frame.frameLocator("xpath=" + sel) : frame.frameLocator(sel);
+        return isXPathSelector(sel) ? frame.frameLocator("xpath=" + sel) : frame.frameLocator(sel);
     }
 
-    private boolean performAction(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
-        Locator targetLocator = null;
+    // ============================================================
+    // Action execution wrappers (public API unchanged)
+    // ============================================================
 
+    private boolean performAction(Page page, String iFrame, String iFrame_2, String iFrame_3,
+                                  String action, String element, String key, String value, FrameLocator frameLocator) {
+        Locator targetLocator = null;
         try {
+            // small non-fatal wait in case a modal is animating in
             if (page != null) {
                 try {
-                    page.waitForSelector("iframe[name^='iframeWindowModal'], iframe[frameborder='0px']", (new Page.WaitForSelectorOptions()).setTimeout(500.0));
-                } catch (Throwable var12) {
-                }
+                    page.waitForSelector(MODAL_CANDIDATE_CSS, new Page.WaitForSelectorOptions().setTimeout(500));
+                } catch (Throwable ignored) {}
             }
 
             if (frameLocator != null) {
-                targetLocator = this.getLocator((String)null, (String)null, (String)null, element, key, (Page)null, frameLocator);
+                targetLocator = getLocator(null, null, null, element, key, null, frameLocator);
+            } else if (page != null) {
+                targetLocator = getLocator(iFrame, iFrame_2, iFrame_3, element, key, page, null);
             } else {
-                if (page == null) {
-                    throw new IllegalArgumentException("A Page or FrameLocator context is required.");
-                }
-
-                targetLocator = this.getLocator(iFrame, iFrame_2, iFrame_3, element, key, page, (FrameLocator)null);
+                throw new IllegalArgumentException("A Page or FrameLocator context is required.");
             }
 
             if (targetLocator == null) {
                 throw new IllegalStateException("Failed to resolve a target Locator for element: " + element + " with key: " + key);
-            } else {
-                this.actionPerformer.waitForLocator(targetLocator);
-                this.actionPerformer.performAction(page, action, targetLocator, value);
-                return true;
             }
-        } catch (Exception var13) {
-            Exception e = var13;
-            logger.error("Error while performing action '{}' on element '{}' with key '{}'", new Object[]{action, element, key, e});
-            return false;
+
+            actionPerformer.waitForLocator(targetLocator);
+            actionPerformer.performAction(page, action, targetLocator, value);
+            return true;
+        } catch (Exception e) {
+            logger.error("Error while performing action '{}' on element '{}' with key '{}'", action, element, key, e);
         }
+        return false;
     }
 
+    @Override
     public boolean performActionPage(Page page, String action, String element, String key, String value) {
-        return this.performAction(page, (String)null, (String)null, (String)null, action, element, key, value, (FrameLocator)null);
+        return performAction(page, null, null, null, action, element, key, value, null);
     }
 
+    @Override
     public boolean performActionFrame(FrameLocator frameLocator, String action, String element, String key, String value) {
-        return this.performAction((Page)null, (String)null, (String)null, (String)null, action, element, key, value, frameLocator);
+        return performAction(null, null, null, null, action, element, key, value, frameLocator);
     }
 
-    public boolean performActionPageFrame(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
-        return this.performAction(page, iFrame, iFrame_2, iFrame_3, action, element, key, value, (FrameLocator)null);
+    @Override
+    public boolean performActionPageFrame(Page page, String iFrame, String iFrame_2, String iFrame_3,
+                                          String action, String element, String key, String value, FrameLocator frameLocator) {
+        return performAction(page, iFrame, iFrame_2, iFrame_3, action, element, key, value, null);
     }
 
+    @Override
     public boolean getElementHandlePage(Page page, String element, String key) {
-        List<ElementHandle> elementHandles = this.getElementHandleList(page, element, key, (FrameLocator)null);
+        List<ElementHandle> elementHandles = getElementHandleList(page, element, key, null);
         return !elementHandles.isEmpty();
     }
 
+    @Override
     public boolean getElementHandleFrame(FrameLocator frameLocator, String element, String key) {
-        List<ElementHandle> elementHandles = this.getElementHandleList((Page)null, element, key, frameLocator);
+        List<ElementHandle> elementHandles = getElementHandleList(null, element, key, frameLocator);
         return !elementHandles.isEmpty();
     }
 
+    @Override
     public boolean assertElementTextPage(Page page, String element, String key, String expectedText) {
-        return this.assertElementText(page, element, key, expectedText, (FrameLocator)null);
+        return assertElementText(page, element, key, expectedText, null);
     }
 
+    @Override
     public boolean assertElementTextFrame(FrameLocator frameLocator, String element, String key, String expectedText) {
-        return this.assertElementText((Page)null, element, key, expectedText, frameLocator);
+        return assertElementText(null, element, key, expectedText, frameLocator);
     }
 
+    @Override
     public String performActionPageWithReturn(Page page, String action, String element, String key, String value) {
         try {
-            Locator targetLocator = this.getLocatorBasedOnPage(page, element, key);
+            Locator targetLocator = getLocatorBasedOnPage(page, element, key);
             if (targetLocator == null) {
                 logger.error("Locator not found for element: {} with key: {}", element, key);
                 return null;
-            } else {
-                this.actionPerformer.waitForLocator(targetLocator);
-                return this.actionPerformer.performActionWithReturn(page, action, targetLocator, value);
             }
-        } catch (Exception var7) {
-            Exception e = var7;
-            logger.error("Exception in performActionPageWithReturn for element '{}' and action '{}':", new Object[]{element, action, e});
+            actionPerformer.waitForLocator(targetLocator);
+            return actionPerformer.performActionWithReturn(page, action, targetLocator, value);
+        } catch (Exception e) {
+            logger.error("Exception in performActionPageWithReturn for element '{}' and action '{}':", element, action, e);
             return null;
         }
     }
 
-    public String performActionPageFrameWithReturn(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
+    @Override
+    public String performActionPageFrameWithReturn(Page page, String iFrame, String iFrame_2, String iFrame_3,
+                                                   String action, String element, String key, String value, FrameLocator frameLocator) {
         try {
-            Locator targetLocator = this.getLocatorBasedOnPageFrame(page, iFrame, iFrame_2, iFrame_3, element, key);
+            Locator targetLocator = getLocatorBasedOnPageFrame(page, iFrame, iFrame_2, iFrame_3, element, key);
             if (targetLocator == null) {
                 logger.error("Locator not found for nested frame element: {} with key: {}", element, key);
                 return null;
-            } else {
-                this.actionPerformer.waitForLocator(targetLocator);
-                return this.actionPerformer.performActionWithReturn(page, action, targetLocator, value);
             }
-        } catch (Exception var11) {
-            Exception e = var11;
-            logger.error("Exception in performActionPageFrameWithReturn for element '{}' and action '{}':", new Object[]{element, action, e});
+            actionPerformer.waitForLocator(targetLocator);
+            return actionPerformer.performActionWithReturn(page, action, targetLocator, value);
+        } catch (Exception e) {
+            logger.error("Exception in performActionPageFrameWithReturn for element '{}' and action '{}':", element, action, e);
             return null;
         }
     }
 
+    @Override
     public void uploadFile(Page page, String file_name, String element, String key) {
-        FileChooser fileChooser = page.waitForFileChooser(() -> {
-            page.click(this.getElement(element, key));
-        });
-        fileChooser.setFiles(Paths.get(this.getElement(element, file_name)));
+        FileChooser fileChooser = page.waitForFileChooser(() -> page.click(getElement(element, key)));
+        fileChooser.setFiles(Paths.get(getElement(element, file_name)));
     }
 
+    @Override
     public void clickOnDocumentLinkName(Page page, String element, String key) {
-        String documentLinkName = this.getElement(element, key);
+        String documentLinkName = getElement(element, key);
         String fileName = extractFileName(documentLinkName);
         System.out.println(fileName);
-
         try {
-            page.getByRole(AriaRole.LINK, (new Page.GetByRoleOptions()).setName(fileName)).click();
-        } catch (Exception var7) {
-            Exception e = var7;
+            page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName(fileName)).click();
+        } catch (Exception e) {
             logger.error("Failed to click on element by Role '{}'", element + key, e);
         }
-
     }
 
     public static String extractFileName(String filePath) {
@@ -583,9 +610,8 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
 
     public String getElement(String element, String key) {
         try {
-            return (String)YamlReader.get("elements." + element + "." + key);
-        } catch (Exception var4) {
-            Exception e = var4;
+            return (String) YamlReader.get("elements." + element + "." + key);
+        } catch (Exception e) {
             logger.error("Failed to retrieve selector for element '{}'", element + key, e);
             throw e;
         }
@@ -593,64 +619,51 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
 
     private boolean assertElementText(Page page, String element, String key, String expectedText, FrameLocator frameLocator) {
         try {
-            Locator targetLocator = this.getLocator((String)null, (String)null, (String)null, element, key, page, frameLocator);
+            Locator targetLocator = getLocator(null, null, null, element, key, page, frameLocator);
             String actualText = targetLocator.first().textContent();
             boolean isTextMatching = expectedText.equals(actualText);
-            logger.info("Asserting text on element '{}': expected '{}', actual '{}'", new Object[]{element, expectedText, actualText});
+            logger.info("Asserting text on element '{}': expected '{}', actual '{}'", element, expectedText, actualText);
             if (!isTextMatching) {
                 logger.error("Text mismatch: expected '{}' but found '{}'", expectedText, actualText);
             }
-
             return isTextMatching;
-        } catch (Exception var9) {
-            Exception e = var9;
+        } catch (Exception e) {
             logger.error("Error while asserting text on element '{}'", element, e);
             return false;
         }
     }
 
+    @Override
     public List<ElementHandle> getElementHandleList(Page page, String element, String key, FrameLocator frameLocator) {
-        List<ElementHandle> elementHandles = new ArrayList();
-
+        List<ElementHandle> elementHandles = new ArrayList<>();
         try {
-            Locator targetLocator = this.getLocator((String)null, (String)null, (String)null, element, key, page, frameLocator);
+            Locator targetLocator = getLocator(null, null, null, element, key, page, frameLocator);
             if (targetLocator != null) {
                 elementHandles = targetLocator.elementHandles();
             } else {
                 logger.error("Target locator for element '{}' could not be determined.", element);
             }
-        } catch (Exception var7) {
-            Exception e = var7;
+        } catch (Exception e) {
             logger.error("Failed to retrieve element handles for '{}'", element, e);
         }
-
-        return (List)elementHandles;
+        return elementHandles;
     }
 
     private Locator getLocatorBasedOnPage(Page page, String element, String key) {
-        return this.getLocator((String)null, (String)null, (String)null, element, key, page, (FrameLocator)null);
+        return getLocator(null, null, null, element, key, page, null);
     }
 
     private Locator getLocatorBasedOnPageFrame(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String key) {
-        return this.getLocator(iFrame, iFrame_2, iFrame_3, element, key, page, (FrameLocator)null);
+        return getLocator(iFrame, iFrame_2, iFrame_3, element, key, page, null);
     }
 
     private Locator getLocatorBasedOnFrame(FrameLocator frameLocator, String element, String key) {
-        return this.getLocator((String)null, (String)null, (String)null, element, key, (Page)null, frameLocator);
+        return getLocator(null, null, null, element, key, null, frameLocator);
     }
 
+    @Override
     public String getExactLocator(String element, String key) {
-        String locatorValue = this.elementLocatorHelper.getElement(element, key);
-        return this.parseValue(locatorValue);
-    }
-
-    private static final class IndexedSelector {
-        final String base;
-        final int indexZeroBased;
-
-        IndexedSelector(String base, int indexZeroBased) {
-            this.base = base;
-            this.indexZeroBased = indexZeroBased;
-        }
+        String locatorValue = elementLocatorHelper.getElement(element, key);
+        return parseValue(locatorValue);
     }
 }
