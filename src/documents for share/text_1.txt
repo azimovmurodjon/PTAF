@@ -18,56 +18,93 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 
 public class NewPageCommonSteps {
+
     private final Page page = Hooks.getPage();
     private final BrowserContext context = Hooks.getContext();
     private static final String filePath = ConfigurationProperties.getExcelDocumentLocation();
+
     public static String trackindID = null;
     public static String dtrackindID = null;
     public static String dashtrackindID = null;
 
     private final TestContext testContext;
 
+    // Popup page + helpers - initialized lazily
+    private Page new_page;
+    private PageCommonMethods pageCommonMethods;
+    private FrameCommonMethods frameCommonMethods;
+
+    // Frames
+    // private static final String plad_frame = "iframe[title=\"Plaid Link\"]";
+    // private static final String plad_frame = "#AcceptUIContainer iframe";
+    private static final String plad_frame = "#plaid-link-iframe-2";
+    private static final String plad_frame_B = "#plaid-link-iframe-1";
+    private static final String pop_frame = "//*[@id=\"AcceptUIContainer\"]/iframe";
+    // private static final String pop_frame = "iframe";
+    private static final String atomic_frame = "#atomic-transact-iframe";
+
     public NewPageCommonSteps(TestContext testContext) {
         this.testContext = testContext;
     }
 
-    Page new_page = page.waitForPopup(() -> {
-        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Open URL")).click();
-    });
+    /**
+     * Lazily open the popup and initialize helpers when needed.
+     * This preserves your original behavior but avoids doing it at field init time.
+     */
+    private void ensurePopupInitialized() {
+        if (new_page == null) {
+            System.out.println("[NewPageCommonSteps] Opening popup via 'Open URL'...");
+            new_page = page.waitForPopup(() -> {
+                page.getByRole(
+                        AriaRole.BUTTON,
+                        new Page.GetByRoleOptions().setName("Open URL")
+                ).click();
+            });
+            pageCommonMethods = new PageCommonMethods(new_page);
+            frameCommonMethods = new FrameCommonMethods(new_page);
+            System.out.println("[NewPageCommonSteps] Popup page opened: " + new_page.url());
+        } else {
+            if (pageCommonMethods == null) {
+                pageCommonMethods = new PageCommonMethods(new_page);
+            }
+            if (frameCommonMethods == null) {
+                frameCommonMethods = new FrameCommonMethods(new_page);
+            }
+        }
+    }
 
-    private final PageCommonMethods pageCommonMethods = new PageCommonMethods(new_page);
-    private final FrameCommonMethods frameCommonMethods = new FrameCommonMethods(new_page);
-    //    private static final String plad_frame = "iframe[title=\"Plaid Link\"]";
-//    private static final String plad_frame ="#AcceptUIContainer iframe";
-    private static final String plad_frame = "#plaid-link-iframe-2";
-    private static final String plad_frame_B = "#plaid-link-iframe-1";
-    private static final String pop_frame = "//*[@id=\"AcceptUIContainer\"]/iframe";
-
-    //    private static final String pop_frame = "iframe";
-    private static final String atomic_frame = "#atomic-transact-iframe";
+    /**
+     * Optional explicit step to open the popup (you can use this in feature file).
+     */
+    @When("^we open the new page by clicking Open URL$")
+    public void openNewPageByClickingOpenUrl() {
+        ensurePopupInitialized();
+    }
 
     public String getConfirmationId(String locatorValue) {
-        // Extract the actual locator by splitting the locatorValue at the first underscore
-        int firstUnderscoreIndex = locatorValue.indexOf(":");
-        if (firstUnderscoreIndex != -1 && firstUnderscoreIndex + 1 < locatorValue.length()) {
-            return locatorValue.substring(firstUnderscoreIndex + 1); // Get substring after the first underscore
+        int firstColonIndex = locatorValue.indexOf(":");
+        if (firstColonIndex != -1 && firstColonIndex + 1 < locatorValue.length()) {
+            return locatorValue.substring(firstColonIndex + 1);
         }
-        return ""; // Return an empty string if no underscore or nothing follows the first underscore
+        return "";
     }
 
     @Then("^I call dummy step$")
     public void icallDummyStep() {
         System.out.println("Dummy step");
-
     }
+
+    // ========== NEW PAGE (POPUP PAGE) GENERIC ACTIONS ==========
 
     @Then("^we click on new page (.*?) locator (.*?)$")
     public void weClickActionNewOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.click(new_page, element, locator);
     }
 
     @And("^I do funding via (.*?) for usecase (.*?)$")
     public void iDoFunding(String PaymentMethod, String usecase) throws InterruptedException {
+        ensurePopupInitialized();
         String pageName = "proveValidation";
         System.out.println("**********PlaidMatch***********");
         pageCommonMethods.fill(new_page, pageName, "amountToFund", "50");
@@ -83,110 +120,137 @@ public class NewPageCommonSteps {
         frameCommonMethods.click(new_page, plad_frame_B, null, null, pageName, "btnRegionBankContinue");
         frameCommonMethods.click(new_page, plad_frame_B, null, null, pageName, "btnRegionBankFinishWithoutSaving");
         Thread.sleep(3000);
-//        pageCommonMethods.click(new_page, pageName, "rdoSelectActiveAccount");
-
     }
-
 
     @Then("^we double click on new page (.*?) locator (.*?)$")
     public void weDoubleClickActionOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.dblclick(new_page, element, locator);
     }
 
     @Then("^we enter value on new page (.*?) locator (.*?) value \"(.*?)\"$")
     public void weEnterValueOnPage(String element, String locator, String value) {
+        ensurePopupInitialized();
         pageCommonMethods.fill(new_page, element, locator, value);
     }
 
     @Then("^we select on new page (.*?) locator (.*?) value \"(.*?)\"$")
     public void weSelectValueOnPage(String element, String locator, String value) {
+        ensurePopupInitialized();
         pageCommonMethods.select(new_page, element, locator, value);
     }
 
     @Then("^we check on new page (.*?) locator (.*?)$")
     public void weCheckActionOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.check(new_page, element, locator);
     }
 
     @Then("^we uncheck on new page (.*?) locator (.*?)$")
     public void weUncheckActionOnPage(String element, String locator) {
-        pageCommonMethods.check(new_page, element, locator);
+        ensurePopupInitialized();
+        pageCommonMethods.check(new_page, element, locator); // keeping original behavior
     }
 
     @Then("^we hover on new page (.*?) locator (.*?)$")
     public void weHoverActionOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.hover(new_page, element, locator);
     }
 
     @Then("^we type on new page (.*?) locator (.*?) value \"(.*?)\"$")
     public void weTypeValueOnPage(String element, String locator, String value) {
+        ensurePopupInitialized();
         pageCommonMethods.type(new_page, element, locator, value);
     }
 
     @Then("^we scroll on new page (.*?) locator (.*?)$")
     public void weScrollToLocatorOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.scroll(new_page, element, locator);
     }
 
     @Then("^we clear value on new page (.*?) locator (.*?)$")
     public void weClearValueOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.clear(new_page, element, locator);
     }
 
     @Then("^we verify on new page (.*?) of locator (.*?) is visible$")
     public void weVerifyOnPageLocatorIsVisible(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.isvisible(new_page, element, locator);
     }
 
     @Then("^we verify on new page (.*?) of locator (.*?) is checked$")
     public void weVerifyOnPageLocatorIsChecked(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.ischecked(new_page, element, locator);
     }
 
     @Then("^we verify on new page (.*?) of locator (.*?) is enabled")
     public void weVerifyOnPageLocatorIsEnabled(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.isenabled(new_page, element, locator);
+    }
+
+    @Then("^we verify on new page (.*?) of locator (.*?) is disabled")
+    public void weVerifyOnNewPageLocatorIsDisabled(String element, String locator) {
+        ensurePopupInitialized();
+        pageCommonMethods.isdisabled(new_page, element, locator);
     }
 
     @Then("^we get value on new page (.*?) locator (.*?)$")
     public void weGetValueOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.getvalue(new_page, element, locator);
     }
 
     @Then("^we verify element has value on new page (.*?) of locator (.*?) value \"(.*?)\"$")
     public void weHasValueOnPageLocatorValue(String element, String locator, String value) {
+        ensurePopupInitialized();
         pageCommonMethods.hasvalue(new_page, element, locator, value);
     }
 
     @Then("^we verify on new page (.*?) of locator (.*?) is existed")
     public void weVerifyOnPageLocatorIsExisted(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.exists(new_page, element, locator);
+    }
+
+    @Then("^we verify on new page (.*?) of locator (.*?) is NOT existed")
+    public void weVerifyOnPageLocatorIsNOTExisted(String element, String locator) {
+        ensurePopupInitialized();
+        pageCommonMethods.not_exists(new_page, element, locator);
     }
 
     @Then("^we contain on new page (.*?) of locator (.*?) value \"(.*?)\"$")
     public void weContainOnPageLocatorValue(String element, String locator, String value) {
+        ensurePopupInitialized();
         pageCommonMethods.contain(new_page, element, locator, value);
     }
 
     @Then("^we get list of elements on new page (.*?) locator (.*?)$")
     public void weGetListOfElementsOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.getListOfElements(new_page, element, locator);
     }
 
     @Then("^we get text on new page (.*?) locator (.*?)$")
     public void weGetTextOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.gettext(new_page, element, locator);
     }
 
     @Then("^we get text and contain on new page (.*?) locator (.*?)$")
     public void weGetTextAndContainOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.get_and_contain_text(new_page, element, locator);
-
-
     }
 
     @Then("^get business tracking ID and contain on new page")
     public void weGetBusinessTrackingIDAndContainOnPage() {
+        ensurePopupInitialized();
         Locator trCode = new_page.locator("//div[contains(text(),'Tracking Code:')]");
         trackindID = trCode.innerText();
         System.out.println("Tracking Code is:" + trackindID);
@@ -197,319 +261,363 @@ public class NewPageCommonSteps {
 
     @Then("^get consumer tracking ID and contain on new page")
     public void weGetConsumerTrackingIDAndContainOnPage() {
+        ensurePopupInitialized();
         Locator trCode = new_page.locator("//div[contains(text(),'Confirmation ID:')]");
         trackindID = trCode.innerText();
         System.out.println("Tracking Code is:" + trackindID);
-
     }
 
     @Then("^get consumer tracking ID from the Dashboard")
     public void weGetConsumerTrackingID() {
+        ensurePopupInitialized();
         Locator trCode = new_page.locator("//div[contains(text(),'Confirmation ID:')]");
         trackindID = trCode.innerText();
         System.out.println("Tracking Code is:" + trackindID);
-
     }
-
 
     @Then("^get business tracking ID from the Dashboard")
     public void weGetTrackingIDfromDashboard() {
+        ensurePopupInitialized();
         Locator dashboardCode = new_page.locator("//div[contains(text(),'Tracking Code:')]");
         dtrackindID = dashboardCode.innerText();
         dtrackindID = dtrackindID.replace("Tracking Code:", "");
         System.out.println("Tracking Code on Dashboard is:" + dtrackindID);
-
     }
 
     @Then("^get dashboard tracking ID from the Dashboard")
     public void weGetDashboardTrackingIDfromDashboard() {
+        ensurePopupInitialized();
         Locator dashboardCode = new_page.locator("//div[contains(text(),'Tracking Code:')]");
         dashtrackindID = dashboardCode.innerText();
         dashtrackindID = dashtrackindID.replace("Tracking Code:", "");
         System.out.println("Tracking Code on Dashboard is:" + dashtrackindID);
-
     }
 
     @And("^we capture screenshot on new page (.*?) locator (.*?) name \"(.*?)\"$")
     public void weCaptureScreenshotOnPage(String element, String locator, String name) {
-        String filePath = "test-output/screenshots/" + name + ".png";
-        pageCommonMethods.screenshot(new_page, element, locator, filePath);
+        ensurePopupInitialized();
+        String screenshotPath = "test-output/screenshots/" + name + ".png";
+        pageCommonMethods.screenshot(new_page, element, locator, screenshotPath);
     }
 
     @And("^we press on new page (.*?) locator (.*?) key \"(.*?)\" keyboard$")
     public void wePressOnPageKey(String element, String locator, String value) {
+        ensurePopupInitialized();
         pageCommonMethods.press(new_page, element, locator, value);
     }
 
     @When("we click radio on new page (.*?) list locator (.*?)$")
     public void clickRadioOnPage(String element, String locator) {
+        ensurePopupInitialized();
         pageCommonMethods.clickRadioButton(new_page, element, locator);
     }
 
     @Then("^we write to excel for testCase (.*?) column \"(.*?)\" new page element (.*?) locator (.*?)$")
     public void weWriteToExcelForTestCase(String testCaseId, String columnName, String elements, String locator) {
+        ensurePopupInitialized();
         String valueToWrite = pageCommonMethods.gettext(new_page, elements, locator);
-        ;
         ExcelWriter.writeData(filePath, testCaseId, columnName, valueToWrite);
     }
-//    ------------------------------------------------------------------------------------------------------------------
+
+    // ===================== PLAID FRAME =====================
 
     @Then("^we click on plad frame (.*?) locator (.*?)$")
     public void weClickActionOnPladFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.click(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we double click on plad frame (.*?) locator (.*?)$")
     public void weDoubleClickActionOnPladFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.dblclick(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we enter value on plad frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weEnterValueOnPladFrame(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.fill(new_page, plad_frame, null, null, element, locator, value);
-
     }
 
     @Then("^we select on plad frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weSelectValueOnPladFrame(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.select(new_page, plad_frame, null, null, element, locator, value);
     }
 
     @Then("^we check on plad frame (.*?) locator (.*?)$")
     public void weCheckActionOnPladFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.check(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we uncheck on plad frame (.*?) locator (.*?)$")
     public void weUncheckActionOnPladFrame(String element, String locator) {
-        frameCommonMethods.check(new_page, plad_frame, null, null, element, locator);
+        ensurePopupInitialized();
+        frameCommonMethods.check(new_page, plad_frame, null, null, element, locator); // keeping original behavior
     }
 
     @Then("^we hover on plad frame (.*?) locator (.*?)$")
     public void weHoverActionOnPladFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.hover(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we type on plad frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weTypeValueOnPladFrame(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.type(new_page, plad_frame, null, null, element, locator, value);
     }
 
     @Then("^we scroll on plad frame (.*?) locator (.*?)$")
     public void weScrollToLocatorOnPladFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.scroll(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we clear value on plad frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weClearValueOnPladFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.clear(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we verify on plad frame (.*?) of locator (.*?) is visible$")
     public void weVerifyOnPladFrameLocatorIsVisible(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.isvisible(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we verify on plad frame (.*?) of locator (.*?) is checked$")
     public void weVerifyOnPladFrameLocatorIsChecked(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.ischecked(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we verify on plad frame (.*?) of locator (.*?) is enabled")
     public void weVerifyOnPladFrameLocatorIsEnabled(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.isenabled(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we get value on plad frame (.*?) locator (.*?)$")
     public void weGetValueOnPladFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.getvalue(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we verify element has value on plad frame (.*?) of locator (.*?) value \"(.*?)\"$")
     public void weHasValueOnPladFrameLocatorValue(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.hasvalue(new_page, plad_frame, null, null, element, locator, value);
     }
 
     @Then("^we verify on plad frame (.*?) of locator (.*?) is existed")
     public void weVerifyOnPladFrameLocatorIsExisted(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.exists(new_page, plad_frame, null, null, element, locator);
     }
 
     @Then("^we contain on plad frame (.*?) of locator (.*?) value \"(.*?)\"$")
     public void weContainOnPladFrameLocatorValue(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.contain(new_page, plad_frame, null, null, element, locator, value);
     }
 
     @Then("^we get text on plad frame(.*?) locator (.*?)$")
     public void weGetTextOnPladFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.gettext(new_page, plad_frame, null, null, element, locator);
     }
 
     @And("^we capture screenshot on plad frame (.*?) locator (.*?) name \"(.*?)\"$")
     public void weCaptureScreenshotOnPladFrame(String element, String locator, String name) {
-        String filePath = "test-output/screenshots/" + name + ".png";
-        frameCommonMethods.screenshot(new_page, plad_frame, null, null, element, locator, filePath);
+        ensurePopupInitialized();
+        String screenshotPath = "test-output/screenshots/" + name + ".png";
+        frameCommonMethods.screenshot(new_page, plad_frame, null, null, element, locator, screenshotPath);
     }
 
     @And("^we press on plad frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
     public void wePressOnPladFrameKey(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.press(new_page, plad_frame, null, null, element, locator, value);
     }
 
     @Then("^we enter using excel data on testCase (.*?) plad frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weEnterUsingExcelDataOnTestCasePladFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        ensurePopupInitialized();
         String finalValue = ExcelReader.getData(filePath, testCaseId, value);
         frameCommonMethods.fill(new_page, plad_frame, null, null, element, locator, finalValue);
     }
 
     @Then("^we write to excel for testCase (.*?) column \"(.*?)\" plad frame element (.*?) locator (.*?)$")
     public void weWriteToExcelForTestCaseUsingPladFrame(String testCaseId, String columnName, String element, String locator) {
+        ensurePopupInitialized();
         String valueToWrite = frameCommonMethods.get_frame_element_string_value(new_page, plad_frame, null, null, element, locator);
         String finalValue = getConfirmationId(valueToWrite);
         ExcelWriter.writeData(filePath, testCaseId, columnName, finalValue);
     }
 
-    //___________________________________________________________
+    // ===================== POP FRAME =====================
 
     @Then("^we click on pop frame (.*?) locator (.*?)$")
     public void weClickActionOnPopFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.click(new_page, pop_frame, null, null, element, locator);
     }
 
     @Then("^we double click on pop frame (.*?) locator (.*?)$")
     public void weDoubleClickActionOnPopFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.dblclick(new_page, pop_frame, null, null, element, locator);
     }
 
     @Then("^we enter value on pop frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weEnterValueOnPopFrame(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.fill(new_page, pop_frame, null, null, element, locator, value);
     }
 
     @Then("^we select on pop frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weSelectValueOnPopFrame(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.select(new_page, pop_frame, null, null, element, locator, value);
     }
 
     @Then("^we check on pop frame (.*?) locator (.*?)$")
     public void weCheckActionOnPopFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.check(new_page, pop_frame, null, null, element, locator);
     }
 
     @Then("^we uncheck on pop frame (.*?) locator (.*?)$")
     public void weUncheckActionOnPopFrame(String element, String locator) {
-        frameCommonMethods.check(new_page, pop_frame, null, null, element, locator);
+        ensurePopupInitialized();
+        frameCommonMethods.check(new_page, pop_frame, null, null, element, locator); // keeping original behavior
     }
 
     @Then("^we hover on pop frame (.*?) locator (.*?)$")
     public void weHoverActionOnPopFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.hover(new_page, pop_frame, null, null, element, locator);
     }
 
     @Then("^we type on pop frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weTypeValueOnPopFrame(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.type(new_page, pop_frame, null, null, element, locator, value);
     }
 
     @Then("^we scroll on pop frame (.*?) locator (.*?)$")
     public void weScrollToLocatorOnPopFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.scroll(new_page, pop_frame, null, null, element, locator);
     }
 
     @Then("^we clear value on pop frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weClearValueOnPopFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.clear(new_page, pop_frame, null, null, element, locator);
     }
 
     @Then("^we verify on pop frame (.*?) of locator (.*?) is visible$")
     public void weVerifyOnPopFrameLocatorIsVisible(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.isvisible(new_page, pop_frame, null, null, element, locator);
     }
 
     @Then("^we verify on pop frame (.*?) of locator (.*?) is checked$")
     public void weVerifyOnPopFrameLocatorIsChecked(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.ischecked(new_page, pop_frame, null, null, element, locator);
     }
 
     @Then("^we verify on pop frame (.*?) of locator (.*?) is enabled")
     public void weVerifyOnPopFrameLocatorIsEnabled(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.isenabled(new_page, pop_frame, null, null, element, locator);
-    }
-
-    @Then("^we verify on new page (.*?) of locator (.*?) is disabled")
-    public void weVerifyOnNewPageLocatorIsDisabled(String element, String locator) {
-        pageCommonMethods.isdisabled(new_page, element, locator);
     }
 
     @Then("^we get value on pop frame (.*?) locator (.*?)$")
     public void weGetValueOnPopFrame(String element, String locator) {
-        frameCommonMethods.getvalue(new_page, plad_frame, null, null, element, locator);
+        ensurePopupInitialized();
+        frameCommonMethods.getvalue(new_page, pop_frame, null, null, element, locator);
     }
 
     @Then("^we verify element has value on pop frame (.*?) of locator (.*?) value \"(.*?)\"$")
     public void weHasValueOnPopFrameLocatorValue(String element, String locator, String value) {
-        frameCommonMethods.hasvalue(new_page, plad_frame, null, null, element, locator, value);
+        ensurePopupInitialized();
+        frameCommonMethods.hasvalue(new_page, pop_frame, null, null, element, locator, value);
     }
 
     @Then("^we verify on pop frame (.*?) of locator (.*?) is existed")
     public void weVerifyOnPopFrameLocatorIsExisted(String element, String locator) {
-        frameCommonMethods.exists(new_page, plad_frame, null, null, element, locator);
+        ensurePopupInitialized();
+        frameCommonMethods.exists(new_page, pop_frame, null, null, element, locator);
     }
 
     @Then("^we contain on pop frame (.*?) of locator (.*?) value \"(.*?)\"$")
     public void weContainOnPopFrameLocatorValue(String element, String locator, String value) {
-        frameCommonMethods.contain(new_page, plad_frame, null, null, element, locator, value);
+        ensurePopupInitialized();
+        frameCommonMethods.contain(new_page, pop_frame, null, null, element, locator, value);
     }
 
     @Then("^we get text on pop frame(.*?) locator (.*?)$")
     public void weGetTextOnPopFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.gettext(new_page, pop_frame, null, null, element, locator);
     }
 
     @And("^we capture screenshot on pop frame (.*?) locator (.*?) name \"(.*?)\"$")
     public void weCaptureScreenshotOnPopFrame(String element, String locator, String name) {
-        String filePath = "test-output/screenshots/" + name + ".png";
-        frameCommonMethods.screenshot(new_page, pop_frame, null, null, element, locator, filePath);
+        ensurePopupInitialized();
+        String screenshotPath = "test-output/screenshots/" + name + ".png";
+        frameCommonMethods.screenshot(new_page, pop_frame, null, null, element, locator, screenshotPath);
     }
 
     @And("^we press on pop frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
     public void wePressOnPopFrameKey(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.press(new_page, pop_frame, null, null, element, locator, value);
     }
 
-    @Then("^we verify on new page (.*?) of locator (.*?) is NOT existed")
-    public void weVerifyOnPageLocatorIsNOTExisted(String element, String locator) {
-        pageCommonMethods.not_exists(new_page, element, locator);
-    }
+    // ===================== ATOMIC FRAME =====================
 
     @Then("^we click on atomic frame (.*?) locator (.*?)$")
     public void weClickActionOnAtomicFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.click(new_page, atomic_frame, null, null, element, locator);
     }
 
     @Then("^we double click on atomic frame (.*?) locator (.*?)$")
     public void weDoubleClickActionOnAtomicFrame(String element, String locator) {
+        ensurePopupInitialized();
         frameCommonMethods.dblclick(new_page, atomic_frame, null, null, element, locator);
     }
 
     @Then("^we enter value on atomic frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weEnterValueOnAtomicFrame(String element, String locator, String value) {
+        ensurePopupInitialized();
         frameCommonMethods.fill(new_page, atomic_frame, null, null, element, locator, value);
-
     }
+
+    // ===================== POPUP/EXCEL COMBINED =====================
 
     @Then("^we enter using excel data on testCase (.*?) pop-up frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weEnterUsingExcelDataOnTestCasePopUpFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        ensurePopupInitialized();
         String finalValue = ExcelReader.getData(filePath, testCaseId, value);
         frameCommonMethods.fill(new_page, pop_frame, null, null, element, locator, finalValue);
     }
 
     @Then("^we write to excel for testCase (.*?) column \"(.*?)\" pop-up frame element (.*?) locator (.*?)$")
     public void weWriteToExcelForTestCaseUsingPopUpFrame(String testCaseId, String columnName, String element, String locator) {
+        ensurePopupInitialized();
         String valueToWrite = frameCommonMethods.get_frame_element_string_value(new_page, pop_frame, null, null, element, locator);
         String finalValue = getConfirmationId(valueToWrite);
         ExcelWriter.writeData(filePath, testCaseId, columnName, finalValue);
     }
+
+    // ===================== OTHER STEPS =====================
 
     @Then("^we stop the control")
     public void stopthecontrol() {
@@ -518,6 +626,7 @@ public class NewPageCommonSteps {
 
     @Then("^generate and open (.*?) dashboard URL on New Page")
     public void generateDashboardURLinNewPage(String Environment) {
+        ensurePopupInitialized();
 //        String dashBoardURL = ConfigurationProperties.getBaseUrl("Dashboard_Test") + NewPageCommonSteps.dtrackindID.trim();
 //        String dashBoardURL = ConfigurationProperties.getBaseUrl("Dashboard_Stage") + NewPageCommonSteps.dtrackindID.trim();
         String dashBoardURL = ConfigurationProperties.getBaseUrl("Dashboard_" + Environment) + NewPageCommonSteps.dashtrackindID.trim();
@@ -527,14 +636,11 @@ public class NewPageCommonSteps {
         context.clearCookies();
         context.clearPermissions();
         page.navigate(dashBoardURL);
-
     }
-
 
     @Then("^we click on save pop up button")
     public void weClickOnSavePopUpButton() {
+        // This is on main page, not new_page
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Save")).click();
-
     }
-
 }
