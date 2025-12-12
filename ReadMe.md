@@ -1,8 +1,8 @@
-# FNB PTAF - Unified Test Automation Framework
+# PTAF - Unified Test Automation Framework
 
 ## Overview
 
-The **FNB PTAF** is an advanced, unified test automation framework designed for comprehensive end-to-end testing of modern applications. It seamlessly integrates **UI**, **API**, and **Database** testing into a single, cohesive platform.
+The **PTAF** is an advanced, unified test automation framework designed for comprehensive end-to-end testing of modern applications. It seamlessly integrates **UI**, **API**, and **Database** testing into a single, cohesive platform.
 
 It leverages industry-standard libraries like [Playwright](https://playwright.dev/) for browser and API testing, and [Java JDBC](https://docs.oracle.com/javase/tutorial/jdbc/basics/index.html) for database connectivity. It uses [Cucumber](https://cucumber.io/) for implementing Behavior-Driven Development (BDD) and [JUnit](https://junit.org/junit5/) for test execution. The framework is built with flexibility, maintainability, and scalability in mind. Detailed reporting and easy-to-understand Gherkin scenarios allow technical and non-technical team members alike to participate in the quality assurance process.
 
@@ -217,3 +217,4 @@ Reports are stored in the `target/` directory:
 ## Conclusion
 
 The **FNB PTAF** is designed to be a flexible, scalable, and easy-to-maintain unified testing solution. By leveraging its layered architecture and reusable components, teams can significantly improve the speed and reliability of testing across all layers of our applications, ensuring a higher standard of quality and faster feedback cycles.
+
