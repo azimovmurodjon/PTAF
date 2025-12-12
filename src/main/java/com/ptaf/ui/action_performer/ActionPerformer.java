@@ -5,6 +5,7 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.MouseButton;
 import com.microsoft.playwright.options.WaitForSelectorState;
+import com.ptaf.utils.ConfigurationProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,13 +81,20 @@ public class ActionPerformer {
                 case "download":
                     // Start waiting for the download, and perform the click action that triggers it.
                     Download download = page.waitForDownload(() -> {
-                        // Assumes a click on the target locator initiates the download.
-                        // This handles the most common use case for downloading files.
-                        // It can be combined with actions like 'check', 'select', etc.,
-                        // by ensuring the locator points to the element that triggers the download.
                         targetLocator.first().click();
                     });
-                    Path savePath = Paths.get(value);
+
+                    // --- FIX IS HERE ---
+                    // Use LocalDateTime to include the date, and use a file-safe pattern.
+                    String timestamp = java.time.LocalDateTime.now()
+                            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+                    // --- END OF FIX ---
+
+                    String originalFileName = download.suggestedFilename();
+                    // The new timestamp will look like: "2025-08-22_23-22-34"
+                    String uniqueFilename = timestamp + "-" + originalFileName;
+
+                    Path savePath = Paths.get(value, uniqueFilename);
                     download.saveAs(savePath);
                     logger.info("File downloaded successfully and saved to: {}", savePath);
                     return download.path().toString(); // Return the path of the downloaded file
@@ -107,6 +115,7 @@ public class ActionPerformer {
                     assertCondition(getText.contains(getText), "Element does not contain expected text.");
                     return getText;
                 case "getvalue": return targetLocator.first().inputValue();
+                case "returnelement":return targetLocator.textContent();
                 case "hasvalue":
                     String currentValue = targetLocator.first().inputValue();
                     assertCondition(currentValue.equals(value), "Expected: " + value + ", but found: " + currentValue);
@@ -194,9 +203,11 @@ public class ActionPerformer {
     }
 
     public void waitForLocator(Locator locator) {
+        String time_to_wait = ConfigurationProperties.getValue("time_to_wait");
         try {
+            int time_out = Integer.parseInt(time_to_wait);
             // Wait for the first element matching the locator to be visible
-            locator.first().waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE).setTimeout(60000.0));
+            locator.first().waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE).setTimeout(time_out * 1000L));
         } catch (Exception e) {
             logger.error("Failed to wait for the element to be displayed", e);
         }

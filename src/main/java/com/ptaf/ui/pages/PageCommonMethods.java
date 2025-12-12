@@ -6,7 +6,7 @@ import com.microsoft.playwright.Locator;
 import com.ptaf.ui.action_performer.ElementActionImpl;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.ui.interfaces.ElementAction;
-import com.ptaf.utils.ScenarioUtil;
+import com.ptaf.utils.ScreenshotHandler;
 import com.microsoft.playwright.Page;
 import io.cucumber.java.Scenario;
 import org.slf4j.Logger;
@@ -879,7 +879,7 @@ public class PageCommonMethods {
     private void handleFailure(Page page, String action, String element) {
         isFailed = true; // Update internal state to indicate failure
         logger.error("Action '{}' failed on element '{}'", action, element); // Log detailed failure
-        ScenarioUtil.handleScenarioTeardown(getCurrentScenario(), page, "Failure Step"); // Clean up for the scenario
+        ScreenshotHandler.handleScenarioTeardown(getCurrentScenario(), page, "Failure Step"); // Clean up for the scenario
         closeBrowserOnFailure(); // Attempt to close resources on failure
         throw new RuntimeException(String.format("Action '%s' failed on element '%s', skipping further steps", action, element)); // Provide feedback on failure
     }
@@ -932,7 +932,7 @@ public class PageCommonMethods {
     public void finalizeScenario() {
         if (isFailed) {
             // Handle the scenario teardown if a step has failed
-            ScenarioUtil.handleScenarioTeardown(getCurrentScenario(), page, "Passed Step");
+            ScreenshotHandler.handleScenarioTeardown(getCurrentScenario(), page, "Passed Step");
         }
     }
 
@@ -953,7 +953,7 @@ public class PageCommonMethods {
         if (!isFailed) {
             // Handle the scenario teardown process for a passed step by invoking
             // the utility method to capture a screenshot and attach it to the report.
-            ScenarioUtil.handleScenarioTeardownLocator(
+            ScreenshotHandler.handleScenarioTeardownLocator(
                     getCurrentScenario(),  // Retrieve the current scenario context
                     page,                  // The Playwright Page instance providing context for the screenshot capture
                     null,                  // No iframe specified, as we are capturing from the main page context

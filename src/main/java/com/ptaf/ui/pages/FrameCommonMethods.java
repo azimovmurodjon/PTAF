@@ -7,7 +7,7 @@ import com.microsoft.playwright.Page;
 import com.ptaf.ui.action_performer.ElementActionImpl;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.ui.interfaces.ElementAction;
-import com.ptaf.utils.ScenarioUtil;
+import com.ptaf.utils.ScreenshotHandler;
 import io.cucumber.java.Scenario;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -980,7 +980,7 @@ public class FrameCommonMethods {
     private void handleFailure(Page page, String action, String element) {
         isFailed = true; // Update internal state to indicate failure
         logger.error("Action '{}' failed on element '{}'", action, element); // Log details of the failure
-        ScenarioUtil.handleScenarioTeardown(getCurrentScenario(), page, "Failure Step"); // Cleanup the scenario context
+        ScreenshotHandler.handleScenarioTeardown(getCurrentScenario(), page, "Failure Step"); // Cleanup the scenario context
         closeBrowserOnFailure(); // Attempt to close any resources on failure
         throw new RuntimeException(String.format("Action '%s' failed on element '%s', skipping further steps", action, element)); // Throw exception to indicate failure
     }
@@ -1048,7 +1048,7 @@ public class FrameCommonMethods {
             // 1. Handling the teardown process
             // 2. Capturing screenshots if applicable
             // 3. Updating the scenario context as "Passed Step"
-            ScenarioUtil.handleScenarioTeardownLocator(
+            ScreenshotHandler.handleScenarioTeardownLocator(
                     getCurrentScenario(), // Retrieve the current scenario context
                     page,                 // The Playwright Page instance used for taking the screenshot
                     iFrame,              // First iframe locator, if relevant to the scenario

@@ -1,0 +1,106 @@
+// JSON
+ScenarioUtil.reportJson(scenario, "CreateCustomerRequest", requestJson);
+
+// Table (list of strings)
+ScenarioUtil.reportTable(scenario, "Visible Menu Items", menuItems);
+
+// Key–Value
+ScenarioUtil.reportKeyValues(scenario, "Runtime Config", Map.of(
+    "env", "QA",
+    "branch", "release/1.4.0",
+    "build", "2025.10.09"
+));
+
+// Value + Screenshot (no iframes)
+ScenarioUtil.reportElementStringWithScreenshot(
+    scenario, page, null, null, null, "#totalAmount", "Total Amount");
+
+// Value + Screenshot (nested iframes)
+ScenarioUtil.reportElementStringWithScreenshot(
+    scenario, page,
+    "iframe[name='iframeApplicationContent']",
+    "iframe[name='iframeContent']",
+    null,
+    "input[name='accountNumber']",
+    "Account Number");
+
+
+
+Here’s a polished Teams chat message you can share with your colleagues. It summarizes all the changes we made to ScenarioUtil and the reporting configuration updates:
+
+⸻
+
+Hi Team,
+
+I’d like to share the latest updates we made to our FNB-PTAF test automation framework reporting:
+
+⸻
+
+✅ ScenarioUtil Enhancements
+
+We extended the reporting utilities with non-breaking helpers for more robust logging and evidence collection.
+New capabilities include:
+	•	reportString(...) → attach any plain text value (IDs, notes, debug info).
+	•	captureElementString(...) → capture element text/value across pages & nested frames.
+	•	reportElementString(...) → convenience wrapper to capture + attach value with a label.
+	•	reportJson(...) → pretty-print & attach JSON (requests, responses, fixtures).
+	•	reportTable(...) → attach a numbered multi-line table from a List<String>.
+	•	reportKeyValues(...) → attach configs/headers as key–value pairs.
+	•	reportElementStringWithScreenshot(...) → capture element value + screenshot in one step.
+
+These were added without changing existing methods or naming — so backward compatibility is preserved.
+
+⸻
+
+📄 Usage Examples
+
+// Report plain string
+ScenarioUtil.reportString(scenario, "Environment", "QA-US-East");
+
+// Capture & report element text
+ScenarioUtil.reportElementString(scenario, page, null, null, null, "#totalAmount", "Total Amount");
+
+// Attach JSON
+ScenarioUtil.reportJson(scenario, "CreateCustomerRequest", requestJson);
+
+// Attach a table
+ScenarioUtil.reportTable(scenario, "Visible Menu Items", menuItems);
+
+// Attach key-values
+ScenarioUtil.reportKeyValues(scenario, "Runtime Config", configMap);
+
+// Value + Screenshot combo
+ScenarioUtil.reportElementStringWithScreenshot(scenario, page, null, null, null, "#orderId", "Order ID");
+
+
+⸻
+
+📝 Extent Reports Configuration Update
+
+We updated extent.properties so reports are no longer overwritten on each run.
+Now, each execution generates its own timestamped folder, e.g.:
+
+reports/09-Oct-25_14-33-10/
+   SparkReport/Spark.html
+   Base64Report/Report.html
+   PdfReport/FNB-PTAF-Report.pdf
+   screenshots/...
+
+This ensures every run is preserved for traceability and comparison.
+
+⸻
+
+🔗 Next Steps
+	•	Everyone should pull the updated ScenarioUtil.java and extent.properties from the repo.
+	•	Use the new reporting methods in your step definitions for clearer test evidence.
+
+⸻
+
+✅ With these improvements, we’ll have richer, non-overwriting reports that capture text, JSON, tables, key-values, and screenshots across both pages and frames.
+
+Thanks,
+Murodjon
+
+⸻
+
+Would you like me to also prepare a short slide (PPTX) version of this summary for management/demo sessions?
