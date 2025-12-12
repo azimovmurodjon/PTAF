@@ -1,5 +1,15 @@
 {
+  "name": "playwright-java-cucumber",
+  "version": "1.0.0",
+  "scripts": {
+    "test:pw": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "test:debug": "npx playwright test --debug"
+  },
   "dependencies": {
     "playwright": "^1.46.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.46.0"
   }
 }

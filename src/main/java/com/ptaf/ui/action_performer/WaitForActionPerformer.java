@@ -16,7 +16,7 @@ public class WaitForActionPerformer {
                     // Wait for a file chooser to be displayed
                     page.waitForFileChooser(() -> click(targetLocator)); // Assuming value is not needed here.
                     break;
-                case "switch_frame":
+                case "wait_for_popup":
                         page.waitForPopup(() -> click(targetLocator));
                 default:
                     throw new IllegalArgumentException("Unknown action: " + action);

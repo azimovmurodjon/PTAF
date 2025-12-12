@@ -8,6 +8,9 @@ browser: "chrome"  # Specifies the browser to use (CHROME, FIREFOX, WEBKIT, etc.
 # Headless mode setting
 headless: "false"  # Set to "true" to run the browser in headless mode (no UI)
 
+#Time To Wait
+time_to_wait: "60"
+
 # Video Capture setting
 videoCapture: "false"
 
@@ -15,7 +18,7 @@ videoCapture: "false"
 excelDocumentLocation: "src/test/resources/testdata.xlsx"
 
 # Download Document Location in your Framework you can  modify based of your application
-downloadDocument: "src/test/downloads/download_document.png"
+downloadDocument: "src/test/downloads/"
 
 # Environment URLs for different test environments
 rnd_url: "https://pdscawebdev01.myfnb.us/Account/Login?ReturnUrl=%2F"

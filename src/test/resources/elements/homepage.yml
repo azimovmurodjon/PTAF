@@ -1,5 +1,6 @@
 elements:
   homePage:
+    body: "tag_body"
     logout_btn: "LinkText_Log Out"
     alert_frame_and_window: "CSS_(//div[contains(@class,'card mt-4')]/following-sibling::div)[2]"
     browser_window: "CSS_//li[contains(.,'Browser Windows')]"
@@ -9,4 +10,8 @@ elements:
     frame_btn: "css_//span[normalize-space(text())='Frames']"
     elements_tab: "css_(//div[contains(@class,'card mt-4')])[1]"
     update_and_download_tab: "xpath_//span[normalize-space(text())='Upload and Download']"
-    download_btn: "linktext_Download"
+    download_btn: "LinkText_Download"
+    upload_btn: "id_uploadFile"
+    nested_frame_tab: "xpath_(//li[@id='item-3'])[2]"
+    first_frame_txt: "Text_Parent frame"
+    second_frame_txt: "Text_Child Iframe"

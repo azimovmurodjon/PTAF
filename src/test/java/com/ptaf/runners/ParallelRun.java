@@ -18,6 +18,7 @@ import io.cucumber.testng.CucumberOptions;
         },
         monochrome = true,  // Improve readability of console output
         glue = {"com/ptaf/stepdefinitions", "com/ptaf/hooks"},  // Path to the step definitions
+        tags = "@secondPageTest",
         features = {"src/test/resources/features"}  // Path to the feature files
 )
 public class ParallelRun extends AbstractTestNGCucumberTests {

@@ -1,5 +1,6 @@
 package com.ptaf.stepdefinitions;
 
+import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.Page;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.ui.pages.PageCommonMethods;
@@ -15,6 +16,7 @@ public class PageCommonSteps {
     private final Page page = Hooks.getPage();
     private final PageCommonMethods pageCommonMethods = new PageCommonMethods(page);
     private static final Logger logger = LoggerFactory.getLogger(PageCommonSteps.class);
+    private final BrowserContext browserContext = Hooks.getContext();
 
 //    public void switchToIframe() {
 //        Page iframePage = page.waitForPopup(() -> {
@@ -149,7 +151,13 @@ public class PageCommonSteps {
     @And("^we click download on page (.*?) locator (.*?)$")
     public void weDownloadOnPageKey(String element, String locator) {
         String filePath = ConfigurationProperties.getValue("downloadDocument");
-        pageCommonMethods.download(page, element, locator, filePath);
+        pageCommonMethods.download(page, element, locator, filePath + ".jpeg");
+    }
+
+    @And("^we select document to upload on page (.*?) locator (.*?)$")
+    public void weSelectDocument(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        pageCommonMethods.selectFile(page, element, locator, "Mobile Automation Platforms.docx");
     }
 
     @Given("^get title of page$")
@@ -168,5 +176,10 @@ public class PageCommonSteps {
     {
         Thread.sleep(30000);
 
+    }
+
+    @Then("^we close all browsers$")
+    public void weCloseAllBrowsers() throws Exception{
+        Hooks.closeBrowserResources();
     }
 }

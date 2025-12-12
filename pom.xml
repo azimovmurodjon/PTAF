@@ -119,6 +119,18 @@
             <artifactId>extentreports</artifactId>
             <version>5.0.9</version>
         </dependency>
+        <!-- PDF parsing -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>2.0.30</version>
+        </dependency>
+        <!-- Handy file utils for newest-file lookup, etc. -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.15.1</version>
+        </dependency>
 
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -149,11 +161,10 @@
                     </compilerArgs>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
+                <version>3.1.2</version>
                 <configuration>
                     <includes>
                         <include>**/Regression_Runner.java</include>
@@ -165,50 +176,50 @@
             </plugin>
 
             <!-- Surefire Plugin for Running Tests -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
-                <configuration>
-                    <suiteXmlFiles>
-                        <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
-                    </suiteXmlFiles>
-                    <parallel>methods</parallel>
-                    <threadCount>4</threadCount>
-                    <useUnlimitedThreads>false</useUnlimitedThreads>
+<!--            <plugin>-->
+<!--                <groupId>org.apache.maven.plugins</groupId>-->
+<!--                <artifactId>maven-surefire-plugin</artifactId>-->
+<!--                <version>2.22.2</version>-->
+<!--                <configuration>-->
+<!--                    <suiteXmlFiles>-->
+<!--                        <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>-->
+<!--                    </suiteXmlFiles>-->
+<!--                    <parallel>methods</parallel>-->
+<!--                    <threadCount>4</threadCount>-->
+<!--                    <useUnlimitedThreads>false</useUnlimitedThreads>-->
 
-                    <systemPropertyVariables>
-                        <cucumber.plugin>json:target/cucumber-reports/cucumber.json, junit:target/cucumber-reports/cucumber.xml</cucumber.plugin>
-                        <cucumber.options>--plugin json:target/cucumber-reports/cucumber.json --plugin junit:target/cucumber-reports/cucumber.xml</cucumber.options>
-                    </systemPropertyVariables>
+<!--                    <systemPropertyVariables>-->
+<!--                        <cucumber.plugin>json:target/cucumber-reports/cucumber.json, junit:target/cucumber-reports/cucumber.xml</cucumber.plugin>-->
+<!--                        <cucumber.options>&#45;&#45;plugin json:target/cucumber-reports/cucumber.json &#45;&#45;plugin junit:target/cucumber-reports/cucumber.xml</cucumber.options>-->
+<!--                    </systemPropertyVariables>-->
 
-                    <reportsDirectory>target/surefire-reports</reportsDirectory>
-                    <useFile>true</useFile>  <!-- Ensures XML TestNG reports are generated -->
-                </configuration>
-            </plugin>
+<!--                    <reportsDirectory>target/surefire-reports</reportsDirectory>-->
+<!--                    <useFile>true</useFile>  &lt;!&ndash; Ensures XML TestNG reports are generated &ndash;&gt;-->
+<!--                </configuration>-->
+<!--            </plugin>-->
 
             <!-- Cucumber Reporting Plugin -->
-            <plugin>
-                <groupId>net.masterthought</groupId>
-                <artifactId>maven-cucumber-reporting</artifactId>
-                <version>5.0.0</version>
-                <executions>
-                    <execution>
-                        <id>generate-cucumber-reports</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>generate</goal>
-                        </goals>
-                        <configuration>
-                            <projectName>FNB PTAF</projectName>
-                            <outputDirectory>target/cucumber-reports</outputDirectory>
-                            <jsonFiles>
-                                <param>target/cucumber-reports/cucumber.json</param>
-                            </jsonFiles>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+<!--            <plugin>-->
+<!--                <groupId>net.masterthought</groupId>-->
+<!--                <artifactId>maven-cucumber-reporting</artifactId>-->
+<!--                <version>5.0.0</version>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <id>generate-cucumber-reports</id>-->
+<!--                        <phase>verify</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>generate</goal>-->
+<!--                        </goals>-->
+<!--                        <configuration>-->
+<!--                            <projectName>FNB PTAF</projectName>-->
+<!--                            <outputDirectory>target/cucumber-reports</outputDirectory>-->
+<!--                            <jsonFiles>-->
+<!--                                <param>target/cucumber-reports/cucumber.json</param>-->
+<!--                            </jsonFiles>-->
+<!--                        </configuration>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
 
         </plugins>
     </build>
