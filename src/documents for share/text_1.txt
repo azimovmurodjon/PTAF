@@ -1,92 +1,36 @@
- @When("we click all available documents on doc frame")
-    public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
-        int total = ReturnTotalNumberOfElement();
-        String basePath = ConfigurationProperties.getValue("downloadDocument");
-        String ext = "pdf";
+@When("we click all available documents on doc frame")
+public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
+    int total = ReturnTotalNumberOfElement();
+    String basePath = ConfigurationProperties.getValue("downloadDocument"); // e.g. C:/Downloads/document
+    String ext = ".pdf";
 
-        if (total == 0) {
-            System.out.println("[INFO] No documents available to download.");
-            return;
-        }
-
-        for (int i = 1; i <= total; i++) {
-            String key = toDocumentKey(i); // "document_one", "document_two", ...
-            String targetFile = String.format("%s_%02d%s", basePath, i, ext);
-
-            try {
-                weDownloadOnDirectorDocFrame("director_page", key, targetFile);
-                System.out.printf("[INFO] Downloaded '%s' using key '%s'.%n", targetFile, key);
-                Thread.sleep(200);
-            } catch (Exception ex) {
-                System.out.printf("[WARN] Failed to download key '%s': %s%n", key, ex.getMessage());
-            }
-        }
+    if (total <= 0) {
+        System.out.println("[INFO] No documents available to download.");
+        return;
     }
 
-    private String toDocumentKey(int n) {
-        switch (n) {
-            case 1:
-                return "document_one";
-            case 2:
-                return "document_two";
-            case 3:
-                return "document_three";
-            case 4:
-                return "document_four";
-            case 5:
-                return "document_five";
-            // Extend if needed:
-            case 6:
-                return "document_six";
-            case 7:
-                return "document_seven";
-            default:
-                return "document_" + n; // if your repo supports generic numeric keys
+    for (int i = 1; i <= total; i++) {
+        String key = toDocumentKey(i); // document_one, document_two, ...
+        String targetFile = String.format("%s_%02d%s", basePath, i, ext); // unique name
+
+        try {
+            weDownloadOnDirectorDocFrame("director_page", key, targetFile);
+            System.out.printf("[INFO] Downloaded %s using key %s%n", targetFile, key);
+            Thread.sleep(500); // small pause; increase only if needed
+        } catch (Exception e) {
+            System.out.printf("[WARN] Failed to download %s (%s): %s%n", targetFile, key, e.getMessage());
         }
     }
+}
 
-
-//    @When("we click all available documents on doc frame")
-//    public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
-//        int totalDocumentNumber = ReturnTotalNumberOfElement();
-//        String filePath = ConfigurationProperties.getValue("downloadDocument");
-//        String finalFileType = ".pdf";
-//        switch (totalDocumentNumber) {
-//            case 0:
-//                // No documents found—log and exit gracefully
-//                System.out.println("[INFO] No documents available to download.");
-//                return;
-//            case 1:
-//                weDownloadOnDirectorDocFrame("director_page",
-//                        "document_one",
-//                        filePath + finalFileType);
-//                Thread.sleep(3000);
-//                break;
-//            case 2:
-//                weDownloadOnDirectorDocFrame("director_page",
-//                        "document_two",
-//                        filePath + finalFileType);
-//                Thread.sleep(3000);
-//                break;
-//            case 3:
-//                weDownloadOnDirectorDocFrame("director_page",
-//                        "document_three",
-//                        filePath + finalFileType);
-//                Thread.sleep(3000);
-//                break;
-//            case 4:
-//                weDownloadOnDirectorDocFrame("director_page",
-//                        "document_four",
-//                        filePath + finalFileType);
-//                Thread.sleep(3000);
-//                break;
-//            case 5:
-//                weDownloadOnDirectorDocFrame("director_page",
-//                        "document_five",
-//                        filePath + finalFileType);
-//                Thread.sleep(3000);
-//                break;
-//            default:
-//                System.out.printf("[INFO] %d documents detected. Using generic list locator fallback.%n", totalDocumentNumber);
-//        }
-//    }
+private String toDocumentKey(int i) {
+    switch (i) {
+        case 1: return "document_one";
+        case 2: return "document_two";
+        case 3: return "document_three";
+        case 4: return "document_four";
+        case 5: return "document_five";
+        default: throw new IllegalArgumentException("Unsupported document index: " + i);
+        // OR if your YAML supports document_6 etc, return "document_" + i;
+    }
+}
