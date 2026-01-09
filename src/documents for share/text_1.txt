@@ -1,4 +1,4 @@
- @When("we click all available documents on doc frame")
+    @When("we click all available documents on doc frame")
     public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
         int total = ReturnTotalNumberOfElement();
         String basePath = ConfigurationProperties.getValue("downloadDocument"); // e.g. C:/Downloads/document
@@ -37,4 +37,54 @@
                 System.out.println("[WARN] Failed to capture screenshot");
             }
         }
+    }
+
+    public boolean weVerifyOnDirectorMarkupFrameIsBooleanVisible(String element, String locator) {
+        return frameCommonMethods.getElement_locator(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator).isVisible();
+    }
+
+    private String toDocumentKey(int i) {
+        switch (i) {
+            case 1:
+                return "document_one";
+            case 2:
+                return "document_two";
+            case 3:
+                return "document_three";
+            case 4:
+                return "document_four";
+            case 5:
+                return "document_five";
+            case 6:
+                return "document_six";
+            case 7:
+                return "document_seven";
+            case 8:
+                return "document_eight";
+            case 9:
+                return "document_nine";
+            case 10:
+                return "document_ten";
+            default:
+                throw new IllegalArgumentException("Unsupported document index: " + i);
+                // OR if your YAML supports document_6 etc, return "document_" + i;
+        }
+    }
+
+
+    public int ReturnTotalNumberOfElement() throws InterruptedException {
+        Locator currentLocator = frameCommonMethods.getElement_locator(
+                director_page,
+                director_doc_frame,
+                director_doc_frame_inner_frame,
+                null,
+                "director_page",
+                "list_of_document"
+        );
+
+        // If your getElement_locator can filter to visible actionable items, prefer that:
+        // currentLocator = currentLocator.filter(new Locator.FilterOptions().setHasText("")); // example placeholder
+
+        int count = currentLocator.count(); // total number of matching elements
+        return count;
     }
