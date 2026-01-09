@@ -1,286 +1,71 @@
-SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
-SLF4J: Defaulting to no-operation (NOP) logger implementation
-SLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
+@When("we click all available documents on doc frame")
+public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
+    int total = ReturnTotalNumberOfElement();
+    String basePath = ConfigurationProperties.getValue("downloadDocument");
+    String ext = ".pdf";
+    String screenshotPath = "test-output/screenshots/body.png";
 
-Error That I'm facing how to fix it ?
-
-
-package com.ptaf.ui.action_performer;
-
-import com.microsoft.playwright.*;
-import com.microsoft.playwright.options.AriaRole;
-import com.ptaf.ui.handlers.LocatorHandler;
-import com.ptaf.ui.helpers.ElementLocatorHelper;
-import com.ptaf.ui.interfaces.ElementAction;
-import com.ptaf.ui.page_helper.PageHelper;
-import com.ptaf.utils.YamlReader;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-
-/**
- * ElementActionImpl is an implementation of the ElementAction interface that provides methods for
- * performing actions and assertions on web elements within an instance of a Playwright Page or FrameLocator.
- * It utilizes the ActionPerformer, LocatorHandler, and ElementLocatorHelper to manage interactions
- * with various elements on a web page.
- * <p>
- * Usage:
- * 1. Instantiate ElementActionImpl with a Page object.
- * 2. Call `performActionPage` or `performActionFrame` to execute specific actions on elements.
- * 3. Use the `assertElementTextPage` or `assertElementTextFrame` methods for validating the text
- * content of elements.
- */
-public class ElementActionImpl extends PageHelper implements ElementAction {
-    private static final Logger logger = LoggerFactory.getLogger(ElementActionImpl.class);
-
-    private final ActionPerformer actionPerformer = new ActionPerformer(); // Handles action execution on Locators
-    private final ElementLocatorHelper elementLocatorHelper = new ElementLocatorHelper(); // Assists in locating elements
-    private final LocatorHandler locatorHandler = new LocatorHandler(); // Manages Locator creation based on type
-
-    /**
-     * Constructor for ElementActionImpl. Inheritance from PageHelper allows
-     * initializing with a Page instance for element interaction.
-     *
-     * @param page The Playwright Page instance to interact with web elements.
-     * This page will be used to perform various actions and assertions on web elements.
-     */
-    public ElementActionImpl(Page page) {
-        super(page); // Initialize the PageHelper with the provided Page
+    if (total <= 0) {
+        weCaptureScreenshotOnDirectorPage("director_page", "body", screenshotPath);
+        weReportStringValue("[INFO]", "No documents available to download.");
+        return;
     }
 
-    /**
-     * Retrieves a Locator for the specified element by determining its type and context.
-     * This method is now the central orchestrator for locator chaining.
-     * It parses locator strings with ">" to build complex, chained locators.
-     *
-     * @param iFrame, iFrame_2, iFrame_3, element, key, page, frameLocator
-     * @return The final Locator object after resolving the entire chain.
-     * @throws RuntimeException If the locator cannot be resolved.
-     */
-    @Override
-    public Locator getLocator(String iFrame, String iFrame_2, String iFrame_3, String element, String key, Page page, FrameLocator frameLocator) {
-        String fullLocatorString = elementLocatorHelper.getElement(element, key);
-        // Split the string by " > " to get the parts of the chain.
-        String[] locatorParts = fullLocatorString.split("\\s*>\\s*");
-
-        Locator currentLocator = null;
+    for (int i = 1; i <= total; i++) {
+        String key = toDocumentKey(i);
+        String targetFile = String.format("%s_%02d%s", basePath, i, ext);
 
         try {
-            // 1. Establish the initial context (the Page or a specific Frame)
-            Object context = page;
-            if (frameLocator != null) {
-                context = frameLocator;
-            } else if (iFrame != null && !iFrame.isEmpty()) {
-                FrameLocator fl = page.frameLocator(iFrame);
-                if (iFrame_2 != null && !iFrame_2.isEmpty()) fl = fl.frameLocator(iFrame_2);
-                if (iFrame_3 != null && !iFrame_3.isEmpty()) fl = fl.frameLocator(iFrame_3);
-                context = fl;
-            }
+            // 1) Open/preview document
+            weDoubleClickActionOnDirectorDocFrame("director_page", key);
+            Thread.sleep(300); // small settle (replace with your wait util if you have)
 
-            // 2. Iterate through the parts of the chain and build the final locator
-            for (int i = 0; i < locatorParts.length; i++) {
-                String part = locatorParts[i].trim();
-                String locatorType = elementLocatorHelper.getLocatorType(part);
-                String locator = elementLocatorHelper.getLocator(part);
+            // 2) Decide what to do based on visibility
+            boolean isDepositTitleVisible = weVerifyOnDirectorMarkupFrameIsBooleanVisible(
+                    "director_page",
+                    "deposit_main_title"
+            );
 
-                if (i == 0) {
-                    // For the FIRST part, use the Page or FrameLocator as the context
-                    if (context instanceof Page) {
-                        currentLocator = locatorHandler.getLocatorForType(locatorType, (Page) context, locator);
-                    } else {
-                        currentLocator = locatorHandler.getLocatorForType(locatorType, (FrameLocator) context, locator);
-                    }
-                } else {
-                    // For ALL OTHER parts, chain off the previous locator by calling our new overloaded method
-                    currentLocator = locatorHandler.getLocatorForType(locatorType, currentLocator, locator);
+            if (isDepositTitleVisible) {
+                // Visible => ONLY screenshot, DO NOT download, DO NOT run else
+                weCaptureScreenshotOnDirectorPage("director_page", "body", screenshotPath);
+                System.out.printf("[INFO] deposit_main_title is visible. Skipping download for key=%s%n", key);
+
+            } else {
+                // Not visible => try download
+                try {
+                    System.out.println("[INFO] Try to Download");
+                    weDownloadOnDirectorDocFrame("director_page", key, targetFile);
+                    weCaptureScreenshotOnDirectorPage("director_page", "body", screenshotPath);
+                    System.out.printf("[INFO] Downloaded %s using key %s%n", targetFile, key);
+                } catch (Exception e) {
+                    System.out.printf("[WARN] Failed to download %s (%s): %s%n",
+                            targetFile, key, e.getMessage());
                 }
             }
-            return currentLocator;
 
         } catch (Exception e) {
-            throw new RuntimeException("Failed to get locator for: '" + fullLocatorString + "'", e);
-        }
-    }
+            System.out.printf("[WARN] Failed while opening/processing doc key=%s: %s%n", key, e.getMessage());
 
-    @Override
-    public boolean performActionPage(Page page, String action, String element, String key, String value) {
-        return performAction(page, null, null, null, action, element, key, value, null);
-    }
+        } finally {
+            // 3) IMPORTANT: always go back / close preview so next loop starts clean
+            try {
+                // Use whichever you already have in framework:
+                // - press ESC
+                // - click Close/Back button
+                // - page.goBack()
+                // Examples (pick ONE that matches your app):
+                // wePressKeyOnDirectorPage("director_page", "Escape");
+                // weClickActionOnDirectorMarkupFrame("director_page", "close_preview_btn");
+                // weGoBackOnDirectorPage("director_page");
 
-    @Override
-    public boolean performActionFrame(FrameLocator frameLocator, String action, String element, String key, String value) {
-        return performAction(null, null, null, null, action, element, key, value, frameLocator);
-    }
-
-    @Override
-    public boolean performActionPageFrame(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
-        return performAction(page, iFrame, iFrame_2, iFrame_3, action, element, key, value, null);
-    }
-
-    @Override
-    public boolean getElementHandlePage(Page page, String element, String key) {
-        List<ElementHandle> elementHandles = getElementHandleList(page, element, key, null);
-        return !elementHandles.isEmpty();
-    }
-
-    @Override
-    public boolean getElementHandleFrame(FrameLocator frameLocator, String element, String key) {
-        List<ElementHandle> elementHandles = getElementHandleList(null, element, key, frameLocator);
-        return !elementHandles.isEmpty();
-    }
-
-    @Override
-    public boolean assertElementTextPage(Page page, String element, String key, String expectedText) {
-        return assertElementText(page, element, key, expectedText, null);
-    }
-
-    @Override
-    public boolean assertElementTextFrame(FrameLocator frameLocator, String element, String key, String expectedText) {
-        return assertElementText(null, element, key, expectedText, frameLocator);
-    }
-
-    @Override
-    public String performActionPageWithReturn(Page page, String action, String element, String key, String value) {
-        try {
-            Locator targetLocator = getLocatorBasedOnPage(page, element, key);
-            if (targetLocator == null) {
-                logger.error("Locator not found for element: {} with key: {}", element, key);
-                return null;
+                wePressKeyOnDirectorPage("director_page", "Escape"); // <-- recommended if your preview closes on ESC
+                Thread.sleep(200);
+            } catch (Exception ignore) {
+                // don’t fail the loop if close/back fails; continue to next document
             }
-            actionPerformer.waitForLocator(targetLocator);
-            return actionPerformer.performActionWithReturn(page, action, targetLocator, value);
-        } catch (Exception e) {
-            logger.error("Exception in performActionPageWithReturn for element '{}' and action '{}':", element, action, e);
-            return null;
-        }
-    }
-
-    @Override
-    public String performActionPageFrameWithReturn(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
-        try {
-            Locator targetLocator = getLocatorBasedOnPageFrame(page, iFrame, iFrame_2, iFrame_3, element, key);
-            if (targetLocator == null) {
-                logger.error("Locator not found for nested frame element: {} with key: {}", element, key);
-                return null;
-            }
-            actionPerformer.waitForLocator(targetLocator);
-            return actionPerformer.performActionWithReturn(page, action, targetLocator, value);
-        } catch (Exception e) {
-            logger.error("Exception in performActionPageFrameWithReturn for element '{}' and action '{}':", element, action, e);
-            return null;
-        }
-    }
-
-    private boolean performAction(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
-        Locator targetLocator = null;
-        try {
-            // Simplified context checking
-            if (frameLocator != null) {
-                targetLocator = getLocator(null, null, null, element, key, null, frameLocator);
-            } else if (page != null) {
-                targetLocator = getLocator(iFrame, iFrame_2, iFrame_3, element, key, page, null);
-            } else {
-                throw new IllegalArgumentException("A Page or FrameLocator context is required.");
-            }
-
-            if (targetLocator == null) {
-                throw new IllegalStateException("Failed to resolve a target Locator for element: " + element + " with key: " + key);
-            }
-
-            actionPerformer.waitForLocator(targetLocator);
-            actionPerformer.performAction(page, action, targetLocator, value);
-            return true;
-        } catch (Exception e) {
-            logger.error("Error while performing action '{}' on element '{}' with key '{}'", action, element, key, e);
         }
 
-        return false;
-    }
-
-    @Override
-    public void uploadFile(Page page, String file_name, String element, String key) {
-        FileChooser fileChooser = page.waitForFileChooser(() ->
-                page.click(getElement(element, key)));
-        fileChooser.setFiles(Paths.get(getElement(element, file_name)));
-    }
-
-    @Override
-    public void clickOnDocumentLinkName(Page page, String element, String key) {
-        String documentLinkName = getElement(element, key);
-        String fileName = extractFileName(documentLinkName);
-        System.out.println(fileName);
-        try {
-            page.getByRole(AriaRole.LINK,
-                    new Page.GetByRoleOptions().setName(fileName)).click();
-        } catch (Exception e) {
-            logger.error("Failed to click on element by Role '{}'", element + key, e);
-        }
-    }
-
-    public static String extractFileName(String filePath) {
-        String[] parts = filePath.split("/");
-        return parts[parts.length - 1];
-    }
-
-    public String getElement(String element, String key) {
-        try {
-            return (String) YamlReader.get("elements." + element + "." + key);
-        } catch (Exception e) {
-            logger.error("Failed to retrieve selector for element '{}'", element + key, e);
-            throw e;
-        }
-    }
-
-    private boolean assertElementText(Page page, String element, String key, String expectedText, FrameLocator frameLocator) {
-        try {
-            Locator targetLocator = getLocator(null, null, null, element, key, page, frameLocator);
-            String actualText = targetLocator.first().textContent();
-            boolean isTextMatching = expectedText.equals(actualText);
-            logger.info("Asserting text on element '{}': expected '{}', actual '{}'", element, expectedText, actualText);
-            if (!isTextMatching) {
-                logger.error("Text mismatch: expected '{}' but found '{}'", expectedText, actualText);
-            }
-            return isTextMatching;
-        } catch (Exception e) {
-            logger.error("Error while asserting text on element '{}'", element, e);
-            return false;
-        }
-    }
-
-    @Override
-    public List<ElementHandle> getElementHandleList(Page page, String element, String key, FrameLocator frameLocator) {
-        List<ElementHandle> elementHandles = new ArrayList<>();
-        try {
-            Locator targetLocator = getLocator(null, null, null, element, key, page, frameLocator);
-            if (targetLocator != null) {
-                elementHandles = targetLocator.elementHandles();
-            } else {
-                logger.error("Target locator for element '{}' could not be determined.", element);
-            }
-        } catch (Exception e) {
-            logger.error("Failed to retrieve element handles for '{}'", element, e);
-        }
-        return elementHandles;
-    }
-
-    private Locator getLocatorBasedOnPage(Page page, String element, String key) {
-        return getLocator(null, null, null, element, key, page, null);
-    }
-
-    private Locator getLocatorBasedOnPageFrame(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String key) {
-        return getLocator(iFrame, iFrame_2, iFrame_3, element, key, page, null);
-    }
-
-    private Locator getLocatorBasedOnFrame(FrameLocator frameLocator, String element, String key) {
-        return getLocator(null, null, null, element, key, null, frameLocator);
-    }
-
-    @Override
-    public String getExactLocator(String element, String key) {
-        String locatorValue = elementLocatorHelper.getElement(element, key);
-        return elementLocatorHelper.getLocator(locatorValue);
+        Thread.sleep(300);
     }
 }
