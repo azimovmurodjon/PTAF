@@ -1,90 +1,55 @@
-    @When("we click all available documents on doc frame")
-    public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
-        int total = ReturnTotalNumberOfElement();
-        String basePath = ConfigurationProperties.getValue("downloadDocument"); // e.g. C:/Downloads/document
-        String ext = ".pdf";
-        String filePath = "test-output/screenshots/body.png";
-        if (total <= 0) {
-            weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-            weReportStringValue("[INFO]", "No documents available to download.");
-            return;
-        }
+@When("we click all available documents on doc frame")
+public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
+    int total = ReturnTotalNumberOfElement();
+    String basePath = ConfigurationProperties.getValue("downloadDocument");
+    String ext = ".pdf";
+    String filePath = "test-output/screenshots/body.png";
 
-        for (int i = 1; i <= total; i++) {
-            String key = toDocumentKey(i); // document_one, document_two, ...
-            String targetFile = String.format("%s_%02d%s", basePath, i, ext); // unique name
+    if (total <= 0) {
+        weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
+        weReportStringValue("[INFO]", "No documents available to download.");
+        return;
+    }
 
-            try {
-                weDoubleClickActionOnDirectorDocFrame("director_page", key);
-//                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
+    for (int i = 1; i <= total; i++) {
+        String key = toDocumentKey(i);
+        String targetFile = String.format("%s_%02d%s", basePath, i, ext);
 
-                if (weVerifyOnDirectorMarkupFrameIsBooleanVisible("director_page", "deposit_main_title"))
-                    weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-                else {
-                    try {
-                        System.out.println("[INFO] Try to Download");
-                        weDownloadOnDirectorDocFrame("director_page", key, targetFile);
-                        weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-                        System.out.printf("[INFO] Downloaded %s using key %s%n", targetFile, key);
-                        Thread.sleep(500); // small pause; increase only if needed
+        try {
+            weDoubleClickActionOnDirectorDocFrame("director_page", key);
+            Thread.sleep(300); // let preview/markup load a bit
 
-                    } catch (Exception e) {
-                        System.out.printf("[WARN] Failed to download %s (%s): %s%n", targetFile, key, e.getMessage());
-                    }
-                }
-            } catch (Exception e) {
+            // CHECK ONCE and store result (do not call visibility check multiple times)
+            boolean isVisible = weVerifyOnDirectorMarkupFrameIsBooleanVisible("director_page", "deposit_main_title");
 
-                System.out.println("[WARN] Failed to capture screenshot");
+            if (isVisible) {
+                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
+                System.out.printf("[INFO] deposit_main_title visible => screenshot only, skip download (key=%s)%n", key);
+
+                // IMPORTANT: jump to next document immediately (else can never run)
+                continue;
             }
+
+            // ELSE path (only when isVisible == false)
+            try {
+                System.out.println("[INFO] Try to Download");
+                weDownloadOnDirectorDocFrame("director_page", key, targetFile);
+                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
+                System.out.printf("[INFO] Downloaded %s using key %s%n", targetFile, key);
+                Thread.sleep(500);
+            } catch (Exception e) {
+                System.out.printf("[WARN] Failed to download %s (%s): %s%n", targetFile, key, e.getMessage());
+            }
+
+        } catch (Exception e) {
+            System.out.printf("[WARN] Failed to process key=%s: %s%n", key, e.getMessage());
         }
     }
+}
 
-    public boolean weVerifyOnDirectorMarkupFrameIsBooleanVisible(String element, String locator) {
-        return frameCommonMethods.getElement_locator(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator).isVisible();
-    }
-
-    private String toDocumentKey(int i) {
-        switch (i) {
-            case 1:
-                return "document_one";
-            case 2:
-                return "document_two";
-            case 3:
-                return "document_three";
-            case 4:
-                return "document_four";
-            case 5:
-                return "document_five";
-            case 6:
-                return "document_six";
-            case 7:
-                return "document_seven";
-            case 8:
-                return "document_eight";
-            case 9:
-                return "document_nine";
-            case 10:
-                return "document_ten";
-            default:
-                throw new IllegalArgumentException("Unsupported document index: " + i);
-                // OR if your YAML supports document_6 etc, return "document_" + i;
-        }
-    }
-
-
-    public int ReturnTotalNumberOfElement() throws InterruptedException {
-        Locator currentLocator = frameCommonMethods.getElement_locator(
-                director_page,
-                director_doc_frame,
-                director_doc_frame_inner_frame,
-                null,
-                "director_page",
-                "list_of_document"
-        );
-
-        // If your getElement_locator can filter to visible actionable items, prefer that:
-        // currentLocator = currentLocator.filter(new Locator.FilterOptions().setHasText("")); // example placeholder
-
-        int count = currentLocator.count(); // total number of matching elements
-        return count;
-    }
+public boolean weVerifyOnDirectorMarkupFrameIsBooleanVisible(String element, String locator) {
+    return frameCommonMethods
+            .getElement_locator(director_page, director_doc_frame, director_doc_frameViewer,
+                    director_doc_frame_markup_frame, element, locator)
+            .isVisible();
+}
