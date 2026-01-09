@@ -1,721 +1,137 @@
-package com.ptaf.stepdefinitions;
-
-import com.microsoft.playwright.Locator;
-import com.microsoft.playwright.Page;
-import com.ptaf.hooks.Hooks;
-import com.ptaf.ui.pages.FrameCommonMethods;
-import com.ptaf.ui.pages.PageCommonMethods;
-import com.ptaf.utils.ConfigurationProperties;
-import com.ptaf.utils.ExcelReader;
-import com.ptaf.utils.ExcelWriter;
-import io.cucumber.java.en.And;
-import io.cucumber.java.en.Then;
-import io.cucumber.java.en.When;
-
-public class DirectorPageCommonSteps {
-    final String DIRECTOR_MAIN_PAGE = "#WebDirectorBrowser";
-    private final String nav_frame = "iframe[name='NavPanelIFrame']";
-    private final String director_doc_frame = "//iframe[@id='frmViewer']";
-    private final String director_doc_frame_inner_frame = "//iframe[@id='frameDocSelect']";
-    private final String director_doc_frameViewer = "//iframe[@id='frameViewer']";
-    private final String director_doc_frame_markup_frame = "//iframe[@id='MarkupFrame']";
-    private final Page page;
-    private static final String filePath = ConfigurationProperties.getExcelDocumentLocation();
-    private final PageCommonMethods pageCommonMethods;
-    private final FrameCommonMethods frameCommonMethods;
-    private final Page director_page;
-
-    public DirectorPageCommonSteps() {
-        this.page = Hooks.getPage();
-        this.director_page = page.waitForPopup(() -> {
-            page.locator(DIRECTOR_MAIN_PAGE);
-        });
-        ;
-        this.pageCommonMethods = new PageCommonMethods(director_page);
-        this.frameCommonMethods = new FrameCommonMethods(director_page);
-    }
-
-    @Then("^we set the view on director page$")
-    public void weSetTheViewActionOnDirectorPage() {
-        director_page.setViewportSize(1920, 1080);
-    }
-
-    @Then("^we click on director page (.*?) locator (.*?)$")
-    public void weClickActionOnDirectorPage(String element, String locator) {
-        pageCommonMethods.click(director_page, element, locator);
-    }
-
-    @Then("^we double click on director page (.*?) locator (.*?)$")
-    public void weDoubleClickActionOnDirectorPage(String element, String locator) {
-        pageCommonMethods.dblclick(director_page, element, locator);
-    }
-
-    @Then("^we enter value on director page (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weEnterValueOnDirectorPage(String element, String locator, String value) {
-        pageCommonMethods.fill(director_page, element, locator, value);
-    }
-
-    @Then("^we select on director page (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weSelectValueOnDirectorPage(String element, String locator, String value) {
-        pageCommonMethods.select(director_page, element, locator, value);
-    }
-
-    @Then("^we check on director page (.*?) locator (.*?)$")
-    public void weCheckActionOnDirectorPage(String element, String locator) {
-        pageCommonMethods.check(director_page, element, locator);
-    }
-
-    @Then("^we uncheck on director page (.*?) locator (.*?)$")
-    public void weUncheckActionOnDirectorPage(String element, String locator) {
-        pageCommonMethods.check(director_page, element, locator);
-    }
-
-    @Then("^we hover on director page (.*?) locator (.*?)$")
-    public void weHoverActionOnDirectorPage(String element, String locator) {
-        pageCommonMethods.hover(director_page, element, locator);
-    }
-
-    @Then("^we type on director page (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weTypeValueOnDirectorPage(String element, String locator, String value) {
-        pageCommonMethods.type(director_page, element, locator, value);
-    }
-
-    @Then("^we scroll on director page (.*?) locator (.*?)$")
-    public void weScrollToLocatorOnDirectorPage(String element, String locator) {
-        pageCommonMethods.scroll(director_page, element, locator);
-    }
-
-    @Then("^we clear value on director page (.*?) locator (.*?)$")
-    public void weClearValueOnDirectorPage(String element, String locator) {
-        pageCommonMethods.clear(director_page, element, locator);
-    }
-
-    @Then("^we verify on director page (.*?) of locator (.*?) is visible$")
-    public void weVerifyOnDirectorPageLocatorIsVisible(String element, String locator) {
-        pageCommonMethods.isvisible(director_page, element, locator);
-    }
-
-    @Then("^we verify on director page (.*?) of locator (.*?) is checked$")
-    public void weVerifyOnDirectorPageLocatorIsChecked(String element, String locator) {
-        pageCommonMethods.ischecked(director_page, element, locator);
-    }
-
-    @Then("^we verify on director page (.*?) of locator (.*?) is enabled")
-    public void weVerifyOnDirectorPageLocatorIsEnabled(String element, String locator) {
-        pageCommonMethods.isenabled(director_page, element, locator);
-    }
-
-    @Then("^we verify on director page (.*?) of locator (.*?) is existed")
-    public void weVerifyOnDirectorPageLocatorIsExisted(String element, String locator) {
-        pageCommonMethods.exists(director_page, element, locator);
-    }
-
-    @Then("^we contain on director page (.*?) of locator (.*?) value \"(.*?)\"$")
-    public void weContainOnDirectorPageLocatorValue(String element, String locator, String value) {
-        pageCommonMethods.contain(director_page, element, locator, value);
-    }
-
-    @Then("^we get text on director page (.*?) locator (.*?)$")
-    public void weGetTextOnDirectorPage(String element, String locator) {
-        pageCommonMethods.gettext(director_page, element, locator);
-    }
-
-    @Then("^we get text and contain on director page (.*?) of locator (.*?)$")
-    public void weGetTextAndContainOnDirectorPageLocatorValue(String element, String locator) {
-        // Calls the contain method from frameCommonMethods to check if the specified element
-        pageCommonMethods.get_and_contain_text(director_page, element, locator);
-    }
-
-    @Then("^we get value on director page (.*?) locator (.*?)$")
-    public void weGetValueOnDirectorPage(String element, String locator) {
-        pageCommonMethods.getvalue(director_page, element, locator);
-    }
-
-    @Then("^we has value on director page (.*?) of locator (.*?) value \"(.*?)\"$")
-    public void weHasValueOnDirectorPageLocatorValue(String element, String locator, String value) {
-        pageCommonMethods.hasvalue(director_page, element, locator, value);
-    }
-
-    @Then("^we get list of elements on director page (.*?) locator (.*?)$")
-    public void weGetListOfElementsOnDirectorPage(String element, String locator) {
-        pageCommonMethods.getListOfElements(director_page, element, locator);
-    }
-
-    @When("we click radio on director page (.*?) list locator (.*?)$")
-    public void clickRadioOnDirectorPage(String element, String locator) {
-        pageCommonMethods.clickRadioButton(director_page, element, locator);
-    }
-
-    @And("^we capture screenshot on director page (.*?) locator (.*?) name \"(.*?)\"$")
-    public void weCaptureScreenshotOnDirectorPage(String element, String locator, String name) {
-        String filePath = "test-output/screenshots/" + name + ".png";
-        pageCommonMethods.screenshot(director_page, element, locator, filePath);
-    }
-
-    @And("^we press on director page (.*?) locator (.*?) key \"(.*?)\" keyboard$")
-    public void wePressOnDirectorPageKey(String element, String locator, String value) {
-        pageCommonMethods.press(director_page, element, locator, value);
-    }
-
-    @And("^we choose file then upload on director page (.*?) locator (.*?) key \"(.*?)\" keyboard$")
-    public void weChooseFileThenUploadOnDirectorPageKey(String element, String fileName, String locator, String file_name) {
-        pageCommonMethods.file_chooser_for_upload(page, fileName, element, locator);
-    }
-
-    @And("^we click document link on director page (.*?) locator (.*?) key \"(.*?)\" keyboard$")
-    public void weClickDocumentLinkOnDirectorPageKey(String element, String locator) {
-        pageCommonMethods.click_document_link(director_page, element, locator);
-    }
-
-    @Then("^we enter using excel data on testCase (.*?) on director page (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weEnterUsingExcelDataOnTestCaseOnDirectorPageLocatorValue(String testCaseId, String element, String locator, String value) {
-        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
-        System.out.println(finalValue);
-        pageCommonMethods.fill(director_page, element, locator, finalValue);
-    }
-
-    @And("^we enter \"(.*?)\" in director page (.*?) locator (.*?)$")
-    public void weEnterInNavigatorPageLocator(String value, String element, String locator) {
-        String finalValue = ConfigurationProperties.getValue(value);
-        pageCommonMethods.fill(director_page, element, locator, finalValue);
-    }
-
-    @And("^we download on director page (.*?) locator (.*?) and file type is \"(.*?)\"$")
-    public void weDownloadOnDirectorPage(String element, String locator, String fileType) {
-        String filePath = ConfigurationProperties.getValue("downloadDocument");
-        String finalFileType = "." + fileType;
-        pageCommonMethods.download(director_page, element, locator, filePath + finalFileType);
-    }
-
-//    __________________________________________________________________________________________________________________
-
-    @Then("^we click on director nav frame (.*?) locator (.*?)$")
-    public void weClickActionOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.click(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we report list of selection director nav frame (.*?) locator (.*?)$")
-    public void weReportListOfSelectionOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.reportListOfDropdown(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we double click director nav frame (.*?) locator (.*?)$")
-    public void weDoubleClickActionOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.dblclick(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we enter value director nav frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weEnterValueOnDirectorNavFrame(String element, String locator, String value) {
-        frameCommonMethods.fill(director_page, nav_frame, null, null, element, locator, value);
-    }
-
-    @Then("^we select director nav frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weSelectValueOnDirectorNavFrame(String element, String locator, String value) {
-        frameCommonMethods.select(director_page, nav_frame, null, null, element, locator, value);
-    }
-
-    @Then("^we check director nav frame (.*?) locator (.*?)$")
-    public void weCheckActionOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.check(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we uncheck director nav frame (.*?) locator (.*?)$")
-    public void weUncheckActionOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.check(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we hover director nav frame (.*?) locator (.*?)$")
-    public void weHoverActionOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.hover(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we type director nav frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weTypeValueOnDirectorNavFrame(String element, String locator, String value) {
-        frameCommonMethods.type(director_page, nav_frame, null, null, element, locator, value);
-    }
-
-    @Then("^we scroll director nav frame (.*?) locator (.*?)$")
-    public void weScrollToLocatorOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.scroll(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we clear value director nav frame (.*?) locator (.*?)$")
-    public void weClearValueOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.clear(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we verify director nav frame (.*?) of locator (.*?) is visible$")
-    public void weVerifyOnDirectorNavFrameIsVisible(String element, String locator) {
-        frameCommonMethods.isvisible(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we verify director nav frame (.*?) of locator (.*?) is checked$")
-    public void weVerifyOnDirectorNavFrameIsChecked(String element, String locator) {
-        frameCommonMethods.ischecked(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we verify director nav frame (.*?) of locator (.*?) is enabled")
-    public void weVerifyOnDirectorNavFrameIsEnabled(String element, String locator) {
-        frameCommonMethods.isenabled(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we verify director nav frame (.*?) of locator (.*?) is existed")
-    public void weVerifyOnDirectorNavFrameIsExisted(String element, String locator) {
-        frameCommonMethods.exists(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we contain director nav frame (.*?) of locator (.*?) value \"(.*?)\"$")
-    public void weContainOnDirectorNavFrameValue(String element, String locator, String value) {
-        frameCommonMethods.contain(director_page, nav_frame, null, null, element, locator, value);
-    }
-
-    @Then("^we get text director nav frame (.*?) locator (.*?)$")
-    public void weGetTextOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.gettext(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we has value director nav frame (.*?) of locator (.*?) value \"(.*?)\"$")
-    public void weHasValueOnDirectorNavFrameValue(String element, String locator, String value) {
-        frameCommonMethods.hasvalue(director_page, nav_frame, null, null, element, locator, value);
-    }
-
-    @Then("^we get value of elements director nav frame (.*?) locator (.*?)$")
-    public void weGetValueOfElementsOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.getvalue(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we get list of elements director nav frame (.*?) locator (.*?)$")
-    public void weGetListOfElementsOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.gettext(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @When("we click radio director nav frame (.*?) list locator (.*?)$")
-    public void clickRadioOnDirectorNavFrame(String element, String locator) {
-        frameCommonMethods.clickRadioButton(director_page, nav_frame, element, locator);
-    }
-
-    @And("^we capture screenshot director nav frame (.*?) locator (.*?) name \"(.*?)\"$")
-    public void weCaptureScreenshotOnDirectorNavFrame(String element, String locator, String name) {
-        String filePath = "test-output/screenshots/" + name + ".png";
-        frameCommonMethods.screenshot(director_page, nav_frame, null, null, element, locator, filePath);
-    }
-
-    @And("^we press director nav frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
-    public void wePressOnDirectorNavFrameKey(String element, String locator, String value) {
-        frameCommonMethods.press(director_page, nav_frame, null, null, element, locator, value);
-    }
-
-    @And("^we download director nav frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
-    public void weDownloadOnDirectorNavFrame(String element, String locator, String fileType) {
-        String filePath = ConfigurationProperties.getValue("downloadDocument");
-        String finalFileType = "." + fileType;
-        frameCommonMethods.download(director_page, nav_frame, null, null, element, locator, filePath + finalFileType);
-    }
-
-    @Then("^we enter using excel data on testCase (.*?) director nav frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weEnterUsingExcelDataOnTestCaseDirectorNavFrameValue(String testCaseId, String element, String locator, String value) {
-        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
-        frameCommonMethods.fill(director_page, nav_frame, null, null, element, locator, finalValue);
-    }
-
-    @Then("^we write to excel for testCase (.*?) column \"(.*?)\" director nav frame element (.*?) locator (.*?)$")
-    public void weWriteToExcelForTestCaseOnDirectorNavFrame(String testCaseId, String columnName, String element, String locator) {
-        String valueToWrite = frameCommonMethods.gettext(director_page, nav_frame, null, null, element, locator);
-        System.out.println(valueToWrite);
-        ExcelWriter.writeData(filePath, testCaseId, columnName, valueToWrite);
-    }
-
-    @Then("^we get text and contain director nav frame (.*?) of locator (.*?)$")
-    public void weGetTextAndContainOnDirectorNavFrameValue(String element, String locator) {
-        // Calls the contain method from frameCommonMethods to check if the specified element
-        frameCommonMethods.get_and_contain_text(director_page, nav_frame, null, null, element, locator);
-    }
-
-    @Then("^we select file: (.*?) for director nav frame (.*?) locator (.*?)$")
-    public void weSelectFileForDirectorNavFrame(String fileName, String element, String locator) {
-        String filePath = "documents/" + fileName;
-        frameCommonMethods.selectFile(director_page, nav_frame, null, null, element, locator, filePath);
-    }
-
-//  _______________________________________________________________________________________________________________________
-
-    @Then("^we click on director doc frame (.*?) locator (.*?)$")
-    public void weClickActionOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.click(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we report list of selection director doc frame (.*?) locator (.*?)$")
-    public void weReportListOfSelectionOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.reportListOfDropdown(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we double click director doc frame (.*?) locator (.*?)$")
-    public void weDoubleClickActionOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.dblclick(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we enter value director doc frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weEnterValueOnDirectorDocFrame(String element, String locator, String value) {
-        frameCommonMethods.fill(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator, value);
-    }
-
-    @Then("^we select director doc frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weSelectValueOnDirectorDocFrame(String element, String locator, String value) {
-        frameCommonMethods.select(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator, value);
-    }
-
-    @Then("^we check director doc frame (.*?) locator (.*?)$")
-    public void weCheckActionOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.check(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we uncheck director doc frame (.*?) locator (.*?)$")
-    public void weUncheckActionOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.check(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we hover director doc frame (.*?) locator (.*?)$")
-    public void weHoverActionOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.hover(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we type director doc frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weTypeValueOnDirectorDocFrame(String element, String locator, String value) {
-        frameCommonMethods.type(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator, value);
-    }
-
-    @Then("^we scroll director doc frame (.*?) locator (.*?)$")
-    public void weScrollToLocatorOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.scroll(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we clear value director doc frame (.*?) locator (.*?)$")
-    public void weClearValueOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.clear(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we verify director doc frame (.*?) of locator (.*?) is visible$")
-    public void weVerifyOnDirectorDocFrameIsVisible(String element, String locator) {
-        frameCommonMethods.isvisible(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we verify director doc frame (.*?) of locator (.*?) is checked$")
-    public void weVerifyOnDirectorDocFrameIsChecked(String element, String locator) {
-        frameCommonMethods.ischecked(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we verify director doc frame (.*?) of locator (.*?) is enabled")
-    public void weVerifyOnDirectorDocFrameIsEnabled(String element, String locator) {
-        frameCommonMethods.isenabled(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we verify director doc frame (.*?) of locator (.*?) is existed")
-    public void weVerifyOnDirectorDocFrameIsExisted(String element, String locator) {
-        frameCommonMethods.exists(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we contain director doc frame (.*?) of locator (.*?) value \"(.*?)\"$")
-    public void weContainOnDirectorDocFrameValue(String element, String locator, String value) {
-        frameCommonMethods.contain(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator, value);
-    }
-
-    @Then("^we get text director doc frame (.*?) locator (.*?)$")
-    public void weGetTextOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.gettext(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we has value director doc frame (.*?) of locator (.*?) value \"(.*?)\"$")
-    public void weHasValueOnDirectorDocFrameValue(String element, String locator, String value) {
-        frameCommonMethods.hasvalue(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator, value);
-    }
-
-    @Then("^we get value of elements director doc frame (.*?) locator (.*?)$")
-    public void weGetValueOfElementsOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.getvalue(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we get list of elements director doc frame (.*?) locator (.*?)$")
-    public void weGetListOfElementsOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.gettext(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @When("we click radio director doc frame (.*?) list locator (.*?)$")
-    public void clickRadioOnDirectorDocFrame(String element, String locator) {
-        frameCommonMethods.clickRadioButton(director_page, nav_frame, element, locator);
-    }
-
-    @And("^we capture screenshot director doc frame (.*?) locator (.*?) name \"(.*?)\"$")
-    public void weCaptureScreenshotOnDirectorDocFrame(String element, String locator, String name) {
-        String filePath = "test-output/screenshots/" + name + ".png";
-        frameCommonMethods.screenshot(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator, filePath);
-    }
-
-    @And("^we press director doc frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
-    public void wePressOnDirectorDocFrameKey(String element, String locator, String value) {
-        frameCommonMethods.press(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator, value);
-    }
-
-    @And("^we download director doc frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
-    public void weDownloadOnDirectorDocFrame(String element, String locator, String fileType) {
-        String filePath = ConfigurationProperties.getValue("downloadDocument");
-        String finalFileType = "." + fileType;
-        frameCommonMethods.download(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator, filePath + finalFileType);
-    }
-
-    @Then("^we enter using excel data on testCase (.*?) director doc frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weEnterUsingExcelDataOnTestCaseDirectorDocFrameValue(String testCaseId, String element, String locator, String value) {
-        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
-        frameCommonMethods.fill(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator, finalValue);
-    }
-
-    @Then("^we write to excel for testCase (.*?) column \"(.*?)\" director doc frame element (.*?) locator (.*?)$")
-    public void weWriteToExcelForTestCaseOnDirectorDocFrame(String testCaseId, String columnName, String element, String locator) {
-        String valueToWrite = frameCommonMethods.gettext(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-        System.out.println(valueToWrite);
-        ExcelWriter.writeData(filePath, testCaseId, columnName, valueToWrite);
-    }
-
-    @Then("^we get text and contain director doc frame (.*?) of locator (.*?)$")
-    public void weGetTextAndContainOnDirectorDocFrameValue(String element, String locator) {
-        // Calls the contain method from frameCommonMethods to check if the specified element
-        frameCommonMethods.get_and_contain_text(director_page, director_doc_frame, director_doc_frame_inner_frame, null, element, locator);
-    }
-
-    @Then("^we select file: (.*?) for director doc frame (.*?) locator (.*?)$")
-    public void weSelectFileForDirectorDocFrame(String fileName, String element, String locator) {
-        String filePath = "documents/" + fileName;
-        frameCommonMethods.selectFile(director_page, nav_frame, director_doc_frame_inner_frame, null, element, locator, filePath);
-    }
-
-    @Then("^we report string \"(.*?)\" value \"(.*?)\"$")
-    public void weReportStringValue(String title, String value) {
-        frameCommonMethods.reportString(title, value);
-    }
-
-//______________________________________________________________________________________________________________________
-
-    @Then("^we click on director markup frame (.*?) locator (.*?)$")
-    public void weClickActionOnDirectorMarkupFrame(String element, String locator) {
-        frameCommonMethods.click(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we report list of selection director markup frame (.*?) locator (.*?)$")
-    public void weReportListOfSelectionOnDirectorMarkupFrame(String element, String locator) {
-        frameCommonMethods.reportListOfDropdown(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we double click director markup frame (.*?) locator (.*?)$")
-    public void weDoubleClickActionOnDirectorMarkupFrame(String element, String locator) {
-        frameCommonMethods.dblclick(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we enter value director markup frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weEnterValueOnDirectorMarkupFrame(String element, String locator, String value) {
-        frameCommonMethods.fill(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator, value);
-    }
-
-    @Then("^we select director markup frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weSelectValueOnDirectorMarkupFrame(String element, String locator, String value) {
-        frameCommonMethods.select(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator, value);
-    }
-
-    @Then("^we check director markup frame (.*?) locator (.*?)$")
-    public void weCheckActionOnDirectorMarkupFrame(String element, String locator) {
-        frameCommonMethods.check(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we uncheck director markup frame (.*?) locator (.*?)$")
-    public void weUncheckActionOnDirectorMarkupFrame(String element, String locator) {
-        frameCommonMethods.check(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we hover director markup frame (.*?) locator (.*?)$")
-    public void weHoverActionOnDirectorMarkupFrame(String element, String locator) {
-        frameCommonMethods.hover(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we type director markup frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weTypeValueOnDirectorMarkupFrame(String element, String locator, String value) {
-        frameCommonMethods.type(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator, value);
-    }
-
-    @Then("^we scroll director markup frame (.*?) locator (.*?)$")
-    public void weScrollToLocatorOnDirectorMarkupFrame(String element, String locator) {
-        frameCommonMethods.scroll(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we clear value director markup frame (.*?) locator (.*?)$")
-    public void weClearValueOnDirectorMarkupFrame(String element, String locator) {
-        frameCommonMethods.clear(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we verify director markup frame (.*?) of locator (.*?) is visible$")
-    public void weVerifyOnDirectorMarkupFrameIsVisible(String element, String locator) {
-        frameCommonMethods.isvisible(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we verify director markup frame (.*?) of locator (.*?) is checked$")
-    public void weVerifyOnDirectorMarkupFrameIsChecked(String element, String locator) {
-        frameCommonMethods.ischecked(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we verify director markup frame (.*?) of locator (.*?) is enabled")
-    public void weVerifyOnDirectorMarkupFrameIsEnabled(String element, String locator) {
-        frameCommonMethods.isenabled(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we verify director markup frame (.*?) of locator (.*?) is existed")
-    public void weVerifyOnDirectorMarkuFrameIsExisted(String element, String locator) {
-        frameCommonMethods.exists(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we contain director markup frame (.*?) of locator (.*?) value \"(.*?)\"$")
-    public void weContainOnDirectorMarkupFrameValue(String element, String locator, String value) {
-        frameCommonMethods.contain(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator, value);
-    }
-
-    @Then("^we get text director markup frame (.*?) locator (.*?)$")
-    public void weGetTextOnDirectorMarkuFrame(String element, String locator) {
-        frameCommonMethods.gettext(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we has value director markup frame (.*?) of locator (.*?) value \"(.*?)\"$")
-    public void weHasValueOnDirectorMarkupFrameValue(String element, String locator, String value) {
-        frameCommonMethods.hasvalue(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator, value);
-    }
-
-    @Then("^we get value of elements director markup frame (.*?) locator (.*?)$")
-    public void weGetValueOfElementsOnDirectorMarkupFrame(String element, String locator) {
-        frameCommonMethods.getvalue(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we get list of elements director markup frame (.*?) locator (.*?)$")
-    public void weGetListOfElementsOnDirectorMarkupFrame(String element, String locator) {
-        frameCommonMethods.gettext(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @And("^we capture screenshot director markup frame (.*?) locator (.*?) name \"(.*?)\"$")
-    public void weCaptureScreenshotOnDirectorMarkupFrame(String element, String locator, String name) {
-        String filePath = "test-output/screenshots/" + name + ".png";
-        frameCommonMethods.screenshot(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator, filePath);
-    }
-
-    @And("^we press director markup frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
-    public void wePressOnDirectorMarkupFrameKey(String element, String locator, String value) {
-        frameCommonMethods.press(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator, value);
-    }
-
-    @And("^we download director markup frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
-    public void weDownloadOnDirectorMarkupFrame(String element, String locator, String fileType) {
-        String filePath = ConfigurationProperties.getValue("downloadDocument");
-        String finalFileType = "." + fileType;
-        frameCommonMethods.download(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator, filePath + finalFileType);
-    }
-
-    @Then("^we enter using excel data on testCase (.*?) director markup frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weEnterUsingExcelDataOnTestCaseDirectorMarkupFrameValue(String testCaseId, String element, String locator, String value) {
-        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
-        frameCommonMethods.fill(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator, finalValue);
-    }
-
-    @Then("^we write to excel for testCase (.*?) column \"(.*?)\" director markup frame element (.*?) locator (.*?)$")
-    public void weWriteToExcelForTestCaseOnDirectorMarkupFrame(String testCaseId, String columnName, String element, String locator) {
-        String valueToWrite = frameCommonMethods.gettext(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-        System.out.println(valueToWrite);
-        ExcelWriter.writeData(filePath, testCaseId, columnName, valueToWrite);
-    }
-
-    @Then("^we get text and contain director markup frame (.*?) of locator (.*?)$")
-    public void weGetTextAndContainOnDirectorMarkupFrameValue(String element, String locator) {
-        // Calls the contain method from frameCommonMethods to check if the specified element
-        frameCommonMethods.get_and_contain_text(director_page, director_doc_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator);
-    }
-
-    @Then("^we select file: (.*?) for director markup frame (.*?) locator (.*?)$")
-    public void weSelectFileForDirectorMarkupFrame(String fileName, String element, String locator) {
-        String filePath = "documents/" + fileName;
-        frameCommonMethods.selectFile(director_page, nav_frame, director_doc_frameViewer, director_doc_frame_markup_frame, element, locator, filePath);
-    }
-
-    //    __________________________________________________________________________________________________________________
-
-
-    @When("we click all available documents on doc frame")
-    public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
-        int total = ReturnTotalNumberOfElement();
-        String basePath = ConfigurationProperties.getValue("downloadDocument"); // e.g. C:/Downloads/document
-        String ext = ".pdf";
-        String filePath = "test-output/screenshots/body.png";
-        if (total <= 0) {
-            weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-            weReportStringValue("[INFO]", "No documents available to download.");
-            return;
-        }
-
-        for (int i = 1; i <= total; i++) {
-            String key = toDocumentKey(i); // document_one, document_two, ...
-            String targetFile = String.format("%s_%02d%s", basePath, i, ext); // unique name
-
-            try {
-                weDoubleClickActionOnDirectorDocFrame("director_page", key);
-                weDownloadOnDirectorDocFrame("director_page", key, targetFile);
-                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-//                weReportStringValue("[INFO]", "Downloaded %s using key %s%n, " + targetFile + ", " + key);
-                System.out.printf("[INFO] Downloaded %s using key %s%n", targetFile, key);
-                Thread.sleep(500); // small pause; increase only if needed
-
-            } catch (Exception e) {
-                
-                weDoubleClickActionOnDirectorDocFrame("director_page", key);
-                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-                System.out.printf("[WARN] Failed to download %s (%s): %s%n", targetFile, key, e.getMessage());
-            }
-        }
-    }
-
-    private String toDocumentKey(int i) {
-        switch (i) {
-            case 1:
-                return "document_one";
-            case 2:
-                return "document_two";
-            case 3:
-                return "document_three";
-            case 4:
-                return "document_four";
-            case 5:
-                return "document_five";
-            case 6:
-                return "document_six";
-            case 7:
-                return "document_seven";
-            case 8:
-                return "document_eight";
-            case 9:
-                return "document_nine";
-            case 10:
-                return "document_ten";
-            default:
-                throw new IllegalArgumentException("Unsupported document index: " + i);
-                // OR if your YAML supports document_6 etc, return "document_" + i;
-        }
-    }
-
-
-    public int ReturnTotalNumberOfElement() throws InterruptedException {
-        Locator currentLocator = frameCommonMethods.getElement_locator(
-                director_page,
-                director_doc_frame,
-                director_doc_frame_inner_frame,
-                null,
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+@When("we click all available documents on doc frame")
+public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
+    int total = ReturnTotalNumberOfElement();
+    String basePath = ConfigurationProperties.getValue("downloadDocument"); // e.g. C:/Downloads/document
+    String ext = ".pdf";
+    String screenshotPath = "test-output/screenshots/body.png";
+
+    if (total <= 0) {
+        weCaptureScreenshotOnDirectorPage("director_page", "body", screenshotPath);
+        weReportStringValue("[INFO]", "No documents available to download.");
+        return;
+    }
+
+    for (int i = 1; i <= total; i++) {
+        String key = toDocumentKey(i); // document_one, document_two, ...
+        String targetFile = String.format("%s_%02d%s", basePath, i, ext);
+
+        boolean success = downloadWithRetryAndVerify(
                 "director_page",
-                "list_of_document"
+                key,
+                targetFile,
+                screenshotPath,
+                3,       // max attempts
+                1200     // wait between attempts (ms)
         );
 
-        // If your getElement_locator can filter to visible actionable items, prefer that:
-        // currentLocator = currentLocator.filter(new Locator.FilterOptions().setHasText("")); // example placeholder
+        if (success) {
+            System.out.printf("[INFO] Downloaded %s using key %s%n", targetFile, key);
+        } else {
+            System.out.printf("[WARN] Giving up after retries: %s (key=%s)%n", targetFile, key);
+        }
 
-        int count = currentLocator.count(); // total number of matching elements
-        return count;
+        Thread.sleep(300); // small pause between documents
+    }
+}
+
+/**
+ * Attempts download several times.
+ * After each attempt, verifies file exists and has non-zero size.
+ * On failure: screenshot + continue retries; never throws out to break the loop.
+ */
+private boolean downloadWithRetryAndVerify(
+        String pageName,
+        String docKey,
+        String targetFile,
+        String screenshotPath,
+        int maxAttempts,
+        long waitBetweenAttemptsMs
+) {
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            // Clean old leftover file so verification is real
+            safeDeleteIfExists(targetFile);
+
+            // Your current flow
+            weDoubleClickActionOnDirectorDocFrame(pageName, docKey);
+            weDownloadOnDirectorDocFrame(pageName, docKey, targetFile);
+
+            // Verify download really happened
+            if (waitForDownloadedFile(targetFile, 8000, 250)) { // timeout 8s, poll 250ms
+                return true;
+            }
+
+            // If not downloaded, treat as failure and retry
+            weCaptureScreenshotOnDirectorPage(pageName, "body", screenshotPath);
+            System.out.printf("[WARN] Attempt %d/%d: file not found or empty: %s (key=%s)%n",
+                    attempt, maxAttempts, targetFile, docKey);
+
+        } catch (Exception e) {
+            // Always screenshot and continue to next attempt
+            try {
+                weCaptureScreenshotOnDirectorPage(pageName, "body", screenshotPath);
+            } catch (Exception ignored) {}
+
+            System.out.printf("[WARN] Attempt %d/%d failed for %s (key=%s): %s%n",
+                    attempt, maxAttempts, targetFile, docKey, e.getMessage());
+        }
+
+        // Small backoff before retry
+        try {
+            Thread.sleep(waitBetweenAttemptsMs);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+    return false;
+}
+
+private boolean waitForDownloadedFile(String targetFile, long timeoutMs, long pollMs) {
+    long end = System.currentTimeMillis() + timeoutMs;
+    Path p = Paths.get(targetFile);
+
+    while (System.currentTimeMillis() < end) {
+        try {
+            if (Files.exists(p)) {
+                long size = Files.size(p);
+                if (size > 0) return true; // downloaded and not empty
+            }
+        } catch (Exception ignored) {}
+
+        try {
+            Thread.sleep(pollMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+    return false;
+}
+
+private void safeDeleteIfExists(String targetFile) {
+    try {
+        Path p = Paths.get(targetFile);
+        if (Files.exists(p)) Files.delete(p);
+    } catch (Exception ignored) {}
+}
+
+private String toDocumentKey(int i) {
+    switch (i) {
+        case 1: return "document_one";
+        case 2: return "document_two";
+        case 3: return "document_three";
+        case 4: return "document_four";
+        case 5: return "document_five";
+        case 6: return "document_six";
+        case 7: return "document_seven";
+        case 8: return "document_eight";
+        case 9: return "document_nine";
+        case 10:return "document_ten";
+        default: throw new IllegalArgumentException("Unsupported document index: " + i);
     }
 }
