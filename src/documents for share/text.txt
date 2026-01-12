@@ -16,36 +16,59 @@ public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException
         String targetFile = String.format("%s_%02d%s", basePath, i, ext);
 
         try {
-            // 1) Open / preview document
+            // 1) Open the document first
             weDoubleClickActionOnDirectorDocFrame("director_page", key);
-
-            // optional small pause if your app needs it; ideally replace with proper waits
             Thread.sleep(800);
 
-            // 2) Check marker element (TRUE if visible, FALSE if not visible)
-            boolean isVisible = isDepositTitleVisibleSafe("director_page", "deposit_main_title");
-
-            if (isVisible) {
-                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-                System.out.printf("[INFO] deposit_main_title visible => screenshot only, skip download (key=%s)%n", key);
-                continue; // go next document
+            // 2) TRY DOWNLOAD FIRST (most important)
+            boolean downloaded = tryDownloadWithScreenshot(key, targetFile, filePath);
+            if (downloaded) {
+                System.out.printf("[INFO] Downloaded successfully (key=%s)%n", key);
+                continue;
             }
 
-            // 3) If NOT visible => download
-            System.out.printf("[INFO] deposit_main_title NOT visible => download (key=%s)%n", key);
-            downloadWithScreenshot(key, targetFile, filePath);
+            // 3) If not downloadable => screenshot-only logic
+            boolean isVisible = isDepositTitleVisibleSafe("director_page", "deposit_main_title");
+            if (isVisible) {
+                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
+                System.out.printf("[INFO] Not downloadable; deposit_main_title visible => screenshot only (key=%s)%n", key);
+            } else {
+                // If neither download worked nor title visible, still capture evidence
+                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
+                System.out.printf("[WARN] Not downloaded and title not visible => screenshot for evidence (key=%s)%n", key);
+            }
 
         } catch (Exception e) {
-            // 4) Fallback: if open/check fails, still TRY download
-            System.out.printf("[WARN] Failed to open/check key=%s (%s). Will try download anyway.%n", key, e.getMessage());
-            downloadWithScreenshot(key, targetFile, filePath);
+            // If anything fails, still attempt download, then screenshot
+            System.out.printf("[WARN] Failed to open/check key=%s (%s). Trying download anyway...%n", key, e.getMessage());
+
+            boolean downloaded = tryDownloadWithScreenshot(key, targetFile, filePath);
+            if (!downloaded) {
+                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
+                System.out.printf("[WARN] Fallback: download failed too => screenshot only (key=%s)%n", key);
+            }
         }
     }
 }
 
 /**
- * IMPORTANT: This returns TRUE only if element is visible.
- * If your uiAssert throws when not visible, we catch and return FALSE.
+ * Returns TRUE only if download succeeded.
+ * If element/download is not available it returns FALSE (no exception bubbles up).
+ */
+private boolean tryDownloadWithScreenshot(String key, String targetFile, String filePath) {
+    try {
+        weDownloadOnDirectorDocFrame("director_page", key, targetFile);
+        weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
+        Thread.sleep(500);
+        return true;
+    } catch (Exception ex) {
+        System.out.printf("[INFO] Download not available or failed for key=%s: %s%n", key, ex.getMessage());
+        return false;
+    }
+}
+
+/**
+ * Returns TRUE only if visible; FALSE if not visible (no throw).
  */
 private boolean isDepositTitleVisibleSafe(String element, String locator) {
     try {
@@ -60,21 +83,5 @@ private boolean isDepositTitleVisibleSafe(String element, String locator) {
         return true;
     } catch (Exception ignored) {
         return false;
-    }
-}
-
-/**
- * Download helper (keeps your existing screenshot + logging pattern).
- */
-private void downloadWithScreenshot(String key, String targetFile, String filePath) {
-    try {
-        weDownloadOnDirectorDocFrame("director_page", key, targetFile);
-        weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-        System.out.printf("[INFO] Downloaded %s using key %s%n", targetFile, key);
-        Thread.sleep(500);
-    } catch (Exception ex) {
-        System.out.printf("[WARN] Failed to download %s (key=%s): %s%n", targetFile, key, ex.getMessage());
-        // If you want the whole test to STOP on download failure, throw here:
-        // throw new RuntimeException("Download failed for key=" + key + ": " + ex.getMessage(), ex);
     }
 }
