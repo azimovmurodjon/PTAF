@@ -1,87 +1,83 @@
-@When("we click all available documents on doc frame")
-public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
-    int total = ReturnTotalNumberOfElement();
-    String basePath = ConfigurationProperties.getValue("downloadDocument");
-    String ext = ".pdf";
-    String filePath = "test-output/screenshots/body.png";
+    @When("we click all available documents on doc frame")
+    public void weClickAllAvailableDocumentsOnDocFrame() throws InterruptedException {
+        int total = ReturnTotalNumberOfElement();
+        String basePath = ConfigurationProperties.getValue("downloadDocument"); // e.g. C:/Downloads/document
+        String ext = ".pdf";
+        String filePath = "test-output/screenshots/body.png";
+        if (total <= 0) {
+            weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
+            weReportStringValue("[INFO]", "No documents available to download.");
+            return;
+        }
 
-    if (total <= 0) {
-        weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-        weReportStringValue("[INFO]", "No documents available to download.");
-        return;
-    }
-
-    for (int i = 1; i <= total; i++) {
-        String key = toDocumentKey(i);
-        String targetFile = String.format("%s_%02d%s", basePath, i, ext);
-
-        try {
-            // 1) Open the document first
-            weDoubleClickActionOnDirectorDocFrame("director_page", key);
-            Thread.sleep(800);
-
-            // 2) TRY DOWNLOAD FIRST (most important)
-            boolean downloaded = tryDownloadWithScreenshot(key, targetFile, filePath);
-            if (downloaded) {
-                System.out.printf("[INFO] Downloaded successfully (key=%s)%n", key);
-                continue;
+        for (int i = 1; i <= total; i++) {
+            String key = toDocumentKey(i); // document_one, document_two, ...
+            String targetFile = String.format("%s_%02d%s", basePath, i, ext); // unique name
+            try {
+                Thread.sleep(2000); // small pause; increase only if needed
+                weDoubleClickActionOnDirectorDocFrame("director_page", key);
+                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
+                Thread.sleep(500); // small pause; increase only if needed
+            } catch (Exception e) {
+                System.out.printf("[WARN] Failed to download %s (%s): %s%n", targetFile, key, e.getMessage());
             }
+        }
 
-            // 3) If not downloadable => screenshot-only logic
-            boolean isVisible = isDepositTitleVisibleSafe("director_page", "deposit_main_title");
-            if (isVisible) {
-                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-                System.out.printf("[INFO] Not downloadable; deposit_main_title visible => screenshot only (key=%s)%n", key);
-            } else {
-                // If neither download worked nor title visible, still capture evidence
-                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-                System.out.printf("[WARN] Not downloaded and title not visible => screenshot for evidence (key=%s)%n", key);
-            }
-
-        } catch (Exception e) {
-            // If anything fails, still attempt download, then screenshot
-            System.out.printf("[WARN] Failed to open/check key=%s (%s). Trying download anyway...%n", key, e.getMessage());
-
-            boolean downloaded = tryDownloadWithScreenshot(key, targetFile, filePath);
-            if (!downloaded) {
-                weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-                System.out.printf("[WARN] Fallback: download failed too => screenshot only (key=%s)%n", key);
+        for (int i = 1; i <= total; i++) {
+            String key = toDocumentKey(i); // document_one, document_two, ...
+            String targetFile = String.format("%s_%02d%s", basePath, i, ext); // unique name
+            try {
+                weDoubleClickActionOnDirectorDocFrame("director_page", key);
+                weDownloadOnDirectorDocFrame("director_page", key, targetFile);
+                System.out.printf("[INFO] Downloaded %s using key %s%n", targetFile, key);
+                Thread.sleep(500); // small pause; increase only if needed
+            } catch (Exception e) {
+                System.out.printf("[WARN] Failed to download %s (%s): %s%n", targetFile, key, e.getMessage());
             }
         }
     }
-}
 
-/**
- * Returns TRUE only if download succeeded.
- * If element/download is not available it returns FALSE (no exception bubbles up).
- */
-private boolean tryDownloadWithScreenshot(String key, String targetFile, String filePath) {
-    try {
-        weDownloadOnDirectorDocFrame("director_page", key, targetFile);
-        weCaptureScreenshotOnDirectorPage("director_page", "body", filePath);
-        Thread.sleep(500);
-        return true;
-    } catch (Exception ex) {
-        System.out.printf("[INFO] Download not available or failed for key=%s: %s%n", key, ex.getMessage());
-        return false;
+    private String toDocumentKey(int i) {
+        switch (i) {
+            case 1:
+                return "document_one";
+            case 2:
+                return "document_two";
+            case 3:
+                return "document_three";
+            case 4:
+                return "document_four";
+            case 5:
+                return "document_five";
+            case 6:
+                return "document_six";
+            case 7:
+                return "document_seven";
+            case 8:
+                return "document_eight";
+            case 9:
+                return "document_nine";
+            case 10:
+                return "document_ten";
+            default:
+                throw new IllegalArgumentException("Unsupported document index: " + i);
+                // OR if your YAML supports document_6 etc, return "document_" + i;
+        }
     }
-}
 
-/**
- * Returns TRUE only if visible; FALSE if not visible (no throw).
- */
-private boolean isDepositTitleVisibleSafe(String element, String locator) {
-    try {
-        uiAssert.isVisible(
+    public int ReturnTotalNumberOfElement() {
+        Locator currentLocator = frameCommonMethods.getElement_locator(
                 director_page,
                 director_doc_frame,
-                director_doc_frameViewer,
-                director_doc_frame_markup_frame,
-                element,
-                locator
+                director_doc_frame_inner_frame,
+                null,
+                "director_page",
+                "list_of_document"
         );
-        return true;
-    } catch (Exception ignored) {
-        return false;
+
+        // If your getElement_locator can filter to visible actionable items, prefer that:
+        // currentLocator = currentLocator.filter(new Locator.FilterOptions().setHasText("")); // example placeholder
+
+        int count = currentLocator.count(); // total number of matching elements
+        return count;
     }
-}
