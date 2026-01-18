@@ -1,4 +1,4 @@
-@secondPageTest
+@secondPageTest @LastScenario
 Feature: Second Page Test
 
   Background: Navigate to URL
@@ -8,8 +8,9 @@ Feature: Second Page Test
   Scenario: Opening New page Same Browser
     Given we click on page homePage locator alert_frame_and_window
     Then we click on page homePage locator browser_window
-#    When we click on page homePage locator new_tab_btn
-#    And we get text on new page homePage locator tab_semple_heading
+    When we click on page homePage locator new_tab_btn
+    And we get text on new page homePage locator tab_semple_heading
+#    And we close all browsers
     When we capture screenshot on page homePage locator body name "body"
     Then we click on page homePage locator frame_btn
     And we get text on frame homePage locator frame_semple_heading
@@ -31,6 +32,7 @@ Feature: Second Page Test
     And we click on second frame homePage locator second_frame_txt
     Then we get text on second frame homePage locator second_frame_txt
     When we capture screenshot on second frame homePage locator body name "body"
+    And we close all browsers
 
   Scenario: Verify Nested Frame
     Given we click on page homePage locator alert_frame_and_window
