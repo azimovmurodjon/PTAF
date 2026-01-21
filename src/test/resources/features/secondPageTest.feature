@@ -17,7 +17,7 @@ Feature: Second Page Test
 
   Scenario: Test Download Document Method
     Given we click on page homePage locator elements_tab
-    When we click on page homePage locator update_and_download_tab
+    When we click on page homePage locator update_and_download_tabw
     When we capture screenshot on page homePage locator body name "body"
     Then we click download on page homePage locator download_btn
     And we wait for some time

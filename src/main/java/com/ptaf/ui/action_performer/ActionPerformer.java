@@ -17,19 +17,8 @@ import java.nio.file.Paths;
 /**
  * ActionPerformer (100% version)
  *
- * Goals:
- * 1) Includes ALL actions from your original class (100% coverage) + download_optional.
- * 2) Uses ONLY your time_to_wait for all locator-based actions (no hidden 30s defaults).
- *    - If time_to_wait=0 -> fail fast (1ms timeout) so we don't use Playwright defaults.
- * 3) Still "waits for page to be loaded" ONLY when it makes sense:
- *    - After actions that can trigger navigation/reload (click/dblclick/rightclick/tap/press/select/check/uncheck/drag).
- *    - Uses DOMCONTENTLOADED + LOAD (NO NETWORKIDLE to keep it fast / avoid SPA polling issues).
- *    - Does NOT throw if loadstate wait times out (non-blocking).
- *
- * NOTE:
- * - Some option classes differ slightly by Playwright Java version.
- *   If one option class doesn't compile (e.g., ClearOptions/FocusOptions),
- *   tell me your Playwright version and I'll adjust those few lines.
+ * SAME behavior as your working code.
+ * ONLY change: when it fails, it prints the exact failure details (more transparent).
  */
 public class ActionPerformer {
 
@@ -90,9 +79,9 @@ public class ActionPerformer {
     }
 
     public String performAction(Page page, String action, Locator targetLocator, String value) {
-        try {
-            double t = effectiveTimeoutMs();
+        double t = effectiveTimeoutMs();
 
+        try {
             switch (action.toLowerCase()) {
 
                 // =======================
@@ -399,8 +388,14 @@ public class ActionPerformer {
                     throw new IllegalArgumentException("Unknown action: " + action);
             }
         } catch (Exception e) {
-            logger.error("Error while performing action: {} for Target Locator {}", action, targetLocator, e);
-            throw new RuntimeException("Action failed: " + action + " for Target Locator: " + targetLocator + " - " + e.getMessage(), e);
+            // SAME behavior, only better error printing:
+            String debug = buildExactFailureMessage(page, action, value, targetLocator, t, e);
+
+            // log full context + original stack
+            logger.error(debug, e);
+
+            // throw full message so Cucumber/Extent shows exact failure
+            throw new RuntimeException(debug, e);
         }
     }
 
@@ -428,8 +423,99 @@ public class ActionPerformer {
                     .setState(WaitForSelectorState.VISIBLE)
                     .setTimeout(t));
         } catch (Exception e) {
-            logger.error("Failed to wait for the element to be displayed", e);
-            throw new RuntimeException("Failed waiting for locator visibility: " + e.getMessage(), e);
+            Page page = null;
+            try { page = locator.page(); } catch (Exception ignored) {}
+            String debug = buildExactFailureMessage(page, "waitForLocator", null, locator, t, e);
+            logger.error(debug, e);
+            throw new RuntimeException(debug, e);
         }
+    }
+
+    // ============================================================
+    // ONLY FOR PRINTING "EXACT WHY IT FAILED" (NO NEW FEATURES)
+    // ============================================================
+
+    private String buildExactFailureMessage(Page page, String action, String value, Locator locator, double timeoutMs, Exception e) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("\n========== PTAF FAILURE (EXACT DETAILS) ==========\n");
+        sb.append("Action      : ").append(safe(action)).append("\n");
+        sb.append("Value       : ").append(safe(value)).append("\n");
+        sb.append("Timeout(ms) : ").append((long) timeoutMs).append("\n");
+
+        // Page info
+        try {
+            if (page != null) {
+                sb.append("URL         : ").append(safe(page.url())).append("\n");
+                sb.append("Title       : ").append(safe(page.title())).append("\n");
+            }
+        } catch (Exception ignored) {}
+
+        // Locator info
+        sb.append("Locator     : ").append(locatorToString(locator)).append("\n");
+
+        // Count + first element quick state (this shows WHY: not found / hidden / disabled / etc.)
+        try {
+            if (locator != null) {
+                int count = locator.count();
+                sb.append("MatchCount  : ").append(count).append("\n");
+
+                if (count > 0) {
+                    Locator first = locator.first();
+                    sb.append("FirstState  : ")
+                            .append("visible=").append(safeBool(() -> first.isVisible())).append(", ")
+                            .append("enabled=").append(safeBool(() -> first.isEnabled())).append(", ")
+                            .append("hidden=").append(safeBool(() -> first.isHidden())).append(", ")
+                            .append("disabled=").append(safeBool(() -> first.isDisabled())).append(", ")
+                            .append("checked=").append(safeBool(() -> first.isChecked()))
+                            .append("\n");
+
+                    // Helpful snippets
+                    String text = safe(() -> first.textContent());
+                    String inputValue = safe(() -> first.inputValue());
+                    if (text != null && !text.isBlank()) sb.append("Text        : ").append(limit(text, 400)).append("\n");
+                    if (inputValue != null && !inputValue.isBlank()) sb.append("InputValue  : ").append(limit(inputValue, 400)).append("\n");
+                }
+            }
+        } catch (Exception ex) {
+            sb.append("DebugError  : Could not collect locator details: ").append(ex.getMessage()).append("\n");
+        }
+
+        // REAL exception content (Playwright message is here)
+        sb.append("Exception   : ").append(e.getClass().getName()).append("\n");
+        sb.append("Message     : ").append(safe(e.getMessage())).append("\n");
+        sb.append("Full        : ").append(safe(e.toString())).append("\n");
+        sb.append("==================================================\n");
+
+        return sb.toString();
+    }
+
+    private String locatorToString(Locator locator) {
+        if (locator == null) return "null";
+        try { return locator.toString(); }
+        catch (Exception e) { return "Locator(toString failed): " + e.getMessage(); }
+    }
+
+    private String safe(String s) {
+        return s == null ? "null" : s;
+    }
+
+    private String safe(SupplierWithException<String> supplier) {
+        try { return supplier.get(); } catch (Exception e) { return null; }
+    }
+
+    private boolean safeBool(SupplierWithException<Boolean> supplier) {
+        try { return supplier.get(); } catch (Exception e) { return false; }
+    }
+
+    private String limit(String s, int max) {
+        if (s == null) return null;
+        if (s.length() <= max) return s;
+        return s.substring(0, max) + "...(truncated)";
+    }
+
+    @FunctionalInterface
+    private interface SupplierWithException<T> {
+        T get() throws Exception;
     }
 }
