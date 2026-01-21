@@ -25,6 +25,10 @@ import java.nio.file.Paths;
  * NOTE:
  * - "download" (strict) keeps existing behavior: throws on failure/timeouts.
  * - "download_optional" (new) is safe: returns null if no download event happens.
+ *
+ * ONLY change from your version:
+ * - When it fails, it prints exact why (action/value/timeout/url/title/locator/count + Playwright exception message)
+ * - NO new actions added, no behavior changed.
  */
 public class ActionPerformer {
 
@@ -222,11 +226,8 @@ public class ActionPerformer {
                 }
 
                 /**
-                 * OPTIONAL DOWNLOAD (new behavior)
+                 * OPTIONAL DOWNLOAD (existing behavior in your code)
                  * - Tries to download, but if no download event occurs it returns null (NO THROW).
-                 * - Use this in loops where SOME documents might not be downloadable.
-                 *
-                 * value = folder path to save downloads into
                  */
                 case "download_optional": {
                     try {
@@ -245,7 +246,6 @@ public class ActionPerformer {
                         logger.info("Optional download success -> {}", savePathOpt);
                         return savePathOpt.toString();
                     } catch (PlaywrightException ex) {
-                        // KEY: don't fail the test, just signal "not downloadable"
                         logger.info("Optional download skipped (no download event): {}", ex.getMessage());
                         return null;
                     } catch (Exception ex) {
@@ -375,8 +375,10 @@ public class ActionPerformer {
                     throw new IllegalArgumentException("Unknown action: " + action);
             }
         } catch (Exception e) {
-            logger.error("Error while performing action: {} for Target Locator {}", action, targetLocator, e);
-            throw new RuntimeException("Action failed: " + action + " for Target Locator: " + targetLocator + " - " + e.getMessage(), e);
+            // ONLY change: print exact why it failed (no behavior changes)
+            String debug = buildExactFailureMessage(page, action, value, targetLocator, e);
+            logger.error(debug, e);
+            throw new RuntimeException(debug, e);
         }
     }
 
@@ -409,8 +411,59 @@ public class ActionPerformer {
                     .setState(WaitForSelectorState.VISIBLE)
                     .setTimeout(time_out * 1000L));
         } catch (Exception e) {
-            logger.error("Failed to wait for the element to be displayed", e);
-            throw new RuntimeException("Failed waiting for locator visibility: " + e.getMessage(), e);
+            Page page = null;
+            try { page = locator.page(); } catch (Exception ignored) {}
+
+            String debug = buildExactFailureMessage(page, "waitForLocator", null, locator, e);
+            logger.error(debug, e);
+            throw new RuntimeException(debug, e);
         }
+    }
+
+    // ============================================================
+    // EXACT FAILURE MESSAGE (NO NEW FEATURES, ONLY BETTER OUTPUT)
+    // ============================================================
+
+    private String buildExactFailureMessage(Page page, String action, String value, Locator locator, Exception e) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("\n========== PTAF FAILURE (EXACT WHY) ==========\n");
+        sb.append("Action     : ").append(safe(action)).append("\n");
+        sb.append("Value      : ").append(safe(value)).append("\n");
+
+        // Page info (helps understand navigation / wrong page)
+        try {
+            if (page != null) {
+                sb.append("URL        : ").append(safe(page.url())).append("\n");
+                sb.append("Title      : ").append(safe(page.title())).append("\n");
+            }
+        } catch (Exception ignored) {}
+
+        // Locator info + count (helps understand: not found vs multiple)
+        sb.append("Locator    : ").append(locatorToString(locator)).append("\n");
+        try {
+            if (locator != null) {
+                int count = locator.count();
+                sb.append("MatchCount : ").append(count).append("\n");
+            }
+        } catch (Exception ignored) {}
+
+        // The actual Playwright/Java exception (this is the "exact why")
+        sb.append("Exception  : ").append(e.getClass().getName()).append("\n");
+        sb.append("Message    : ").append(safe(e.getMessage())).append("\n");
+        sb.append("Full       : ").append(safe(e.toString())).append("\n");
+        sb.append("=============================================\n");
+
+        return sb.toString();
+    }
+
+    private String locatorToString(Locator locator) {
+        if (locator == null) return "null";
+        try { return locator.toString(); }
+        catch (Exception ex) { return "Locator(toString failed): " + ex.getMessage(); }
+    }
+
+    private String safe(String s) {
+        return s == null ? "null" : s;
     }
 }
