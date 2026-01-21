@@ -1,286 +1,416 @@
-SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
-SLF4J: Defaulting to no-operation (NOP) logger implementation
-SLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
-
-Error That I'm facing how to fix it ?
-
-
 package com.ptaf.ui.action_performer;
 
-import com.microsoft.playwright.*;
-import com.microsoft.playwright.options.AriaRole;
-import com.ptaf.ui.handlers.LocatorHandler;
-import com.ptaf.ui.helpers.ElementLocatorHelper;
-import com.ptaf.ui.interfaces.ElementAction;
-import com.ptaf.ui.page_helper.PageHelper;
-import com.ptaf.utils.YamlReader;
+import com.microsoft.playwright.Download;
+import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.PlaywrightException;
+import com.microsoft.playwright.options.LoadState;
+import com.microsoft.playwright.options.MouseButton;
+import com.microsoft.playwright.options.WaitForSelectorState;
+import com.ptaf.utils.ConfigurationProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * ElementActionImpl is an implementation of the ElementAction interface that provides methods for
- * performing actions and assertions on web elements within an instance of a Playwright Page or FrameLocator.
- * It utilizes the ActionPerformer, LocatorHandler, and ElementLocatorHelper to manage interactions
- * with various elements on a web page.
- * <p>
- * Usage:
- * 1. Instantiate ElementActionImpl with a Page object.
- * 2. Call `performActionPage` or `performActionFrame` to execute specific actions on elements.
- * 3. Use the `assertElementTextPage` or `assertElementTextFrame` methods for validating the text
- * content of elements.
+ * ActionPerformer is a utility class for performing a wide variety of actions
+ * on Playwright Locators within a Page. It handles clicks, form input, attribute manipulation,
+ * element validation, scrolling, screenshots, and much more.
+ *
+ * It also supports returning values such as text content, attributes, or boolean results
+ * when applicable, while performing non-returning actions like click or hover as void-equivalent.
+ *
+ * NOTE:
+ * - "download" (strict) keeps existing behavior: throws on failure/timeouts.
+ * - "download_optional" (new) is safe: returns null if no download event happens.
  */
-public class ElementActionImpl extends PageHelper implements ElementAction {
-    private static final Logger logger = LoggerFactory.getLogger(ElementActionImpl.class);
+public class ActionPerformer {
 
-    private final ActionPerformer actionPerformer = new ActionPerformer(); // Handles action execution on Locators
-    private final ElementLocatorHelper elementLocatorHelper = new ElementLocatorHelper(); // Assists in locating elements
-    private final LocatorHandler locatorHandler = new LocatorHandler(); // Manages Locator creation based on type
+    private static final Logger logger = LoggerFactory.getLogger(ActionPerformer.class);
 
     /**
-     * Constructor for ElementActionImpl. Inheritance from PageHelper allows
-     * initializing with a Page instance for element interaction.
-     *
-     * @param page The Playwright Page instance to interact with web elements.
-     * This page will be used to perform various actions and assertions on web elements.
+     * Utility to format text content by placing each word on a new line.
+     * Useful for improving text readability in logs or reports.
      */
-    public ElementActionImpl(Page page) {
-        super(page); // Initialize the PageHelper with the provided Page
+    private static String formatTextForNewLine(String text) {
+        return text.replaceAll(" ", "\n");
     }
 
     /**
-     * Retrieves a Locator for the specified element by determining its type and context.
-     * This method is now the central orchestrator for locator chaining.
-     * It parses locator strings with ">" to build complex, chained locators.
-     *
-     * @param iFrame, iFrame_2, iFrame_3, element, key, page, frameLocator
-     * @return The final Locator object after resolving the entire chain.
-     * @throws RuntimeException If the locator cannot be resolved.
+     * Reads time_to_wait from config (seconds) and returns milliseconds.
+     * If time_to_wait = 0 -> no extra waiting (fail fast; no page-ready waits).
      */
-    @Override
-    public Locator getLocator(String iFrame, String iFrame_2, String iFrame_3, String element, String key, Page page, FrameLocator frameLocator) {
-        String fullLocatorString = elementLocatorHelper.getElement(element, key);
-        // Split the string by " > " to get the parts of the chain.
-        String[] locatorParts = fullLocatorString.split("\\s*>\\s*");
+    private long actionTimeoutMs() {
+        String timeToWait = ConfigurationProperties.getValue("time_to_wait_in_seconds");
+        try {
+            int seconds = Integer.parseInt(timeToWait == null ? "0" : timeToWait.trim());
+            return Math.max(0, seconds) * 1000L;
+        } catch (Exception e) {
+            // Safe fallback if config is missing or invalid
+            return 30_000L;
+        }
+    }
 
-        Locator currentLocator = null;
+    /**
+     * Waits for the page to be "ready" after an action that may trigger navigation / reload / async load.
+     * - If time_to_wait=0 => does not wait at all.
+     * - We try DOMCONTENTLOADED (fast) then NETWORKIDLE (more stable) but we do NOT fail if these time out,
+     *   because SPAs can keep polling/network open.
+     */
+    private void waitForPageReady(Page page) {
+        long timeout = actionTimeoutMs();
+        if (timeout <= 0) return;
 
         try {
-            // 1. Establish the initial context (the Page or a specific Frame)
-            Object context = page;
-            if (frameLocator != null) {
-                context = frameLocator;
-            } else if (iFrame != null && !iFrame.isEmpty()) {
-                FrameLocator fl = page.frameLocator(iFrame);
-                if (iFrame_2 != null && !iFrame_2.isEmpty()) fl = fl.frameLocator(iFrame_2);
-                if (iFrame_3 != null && !iFrame_3.isEmpty()) fl = fl.frameLocator(iFrame_3);
-                context = fl;
-            }
+            page.waitForLoadState(
+                    LoadState.DOMCONTENTLOADED,
+                    new Page.WaitForLoadStateOptions().setTimeout(timeout)
+            );
+        } catch (Exception ignored) {
+            // ignore
+        }
 
-            // 2. Iterate through the parts of the chain and build the final locator
-            for (int i = 0; i < locatorParts.length; i++) {
-                String part = locatorParts[i].trim();
-                String locatorType = elementLocatorHelper.getLocatorType(part);
-                String locator = elementLocatorHelper.getLocator(part);
+        try {
+            page.waitForLoadState(
+                    LoadState.NETWORKIDLE,
+                    new Page.WaitForLoadStateOptions().setTimeout(timeout)
+            );
+        } catch (Exception ignored) {
+            // ignore
+        }
+    }
 
-                if (i == 0) {
-                    // For the FIRST part, use the Page or FrameLocator as the context
-                    if (context instanceof Page) {
-                        currentLocator = locatorHandler.getLocatorForType(locatorType, (Page) context, locator);
-                    } else {
-                        currentLocator = locatorHandler.getLocatorForType(locatorType, (FrameLocator) context, locator);
-                    }
-                } else {
-                    // For ALL OTHER parts, chain off the previous locator by calling our new overloaded method
-                    currentLocator = locatorHandler.getLocatorForType(locatorType, currentLocator, locator);
+    /**
+     * Performs the specified action on a target Locator and returns the result if applicable.
+     */
+    public String performActionWithReturn(Page page, String action, Locator targetLocator, String value) {
+        return performAction(page, action, targetLocator, value);
+    }
+
+    /**
+     * Performs the specified action on a target Locator and returns the result if applicable.
+     */
+    public String performAction(Page page, String action, Locator targetLocator, String value) {
+        try {
+            switch (action.toLowerCase()) {
+
+                // =============== SINGLE-ELEMENT ACTIONS (.first() added for backward compatibility) ===============
+                case "click":
+                    targetLocator.first().click();
+                    waitForPageReady(page);
+                    return null;
+
+                case "fill":
+                    targetLocator.first().fill(value);
+                    return null;
+
+                case "select":
+                    targetLocator.first().selectOption(value);
+                    waitForPageReady(page);
+                    return null;
+
+                case "selectmultiple":
+                    targetLocator.first().selectOption(value.split(","));
+                    waitForPageReady(page);
+                    return null;
+
+                case "check":
+                    targetLocator.first().check();
+                    waitForPageReady(page);
+                    return null;
+
+                case "uncheck":
+                    targetLocator.first().uncheck();
+                    waitForPageReady(page);
+                    return null;
+
+                case "hover":
+                    targetLocator.first().hover();
+                    return null;
+
+                case "type":
+                    targetLocator.first().type(value);
+                    return null;
+
+                case "press":
+                    targetLocator.first().press(value);
+                    waitForPageReady(page);
+                    return null;
+
+                case "dblclick":
+                    targetLocator.first().dblclick();
+                    waitForPageReady(page);
+                    return null;
+
+                case "rightclick":
+                    targetLocator.first().click(new Locator.ClickOptions().setButton(MouseButton.RIGHT));
+                    waitForPageReady(page);
+                    return null;
+
+                case "tap":
+                    targetLocator.first().tap();
+                    waitForPageReady(page);
+                    return null;
+
+                case "input":
+                    targetLocator.first().evaluate("(element, val) => element.value = val", value);
+                    return null;
+
+                case "screenshot":
+                    targetLocator.first().screenshot(new Locator.ScreenshotOptions().setPath(Paths.get(value)));
+                    return null;
+
+                case "scroll":
+                    targetLocator.first().evaluate("element => element.scrollIntoView({ behavior: 'smooth', block: 'center' })");
+                    return null;
+
+                case "focus":
+                    targetLocator.first().focus();
+                    return null;
+
+                case "blur":
+                    targetLocator.first().evaluate("element => element.blur()");
+                    return null;
+
+                case "clear":
+                    targetLocator.first().clear();
+                    return null;
+
+                case "drag":
+                    Locator target = targetLocator.page().locator(value).first();
+                    targetLocator.first().dragTo(target);
+                    waitForPageReady(page);
+                    return null;
+
+                case "dragstart":
+                    targetLocator.first().dispatchEvent("dragstart");
+                    return null;
+
+                case "dragend":
+                    targetLocator.first().dispatchEvent("dragend");
+                    return null;
+
+                case "uploadfile":
+                case "selectfile":
+                    targetLocator.first().setInputFiles(Paths.get(value));
+                    return null;
+
+                /**
+                 * STRICT DOWNLOAD (existing behavior)
+                 * - Waits for download event and throws if it doesn't happen.
+                 * - Use this where download MUST happen.
+                 *
+                 * value = folder path to save downloads into
+                 */
+                case "download": {
+                    Download download = page.waitForDownload(() -> targetLocator.first().click());
+
+                    String timestamp = java.time.LocalDateTime.now()
+                            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+
+                    String originalFileName = download.suggestedFilename();
+                    String uniqueFilename = timestamp + "-" + originalFileName;
+
+                    Path savePath = Paths.get(value, uniqueFilename);
+                    download.saveAs(savePath);
+
+                    logger.info("File downloaded successfully and saved to: {}", savePath);
+                    // return what we actually saved (more reliable than download.path())
+                    return savePath.toString();
                 }
-            }
-            return currentLocator;
 
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to get locator for: '" + fullLocatorString + "'", e);
-        }
-    }
+                /**
+                 * OPTIONAL DOWNLOAD (new behavior)
+                 * - Tries to download, but if no download event occurs it returns null (NO THROW).
+                 * - Use this in loops where SOME documents might not be downloadable.
+                 *
+                 * value = folder path to save downloads into
+                 */
+                case "download_optional": {
+                    try {
+                        Download downloadOpt = page.waitForDownload(
+                                new Page.WaitForDownloadOptions().setTimeout(actionTimeoutMs()),
+                                () -> targetLocator.first().click()
+                        );
 
-    @Override
-    public boolean performActionPage(Page page, String action, String element, String key, String value) {
-        return performAction(page, null, null, null, action, element, key, value, null);
-    }
+                        String timestampOpt = java.time.LocalDateTime.now()
+                                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
 
-    @Override
-    public boolean performActionFrame(FrameLocator frameLocator, String action, String element, String key, String value) {
-        return performAction(null, null, null, null, action, element, key, value, frameLocator);
-    }
+                        String uniqueFilename = timestampOpt + "-" + downloadOpt.suggestedFilename();
+                        Path savePathOpt = Paths.get(value, uniqueFilename);
+                        downloadOpt.saveAs(savePathOpt);
 
-    @Override
-    public boolean performActionPageFrame(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
-        return performAction(page, iFrame, iFrame_2, iFrame_3, action, element, key, value, null);
-    }
+                        logger.info("Optional download success -> {}", savePathOpt);
+                        return savePathOpt.toString();
+                    } catch (PlaywrightException ex) {
+                        // KEY: don't fail the test, just signal "not downloadable"
+                        logger.info("Optional download skipped (no download event): {}", ex.getMessage());
+                        return null;
+                    } catch (Exception ex) {
+                        logger.info("Optional download skipped (download failed): {}", ex.getMessage());
+                        return null;
+                    }
+                }
 
-    @Override
-    public boolean getElementHandlePage(Page page, String element, String key) {
-        List<ElementHandle> elementHandles = getElementHandleList(page, element, key, null);
-        return !elementHandles.isEmpty();
-    }
+                case "file_chooser_for_upload":
+                    page.waitForFileChooser(() -> click(targetLocator.first()));
+                    return null;
 
-    @Override
-    public boolean getElementHandleFrame(FrameLocator frameLocator, String element, String key) {
-        List<ElementHandle> elementHandles = getElementHandleList(null, element, key, frameLocator);
-        return !elementHandles.isEmpty();
-    }
+                case "setattribute":
+                    targetLocator.first().evaluate("(el, val) => el.setAttribute('value', val)", value);
+                    return null;
 
-    @Override
-    public boolean assertElementTextPage(Page page, String element, String key, String expectedText) {
-        return assertElementText(page, element, key, expectedText, null);
-    }
+                case "removeattribute":
+                    targetLocator.first().evaluate("(el, attr) => el.removeAttribute(attr)", value);
+                    return null;
 
-    @Override
-    public boolean assertElementTextFrame(FrameLocator frameLocator, String element, String key, String expectedText) {
-        return assertElementText(null, element, key, expectedText, frameLocator);
-    }
+                case "evaluate":
+                    targetLocator.first().evaluate(value);
+                    return null;
 
-    @Override
-    public String performActionPageWithReturn(Page page, String action, String element, String key, String value) {
-        try {
-            Locator targetLocator = getLocatorBasedOnPage(page, element, key);
-            if (targetLocator == null) {
-                logger.error("Locator not found for element: {} with key: {}", element, key);
-                return null;
-            }
-            actionPerformer.waitForLocator(targetLocator);
-            return actionPerformer.performActionWithReturn(page, action, targetLocator, value);
-        } catch (Exception e) {
-            logger.error("Exception in performActionPageWithReturn for element '{}' and action '{}':", element, action, e);
-            return null;
-        }
-    }
+                case "waitforelement":
+                    targetLocator.first().waitFor();
+                    return null;
 
-    @Override
-    public String performActionPageFrameWithReturn(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
-        try {
-            Locator targetLocator = getLocatorBasedOnPageFrame(page, iFrame, iFrame_2, iFrame_3, element, key);
-            if (targetLocator == null) {
-                logger.error("Locator not found for nested frame element: {} with key: {}", element, key);
-                return null;
-            }
-            actionPerformer.waitForLocator(targetLocator);
-            return actionPerformer.performActionWithReturn(page, action, targetLocator, value);
-        } catch (Exception e) {
-            logger.error("Exception in performActionPageFrameWithReturn for element '{}' and action '{}':", element, action, e);
-            return null;
-        }
-    }
+                case "waitforstate":
+                    targetLocator.first().waitFor(new Locator.WaitForOptions()
+                            .setState(WaitForSelectorState.valueOf(value.toUpperCase())));
+                    return null;
 
-    private boolean performAction(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
-        Locator targetLocator = null;
-        try {
-            // Simplified context checking
-            if (frameLocator != null) {
-                targetLocator = getLocator(null, null, null, element, key, null, frameLocator);
-            } else if (page != null) {
-                targetLocator = getLocator(iFrame, iFrame_2, iFrame_3, element, key, page, null);
-            } else {
-                throw new IllegalArgumentException("A Page or FrameLocator context is required.");
-            }
+                // =============== GETTER/VALIDATION ACTIONS (mostly .first()) ===============
+                case "getattribute":
+                    return targetLocator.first().getAttribute(value);
 
-            if (targetLocator == null) {
-                throw new IllegalStateException("Failed to resolve a target Locator for element: " + element + " with key: " + key);
-            }
+                case "gettext":
+                    return targetLocator.first().textContent();
 
-            actionPerformer.waitForLocator(targetLocator);
-            actionPerformer.performAction(page, action, targetLocator, value);
-            return true;
-        } catch (Exception e) {
-            logger.error("Error while performing action '{}' on element '{}' with key '{}'", action, element, key, e);
-        }
+                case "get_and_contain_text":
+                    String getText = targetLocator.first().textContent();
+                    assertCondition(getText != null && getText.contains(getText), "Element does not contain expected text.");
+                    return getText;
 
-        return false;
-    }
+                case "getvalue":
+                    return targetLocator.first().inputValue();
 
-    @Override
-    public void uploadFile(Page page, String file_name, String element, String key) {
-        FileChooser fileChooser = page.waitForFileChooser(() ->
-                page.click(getElement(element, key)));
-        fileChooser.setFiles(Paths.get(getElement(element, file_name)));
-    }
+                case "returnelement":
+                    return targetLocator.textContent();
 
-    @Override
-    public void clickOnDocumentLinkName(Page page, String element, String key) {
-        String documentLinkName = getElement(element, key);
-        String fileName = extractFileName(documentLinkName);
-        System.out.println(fileName);
-        try {
-            page.getByRole(AriaRole.LINK,
-                    new Page.GetByRoleOptions().setName(fileName)).click();
-        } catch (Exception e) {
-            logger.error("Failed to click on element by Role '{}'", element + key, e);
-        }
-    }
+                case "hasvalue":
+                    String currentValue = targetLocator.first().inputValue();
+                    assertCondition(currentValue.equals(value), "Expected: " + value + ", but found: " + currentValue);
+                    return currentValue;
 
-    public static String extractFileName(String filePath) {
-        String[] parts = filePath.split("/");
-        return parts[parts.length - 1];
-    }
+                case "isvisible":
+                    boolean isVisible = targetLocator.first().isVisible();
+                    assertCondition(isVisible, "Element is not visible.");
+                    return String.valueOf(isVisible);
 
-    public String getElement(String element, String key) {
-        try {
-            return (String) YamlReader.get("elements." + element + "." + key);
-        } catch (Exception e) {
-            logger.error("Failed to retrieve selector for element '{}'", element + key, e);
-            throw e;
-        }
-    }
+                case "isenabled":
+                    boolean isEnabled = targetLocator.first().isEnabled();
+                    assertCondition(isEnabled, "Element is not enabled.");
+                    return String.valueOf(isEnabled);
 
-    private boolean assertElementText(Page page, String element, String key, String expectedText, FrameLocator frameLocator) {
-        try {
-            Locator targetLocator = getLocator(null, null, null, element, key, page, frameLocator);
-            String actualText = targetLocator.first().textContent();
-            boolean isTextMatching = expectedText.equals(actualText);
-            logger.info("Asserting text on element '{}': expected '{}', actual '{}'", element, expectedText, actualText);
-            if (!isTextMatching) {
-                logger.error("Text mismatch: expected '{}' but found '{}'", expectedText, actualText);
-            }
-            return isTextMatching;
-        } catch (Exception e) {
-            logger.error("Error while asserting text on element '{}'", element, e);
-            return false;
-        }
-    }
+                case "ischecked":
+                    boolean isChecked = targetLocator.first().isChecked();
+                    assertCondition(isChecked, "Element is not checked.");
+                    return String.valueOf(isChecked);
 
-    @Override
-    public List<ElementHandle> getElementHandleList(Page page, String element, String key, FrameLocator frameLocator) {
-        List<ElementHandle> elementHandles = new ArrayList<>();
-        try {
-            Locator targetLocator = getLocator(null, null, null, element, key, page, frameLocator);
-            if (targetLocator != null) {
-                elementHandles = targetLocator.elementHandles();
-            } else {
-                logger.error("Target locator for element '{}' could not be determined.", element);
+                case "isdisabled":
+                    boolean isDisabled = targetLocator.first().isDisabled();
+                    assertCondition(isDisabled, "Element is not disabled.");
+                    return String.valueOf(isDisabled);
+
+                case "ishidden":
+                    boolean isHidden = targetLocator.first().isHidden();
+                    assertCondition(isHidden, "Element is not hidden.");
+                    return String.valueOf(isHidden);
+
+                case "hastext":
+                    String locatorText = targetLocator.first().textContent();
+                    assertCondition(locatorText != null && locatorText.contains(value), "Text mismatch.");
+                    return locatorText;
+
+                case "hasclass":
+                    String cls = targetLocator.first().getAttribute("class");
+                    boolean hasClass = cls != null && cls.contains(value);
+                    assertCondition(hasClass, "Class mismatch.");
+                    return String.valueOf(hasClass);
+
+                case "hasequalvalue":
+                    String actualValue = targetLocator.first().inputValue();
+                    assertCondition(actualValue.equals(value), "Value mismatch.");
+                    return actualValue;
+
+                case "isempty":
+                    String inputValue = targetLocator.first().inputValue();
+                    assertCondition(inputValue.isEmpty(), "Element is not empty.");
+                    return inputValue;
+
+                case "waitfortext":
+                    targetLocator.first().waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
+                    if (!targetLocator.first().textContent().contains(value))
+                        throw new AssertionError("Text not found: " + value);
+                    return targetLocator.first().textContent();
+
+                case "waitforvalue":
+                    targetLocator.first().waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
+                    if (!targetLocator.first().inputValue().equals(value))
+                        throw new AssertionError("Value mismatch.");
+                    return targetLocator.first().inputValue();
+
+                // =============== MULTI-ELEMENT ACTIONS (NO .first()) ===============
+                case "exists":
+                    boolean exists = targetLocator.count() > 0;
+                    assertCondition(exists, "Element does not exist.");
+                    return String.valueOf(exists);
+
+                case "not_exists":
+                    boolean notExists = targetLocator.count() == 0;
+                    assertCondition(notExists, "Element exists but should not.");
+                    return String.valueOf(notExists);
+
+                default:
+                    throw new IllegalArgumentException("Unknown action: " + action);
             }
         } catch (Exception e) {
-            logger.error("Failed to retrieve element handles for '{}'", element, e);
+            logger.error("Error while performing action: {} for Target Locator {}", action, targetLocator, e);
+            throw new RuntimeException("Action failed: " + action + " for Target Locator: " + targetLocator + " - " + e.getMessage(), e);
         }
-        return elementHandles;
     }
 
-    private Locator getLocatorBasedOnPage(Page page, String element, String key) {
-        return getLocator(null, null, null, element, key, page, null);
+    private void click(Locator targetLocator) {
+        try {
+            // This is only called by file_chooser_for_upload, which also needs .first()
+            targetLocator.first().click();
+        } catch (Exception e) {
+            logger.error("Error while clicking on target locator: {}", e.getMessage());
+            throw new RuntimeException("Click action failed: " + e.getMessage(), e);
+        }
     }
 
-    private Locator getLocatorBasedOnPageFrame(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String key) {
-        return getLocator(iFrame, iFrame_2, iFrame_3, element, key, page, null);
+    private void assertCondition(boolean condition, String errorMessage) {
+        if (!condition) {
+            throw new AssertionError(errorMessage);
+        }
     }
 
-    private Locator getLocatorBasedOnFrame(FrameLocator frameLocator, String element, String key) {
-        return getLocator(null, null, null, element, key, null, frameLocator);
-    }
-
-    @Override
-    public String getExactLocator(String element, String key) {
-        String locatorValue = elementLocatorHelper.getElement(element, key);
-        return elementLocatorHelper.getLocator(locatorValue);
+    /**
+     * Waits for the first element matching the locator to be visible using time_to_wait.
+     * - If time_to_wait=0 => fails immediately if not visible.
+     * - IMPORTANT: This method should throw (stop) on failure, not swallow.
+     */
+    public void waitForLocator(Locator locator) {
+        String time_to_wait = ConfigurationProperties.getValue("time_to_wait_in_seconds");
+        try {
+            int time_out = Integer.parseInt(time_to_wait == null ? "0" : time_to_wait.trim());
+            locator.first().waitFor(new Locator.WaitForOptions()
+                    .setState(WaitForSelectorState.VISIBLE)
+                    .setTimeout(time_out * 1000L));
+        } catch (Exception e) {
+            logger.error("Failed to wait for the element to be displayed", e);
+            throw new RuntimeException("Failed waiting for locator visibility: " + e.getMessage(), e);
+        }
     }
 }
