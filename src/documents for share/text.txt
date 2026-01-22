@@ -15,29 +15,24 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * ActionPerformer is a utility class for performing a wide variety of actions
- * on Playwright Locators within a Page. It handles clicks, form input, attribute manipulation,
- * element validation, scrolling, screenshots, and much more.
+ * ActionPerformer (optimized)
  *
- * Key behavior (what you asked for):
- * - Uses your configured time_to_wait_in_seconds as MAX timeout (e.g., 10s).
- * - If element is already visible/clickable -> NO waiting, action runs immediately.
- * - If element is NOT ready -> waits up to configured timeout for it to become ready.
- * - Keeps "page fully loaded" behavior after navigation-like actions, but avoids long stalls
- *   on SPAs by doing best-effort NETWORKIDLE in short slices.
+ * What this version guarantees:
+ * - Uses your config time_to_wait_in_seconds as MAX timeout (e.g., 10s).
+ * - If element is already ready -> NO extra waiting; action runs immediately.
+ * - If element is not ready -> waits up to MAX timeout for visibility.
+ * - Keeps page-ready behavior after navigation-like actions, but avoids slow SPA stalls by:
+ *      - waiting for DOMCONTENTLOADED only (fast + reliable)
+ *      - NOT waiting for NETWORKIDLE by default (common slowdown on SPAs)
  *
  * NOTE:
- * - "download" (strict) keeps existing behavior: throws on failure/timeouts.
- * - "download_optional" (new) is safe: returns null if no download event happens.
+ * - "download" (strict) keeps existing behavior: throws if no download.
+ * - "download_optional" returns null if no download event occurs.
  */
 public class ActionPerformer {
 
     private static final Logger logger = LoggerFactory.getLogger(ActionPerformer.class);
 
-    /**
-     * Utility to format text content by placing each word on a new line.
-     * Useful for improving text readability in logs or reports.
-     */
     private static String formatTextForNewLine(String text) {
         return text.replaceAll(" ", "\n");
     }
@@ -89,63 +84,43 @@ public class ActionPerformer {
     }
 
     /**
-     * Waits ONLY if needed:
-     * - Ensures visible (instant check first, otherwise waits up to timeout).
-     * - Then ensures enabled (instant check first, otherwise retries in small slices up to timeout).
+     * Clickable wait that DOES NOT impact runtime:
+     * - If already visible+enabled -> instant return (no wait).
+     * - Otherwise waits up to timeout for visible only.
      *
-     * This avoids waiting full 10s when element is already clickable.
+     * Why: Playwright click() already does actionable checks efficiently.
+     * We avoid custom polling loops that slow runs.
      */
     private void waitIfNeededClickable(Locator locator) {
         long timeout = actionTimeoutMs();
         if (timeout <= 0 || locator == null) return;
 
         Locator first = locator.first();
-        Page page = null;
-        try { page = locator.page(); } catch (Exception ignored) {}
-
         try {
-            // 1) Visible?
-            if (!first.isVisible()) {
-                first.waitFor(new Locator.WaitForOptions()
-                        .setState(WaitForSelectorState.VISIBLE)
-                        .setTimeout(timeout));
-            }
+            // Instant check: if ready -> no wait
+            if (first.isVisible() && first.isEnabled()) return;
 
-            // 2) Enabled? (retry quickly up to the remaining timeout)
-            if (first.isEnabled()) return;
-
-            long start = System.currentTimeMillis();
-            while (true) {
-                if (first.isEnabled()) return;
-
-                long elapsed = System.currentTimeMillis() - start;
-                long remaining = timeout - elapsed;
-                if (remaining <= 0) break;
-
-                // wait small slices; returns immediately once enabled
-                pageWaitSmall(page, Math.min(remaining, 150));
-            }
+            // Otherwise wait up to timeout for visible
+            first.waitFor(new Locator.WaitForOptions()
+                    .setState(WaitForSelectorState.VISIBLE)
+                    .setTimeout(timeout));
         } catch (Exception e) {
+            Page page = null;
+            try { page = locator.page(); } catch (Exception ignored) {}
             String debug = buildExactFailureMessage(page, "waitIfNeededClickable", null, locator, e);
             logger.error(debug, e);
             throw new RuntimeException(debug, e);
         }
     }
 
-    private void pageWaitSmall(Page page, long ms) {
-        if (page == null || ms <= 0) return;
-        try { page.waitForTimeout(ms); } catch (Exception ignored) {}
-    }
-
     // ============================================================
-    // PAGE READY (keeps behavior, but avoids long stalls on SPAs)
+    // PAGE READY (FAST + avoids SPA slowdowns)
     // ============================================================
 
     /**
-     * Waits for the page to be "ready" after an action that may trigger navigation / reload / async load.
-     * - If time_to_wait=0 => does not wait at all.
-     * - DOMCONTENTLOADED is attempted with full timeout (fast & reliable)
-     * - NETWORKIDLE is best-effort in short slices up to total timeout (SPAs may never reach it).
+     * Keeps "page loaded" logic without slowing down:
+     * - DOMCONTENTLOADED only (fast and reliable)
+     * - NETWORKIDLE is intentionally not used by default (SPAs often never reach it)
      */
     private void waitForPageReady(Page page) {
         long timeout = actionTimeoutMs();
@@ -160,22 +135,15 @@ public class ActionPerformer {
             // ignore
         }
 
-        long start = System.currentTimeMillis();
-        while (true) {
-            long elapsed = System.currentTimeMillis() - start;
-            long remaining = timeout - elapsed;
-            if (remaining <= 0) break;
-
-            try {
-                page.waitForLoadState(
-                        LoadState.NETWORKIDLE,
-                        new Page.WaitForLoadStateOptions().setTimeout(Math.min(remaining, 300))
-                );
-                break; // reached NETWORKIDLE
-            } catch (Exception ignored) {
-                // keep trying until timeout is consumed
-            }
-        }
+        // If you ever want NETWORKIDLE for specific apps, enable it here with a small cap:
+        /*
+        try {
+            page.waitForLoadState(
+                    LoadState.NETWORKIDLE,
+                    new Page.WaitForLoadStateOptions().setTimeout(Math.min(timeout, 1000))
+            );
+        } catch (Exception ignored) {}
+        */
     }
 
     // ============================================================
@@ -290,13 +258,14 @@ public class ActionPerformer {
                     targetLocator.first().clear();
                     return null;
 
-                case "drag":
+                case "drag": {
                     waitIfNeededVisible(targetLocator);
-                    Locator target = targetLocator.page().locator(value).first();
-                    waitIfNeededVisible(target);
-                    targetLocator.first().dragTo(target);
+                    Locator dropTarget = targetLocator.page().locator(value).first();
+                    waitIfNeededVisible(dropTarget);
+                    targetLocator.first().dragTo(dropTarget);
                     waitForPageReady(page);
                     return null;
+                }
 
                 case "dragstart":
                     waitIfNeededVisible(targetLocator);
@@ -371,7 +340,6 @@ public class ActionPerformer {
                 }
 
                 case "file_chooser_for_upload":
-                    // ensure the click is instant if already clickable, otherwise waits up to timeout
                     waitIfNeededClickable(targetLocator);
                     page.waitForFileChooser(() -> click(targetLocator.first()));
                     return null;
@@ -392,22 +360,19 @@ public class ActionPerformer {
                     return null;
 
                 case "waitforelement":
-                    // smart: if already visible -> instant, else wait up to timeout
                     waitIfNeededVisible(targetLocator);
                     targetLocator.first().waitFor();
                     return null;
 
-                case "waitforstate":
-                    // still uses your chosen state, but bypasses when already visible/clickable if state is VISIBLE
-                    if ("visible".equalsIgnoreCase(value)) {
-                        waitIfNeededVisible(targetLocator);
-                    }
+                case "waitforstate": {
+                    long timeout = actionTimeoutMs();
                     targetLocator.first().waitFor(new Locator.WaitForOptions()
                             .setState(WaitForSelectorState.valueOf(value.toUpperCase()))
-                            .setTimeout(actionTimeoutMs()));
+                            .setTimeout(timeout));
                     return null;
+                }
 
-                // =============== GETTER/VALIDATION ACTIONS (smart: instant if ready, else wait up to timeout) ===============
+                // =============== GETTER/VALIDATION ACTIONS (smart wait: instant if ready, else up to timeout) ===============
                 case "getattribute":
                     waitIfNeededVisible(targetLocator);
                     return targetLocator.first().getAttribute(value);
@@ -416,28 +381,29 @@ public class ActionPerformer {
                     waitIfNeededVisible(targetLocator);
                     return targetLocator.first().textContent();
 
-                case "get_and_contain_text":
+                case "get_and_contain_text": {
                     waitIfNeededVisible(targetLocator);
                     String getText = targetLocator.first().textContent();
                     assertCondition(getText != null && getText.contains(getText), "Element does not contain expected text.");
                     return getText;
+                }
 
                 case "getvalue":
                     waitIfNeededVisible(targetLocator);
                     return targetLocator.first().inputValue();
 
                 case "returnelement":
-                    // keep original behavior (no .first())
                     return targetLocator.textContent();
 
-                case "hasvalue":
+                case "hasvalue": {
                     waitIfNeededVisible(targetLocator);
                     String currentValue = targetLocator.first().inputValue();
                     assertCondition(currentValue.equals(value), "Expected: " + value + ", but found: " + currentValue);
                     return currentValue;
+                }
 
                 case "isvisible": {
-                    // instant if already visible, else wait up to timeout then re-check
+                    // zero-cost if already visible; otherwise attempt wait up to timeout then check
                     long timeout = actionTimeoutMs();
                     boolean visibleNow = targetLocator.first().isVisible();
                     if (!visibleNow && timeout > 0) {
@@ -453,7 +419,8 @@ public class ActionPerformer {
                 }
 
                 case "isenabled": {
-                    waitIfNeededClickable(targetLocator);
+                    // do not poll; instant check only
+                    waitIfNeededVisible(targetLocator);
                     boolean isEnabled = targetLocator.first().isEnabled();
                     assertCondition(isEnabled, "Element is not enabled.");
                     return String.valueOf(isEnabled);
@@ -472,7 +439,6 @@ public class ActionPerformer {
                     return String.valueOf(isDisabled);
 
                 case "ishidden": {
-                    // if already hidden -> instant; else wait up to timeout for hidden
                     long timeout = actionTimeoutMs();
                     boolean hiddenNow = targetLocator.first().isHidden();
                     if (!hiddenNow && timeout > 0) {
@@ -487,53 +453,65 @@ public class ActionPerformer {
                     return String.valueOf(isHidden);
                 }
 
-                case "hastext":
+                case "hastext": {
                     waitIfNeededVisible(targetLocator);
                     String locatorText = targetLocator.first().textContent();
                     assertCondition(locatorText != null && locatorText.contains(value), "Text mismatch.");
                     return locatorText;
+                }
 
-                case "hasclass":
+                case "hasclass": {
                     waitIfNeededVisible(targetLocator);
                     String cls = targetLocator.first().getAttribute("class");
                     boolean hasClass = cls != null && cls.contains(value);
                     assertCondition(hasClass, "Class mismatch.");
                     return String.valueOf(hasClass);
+                }
 
-                case "hasequalvalue":
+                case "hasequalvalue": {
                     waitIfNeededVisible(targetLocator);
                     String actualValue = targetLocator.first().inputValue();
                     assertCondition(actualValue.equals(value), "Value mismatch.");
                     return actualValue;
+                }
 
-                case "isempty":
+                case "isempty": {
                     waitIfNeededVisible(targetLocator);
                     String inputValue = targetLocator.first().inputValue();
                     assertCondition(inputValue.isEmpty(), "Element is not empty.");
                     return inputValue;
+                }
 
-                case "waitfortext":
+                case "waitfortext": {
                     waitIfNeededVisible(targetLocator);
-                    if (targetLocator.first().textContent() == null || !targetLocator.first().textContent().contains(value))
+                    String txt = targetLocator.first().textContent();
+                    if (txt == null || !txt.contains(value)) {
                         throw new AssertionError("Text not found: " + value);
-                    return targetLocator.first().textContent();
+                    }
+                    return txt;
+                }
 
-                case "waitforvalue":
+                case "waitforvalue": {
                     waitIfNeededVisible(targetLocator);
-                    if (!targetLocator.first().inputValue().equals(value))
+                    String val = targetLocator.first().inputValue();
+                    if (!val.equals(value)) {
                         throw new AssertionError("Value mismatch.");
-                    return targetLocator.first().inputValue();
+                    }
+                    return val;
+                }
 
                 // =============== MULTI-ELEMENT ACTIONS (NO waits; keep behavior) ===============
-                case "exists":
+                case "exists": {
                     boolean exists = targetLocator.count() > 0;
                     assertCondition(exists, "Element does not exist.");
                     return String.valueOf(exists);
+                }
 
-                case "not_exists":
+                case "not_exists": {
                     boolean notExists = targetLocator.count() == 0;
                     assertCondition(notExists, "Element exists but should not.");
                     return String.valueOf(notExists);
+                }
 
                 default:
                     throw new IllegalArgumentException("Unknown action: " + action);
@@ -547,7 +525,6 @@ public class ActionPerformer {
 
     private void click(Locator targetLocator) {
         try {
-            // Smart bypass: if already clickable -> instant; else waits up to timeout
             waitIfNeededClickable(targetLocator);
             targetLocator.first().click();
         } catch (Exception e) {
@@ -581,7 +558,7 @@ public class ActionPerformer {
     }
 
     // ============================================================
-    // EXACT FAILURE MESSAGE (NO NEW FEATURES, ONLY BETTER OUTPUT)
+    // EXACT FAILURE MESSAGE (ONLY BETTER OUTPUT)
     // ============================================================
 
     private String buildExactFailureMessage(Page page, String action, String value, Locator locator, Exception e) {
