@@ -7,7 +7,7 @@ elements:
     new_tab_btn: "id_tabButton"
     tab_semple_heading: "id_sampleHeading"
     frame_semple_heading: "id_sampleHeading"
-    frame_btn: "css_//span[normalize-space(text())='Frames1']"
+    frame_btn: "css_//span[normalize-space(text())='Frames']"
     elements_tab: "css_(//div[contains(@class,'card mt-4')])[1]"
     update_and_download_tab: "xpath_//span[normalize-space(text())='Upload and Download']"
     download_btn: "LinkText_Download"
