@@ -1,4 +1,14 @@
-Release ID
-REL-2026-01-MON
-REL-2026-01-HF-01
-REL-2026-02-MJR
+Hey Saurabh,
+
+As mentioned earlier, we’ve selected Appium as the better option to integrate with our automation framework engine. It aligns well with our Java + Cucumber + YAML + Maven architecture, provides strong flexibility, and avoids licensing overhead.
+
+One important infrastructure consideration:
+To fully support iOS real device and simulator automation locally, we will need access to at least one macOS machine, since iOS automation depends on Xcode and WebDriverAgent. Android automation can run on Windows, but iOS cannot be executed locally without macOS.
+
+Would it be possible to provision a macOS device for the framework setup and real device automation implementation?
+
+For future scalability (parallel runs across multiple device versions), we can plan to integrate with BrowserStack under an enterprise subscription. In that case, Appium remains our automation engine, and BrowserStack would provide the cloud device infrastructure.
+
+Compared to SeeTest, Appium gives us better flexibility, lower cost, and stronger alignment with our current framework, whereas SeeTest is a licensed enterprise platform with more vendor-driven structure and less framework-level control.
+
+Please let me know your thoughts.
