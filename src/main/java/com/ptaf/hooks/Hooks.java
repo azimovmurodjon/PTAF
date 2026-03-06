@@ -3,6 +3,7 @@ package com.ptaf.hooks;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.LoadState;
 import com.ptaf.ui.pages.PageCommonMethods;
 import com.ptaf.utils.BrowserFactory;
 import com.ptaf.utils.BrowserFactory.BrowserTypeEnum;
@@ -26,14 +27,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Hooks {
 
+    private static final Logger logger = LoggerFactory.getLogger(Hooks.class);
+
     private static final ThreadLocal<Browser> browserThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<BrowserContext> contextThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<Page> pageThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<Scenario> scenarioThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<PageCommonMethods> pageCommonMethodsThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<String> activeFeatureThreadLocal = new ThreadLocal<>();
-
-    private static final Logger logger = LoggerFactory.getLogger(Hooks.class);
 
     /**
      * Feature has @LastScenario tag
@@ -90,7 +91,6 @@ public class Hooks {
                     ? featureScenarioExecutedMap.get(featureKey).get()
                     : 0;
 
-            // If any previous scenario failed, stop immediately
             if (featureAlreadyFailed) {
                 logger.error(
                         "Skipping scenario [{}] because @LastScenario feature [{}] is already marked as failed.",
@@ -102,19 +102,23 @@ public class Hooks {
                 );
             }
 
-            // First scenario of feature -> allowed to create browser
             if (alreadyExecuted == 0 && !browserAlive) {
                 createBrowserStack(scenario);
-                logger.info("Initial shared browser created for @LastScenario feature [{}], scenario [{}]",
-                        featureKey, scenario.getName());
+                logger.info(
+                        "Initial shared browser created for @LastScenario feature [{}], scenario [{}]",
+                        featureKey,
+                        scenario.getName()
+                );
                 return;
             }
 
-            // Next scenarios -> browser must still be alive, otherwise hard fail
             if (alreadyExecuted > 0) {
                 if (browserAlive) {
-                    logger.info("Reusing shared browser for @LastScenario feature [{}], scenario [{}]",
-                            featureKey, scenario.getName());
+                    logger.info(
+                            "Reusing shared browser for @LastScenario feature [{}], scenario [{}]",
+                            featureKey,
+                            scenario.getName()
+                    );
                     return;
                 } else {
                     featureFailureMap.put(featureKey, true);
@@ -131,7 +135,6 @@ public class Hooks {
             }
         }
 
-        // Normal non-@LastScenario behavior -> always fresh browser
         createBrowserStack(scenario);
     }
 
@@ -162,7 +165,6 @@ public class Hooks {
                                 page != null &&
                                 !page.isClosed();
 
-                // If scenario failed -> lock feature
                 if (scenario.getStatus() == Status.FAILED) {
                     featureFailureMap.put(featureKey, true);
                     logger.error(
@@ -172,7 +174,6 @@ public class Hooks {
                     );
                 }
 
-                // If browser/page/context was lost unexpectedly -> also lock feature
                 if (!browserAlive) {
                     featureFailureMap.put(featureKey, true);
                     logger.error(
@@ -233,36 +234,133 @@ public class Hooks {
             Page page = context.newPage();
             pageThreadLocal.set(page);
 
+            long runtimeTimeoutMillis = getConfiguredRuntimeTimeoutMillis();
+
+            page.setDefaultTimeout(runtimeTimeoutMillis);
+            page.setDefaultNavigationTimeout(runtimeTimeoutMillis);
+
             PageCommonMethods pageCommonMethods = new PageCommonMethods(page);
             pageCommonMethodsThreadLocal.set(pageCommonMethods);
 
-            logger.info("Browser setup completed for scenario: {}", scenario.getName());
+            logger.info(
+                    "Browser setup completed for scenario: {} with runtime timeout: {} ms",
+                    scenario.getName(),
+                    runtimeTimeoutMillis
+            );
+
         } catch (Exception e) {
             logger.error("Error setting up the browser for scenario: {}", scenario.getName(), e);
             throw new RuntimeException("Browser setup failed", e);
         }
     }
 
-    public static void closeBrowserResources() {
+    /**
+     * Reads runtimeWait from YAML/config.
+     * Value is treated as direct seconds.
+     *
+     * Example:
+     * runtimeWait = 5 -> 5000 ms
+     */
+    private static long getConfiguredRuntimeTimeoutMillis() {
         try {
-            Page page = pageThreadLocal.get();
-            if (page != null && !page.isClosed()) {
-                page.close();
+            String runtimeValue = ConfigurationProperties.getValue("runtimeWait");
+
+            if (runtimeValue == null || runtimeValue.trim().isEmpty()) {
+                logger.warn("runtimeWait is not configured. Defaulting to 30 seconds.");
+                return 30000L;
             }
-        } catch (Exception ex) {
-            logger.error("Error closing the page: {}", ex.getMessage(), ex);
-        } finally {
-            pageThreadLocal.remove();
+
+            long seconds = Long.parseLong(runtimeValue.trim());
+
+            if (seconds <= 0) {
+                logger.warn("runtimeWait must be greater than 0. Defaulting to 30 seconds.");
+                return 30000L;
+            }
+
+            long timeoutMillis = seconds * 1000L;
+            logger.info("Configured runtimeWait: {} second(s) = {} ms", seconds, timeoutMillis);
+            return timeoutMillis;
+
+        } catch (Exception e) {
+            logger.warn(
+                    "Unable to parse runtimeWait from configuration. Defaulting to 30 seconds. Reason: {}",
+                    e.getMessage()
+            );
+            return 30000L;
         }
+    }
+
+    /**
+     * Waits until current page is loaded.
+     * It waits only up to configured timeout.
+     * If page loads earlier, execution continues immediately.
+     */
+    public static void waitForCurrentPageToLoad() {
+        Page page = getPage();
+        long timeout = getConfiguredRuntimeTimeoutMillis();
 
         try {
+            page.waitForLoadState(
+                    LoadState.DOMCONTENTLOADED,
+                    new Page.WaitForLoadStateOptions().setTimeout(timeout)
+            );
+
+            page.waitForLoadState(
+                    LoadState.LOAD,
+                    new Page.WaitForLoadStateOptions().setTimeout(timeout)
+            );
+
+            logger.info("Page reached load state successfully within {} ms", timeout);
+        } catch (Exception e) {
+            logger.error("Page did not load within configured timeout: {} ms", timeout, e);
+            throw new RuntimeException("Page did not load within configured timeout: " + timeout + " ms", e);
+        }
+    }
+
+    /**
+     * Sets the active page for the current thread.
+     * This is important when popup/new tab page is opened and must become the new working page.
+     */
+    public static void setPage(Page page) {
+        if (page == null || page.isClosed()) {
+            throw new IllegalArgumentException("The page is null or closed.");
+        }
+
+        pageThreadLocal.set(page);
+
+        try {
+            long runtimeTimeoutMillis = getConfiguredRuntimeTimeoutMillis();
+            page.setDefaultTimeout(runtimeTimeoutMillis);
+            page.setDefaultNavigationTimeout(runtimeTimeoutMillis);
+        } catch (Exception e) {
+            logger.warn("Unable to apply timeout settings to switched page. Reason: {}", e.getMessage());
+        }
+
+        pageCommonMethodsThreadLocal.set(new PageCommonMethods(page));
+        logger.info("Active page has been switched successfully.");
+    }
+
+    public static void closeBrowserResources() {
+        try {
             BrowserContext context = contextThreadLocal.get();
+
             if (context != null) {
+                for (Page page : context.pages()) {
+                    try {
+                        if (page != null && !page.isClosed()) {
+                            page.close();
+                        }
+                    } catch (Exception pageCloseEx) {
+                        logger.error("Error closing page: {}", pageCloseEx.getMessage(), pageCloseEx);
+                    }
+                }
+
                 context.close();
             }
         } catch (Exception ex) {
             logger.error("Error closing the browser context: {}", ex.getMessage(), ex);
         } finally {
+            pageThreadLocal.remove();
             contextThreadLocal.remove();
         }
 
@@ -374,7 +472,10 @@ public class Hooks {
                 return total > 0 ? total : 1;
             }
         } catch (Exception e) {
-            logger.warn("Unable to count scenarios in feature file. Defaulting scenario count to 1. Reason: {}", e.getMessage());
+            logger.warn(
+                    "Unable to count scenarios in feature file. Defaulting scenario count to 1. Reason: {}",
+                    e.getMessage()
+            );
             return 1;
         }
     }

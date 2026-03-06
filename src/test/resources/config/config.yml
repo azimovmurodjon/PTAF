@@ -9,7 +9,10 @@ browser: "chrome"  # Specifies the browser to use (CHROME, FIREFOX, WEBKIT, etc.
 headless: "false"  # Set to "true" to run the browser in headless mode (no UI)
 
 #Time To Wait the lowest time can be 1 do not enter
-time_to_wait_in_seconds: "5"
+time_to_wait_in_seconds: "60"
+
+#Hooks Run Time setting
+runtimeWait: 30
 
 # Video Capture setting
 videoCapture: "false"
@@ -22,6 +25,7 @@ downloadDocument: "src/test/downloads/"
 
 # Environment URLs for different test environments
 tool_qa_url: "https://demoqa.com/"
+HARNESS_PREPROD_STAGE: "https://staging.fnb.avoka-transact.com/workspaces-preprod/servlet/SmartForm.html?formCode=testharness2"
 
 # ==================================
 # DATABASE CONFIGURATION
