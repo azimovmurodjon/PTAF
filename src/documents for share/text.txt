@@ -31,16 +31,6 @@ import java.nio.file.Paths;
  */
 public class ActionPerformer {
 
-    private boolean isFileInput(Locator locator) {
-        try {
-            return Boolean.TRUE.equals(
-                    locator.first().evaluate("el => el.tagName === 'INPUT' && el.type === 'file'")
-            );
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
     private static final Logger logger = LoggerFactory.getLogger(ActionPerformer.class);
 
     private static String formatTextForNewLine(String text) {
@@ -75,8 +65,6 @@ public class ActionPerformer {
         long timeout = actionTimeoutMs();
         if (timeout <= 0 || locator == null) return;
 
-        if (isFileInput(locator)) return ;
-
         Locator first = locator.first();
         try {
             // Instant check (no wait)
@@ -106,8 +94,6 @@ public class ActionPerformer {
     private void waitIfNeededClickable(Locator locator) {
         long timeout = actionTimeoutMs();
         if (timeout <= 0 || locator == null) return;
-
-        if (isFileInput(locator)) return ;
 
         Locator first = locator.first();
         try {
@@ -293,6 +279,7 @@ public class ActionPerformer {
 
                 case "uploadfile":
                 case "selectfile":
+                    waitIfNeededVisible(targetLocator);
                     targetLocator.first().setInputFiles(Paths.get(value));
                     return null;
 
@@ -451,10 +438,20 @@ public class ActionPerformer {
                     assertCondition(isDisabled, "Element is not disabled.");
                     return String.valueOf(isDisabled);
 
-                case "ishidden":
+                case "ishidden": {
+                    long timeout = actionTimeoutMs();
+                    boolean hiddenNow = targetLocator.first().isHidden();
+                    if (!hiddenNow && timeout > 0) {
+                        try {
+                            targetLocator.first().waitFor(new Locator.WaitForOptions()
+                                    .setState(WaitForSelectorState.HIDDEN)
+                                    .setTimeout(timeout));
+                        } catch (Exception ignored) {}
+                    }
                     boolean isHidden = targetLocator.first().isHidden();
-                    this.assertCondition(isHidden, "Element is not hidden.");
+                    assertCondition(isHidden, "Element is not hidden.");
                     return String.valueOf(isHidden);
+                }
 
                 case "hastext": {
                     waitIfNeededVisible(targetLocator);
