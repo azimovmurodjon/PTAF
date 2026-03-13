@@ -1,0 +1,13 @@
+performance_payloads:
+  create_customer: |
+    {
+      "name": "John Smith",
+      "email": "john.smith@test.com",
+      "status": "ACTIVE"
+    }
+
+  update_customer: |
+    {
+      "name": "John Smith Updated",
+      "status": "INACTIVE"
+    }

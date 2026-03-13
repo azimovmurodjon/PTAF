@@ -1,0 +1,18 @@
+performance:
+  defaults:
+    protocol: https
+    host: postman-echo.com
+    port: 443
+    users: 5
+    rampUpSeconds: 5
+    holdSeconds: 10
+    iterations: 1
+
+  reporting:
+    resultsFolder: test-output-performance-test/results
+    dashboardFolder: test-output-performance-test/dashboard
+
+  assertions:
+    maxErrorPercent: 5.0
+    maxAvgResponseTimeMs: 5000
+    maxP95ResponseTimeMs: 7000

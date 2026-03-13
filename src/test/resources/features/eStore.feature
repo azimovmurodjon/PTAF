@@ -29,8 +29,8 @@ Feature: Consumer Deposit with Payment Switch
     Then we click on new page consumer_personal_info locator NextButton
 
     Examples:
-      | DOB        |
-      | 01/01/1988 |
+      | DOB        |Phone_Number|
+      | 01/01/1988 | 779-902-2577|
 
   Scenario Outline: Consumer Deposit - Primary Applicant Information page
     Then time out for 4 seconds

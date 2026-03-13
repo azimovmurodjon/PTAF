@@ -30,7 +30,7 @@ public class YamlReader {
     // Static block to load YAML files during class initialization
     static {
         // Define all resource folders you want to scan for .yml files.
-        String[] folderPaths = {"elements", "queries", "api_requests", "config"};
+        String[] folderPaths = {"elements", "queries", "api_requests", "config", "performance"};
 
         Yaml yaml = new Yaml();
 
