@@ -8,8 +8,11 @@ browser: "chrome"  # Specifies the browser to use (CHROME, FIREFOX, WEBKIT, etc.
 # Headless mode setting
 headless: "false"  # Set to "true" to run the browser in headless mode (no UI)
 
-#Time To Wait
-time_to_wait: "60"
+#Time To Wait the lowest time can be 1 do not enter
+time_to_wait_in_seconds: "60"
+
+#Hooks Run Time setting
+runtimeWait: 30
 
 # Video Capture setting
 videoCapture: "false"
@@ -21,14 +24,8 @@ excelDocumentLocation: "src/test/resources/testdata.xlsx"
 downloadDocument: "src/test/downloads/"
 
 # Environment URLs for different test environments
-rnd_url: "https://pdscawebdev01.myfnb.us/Account/Login?ReturnUrl=%2F"
-qa_url: "https://qa.fnbonline.fnb-online.com/documentcenter/Account/Login#"
-eStore_QA: "https://qa.fnbonline.fnb-online.com"
-Argo_Teller_qaEnvUrl: "https://fnbbrargoqa03w.myfnb.us:8443/"
-connectsQa1Url: "https://vsargwebqa01.myfnb.us:5048/"
-google_url: "https://www.google.com/"
-panda_url: "https://automationpanda.com/2021/12/29/want-to-practice-test-automation-try-these-demo-sites/"
 tool_qa_url: "https://demoqa.com/"
+HARNESS_PREPROD_STAGE: "https://staging.fnb.avoka-transact.com/workspaces-preprod/servlet/SmartForm.html?formCode=testharness2"
 
 # ==================================
 # DATABASE CONFIGURATION

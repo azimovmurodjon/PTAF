@@ -54,7 +54,9 @@ public class ConfigurationProperties {
     }
 
     public static String getValue(String value) {
+        Object rawValue = YamlReader.get(value);
         // Retrieve and return the headless mode value from the YAML file
-        return (String) YamlReader.get(value);
+        return rawValue == null ? null : String.valueOf(rawValue);
     }
+
 }

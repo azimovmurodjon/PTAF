@@ -1,0 +1,21 @@
+performance:
+  payloads:
+    createCustomer: |
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john.smith@example.com"
+      }
+
+    updateCustomer: |
+      {
+        "customerId": 1001,
+        "status": "updated"
+      }
+
+    secureCreateCustomer: |
+      {
+        "firstName": "Secure",
+        "lastName": "User",
+        "role": "authenticated"
+      }
