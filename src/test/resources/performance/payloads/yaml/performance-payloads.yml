@@ -1,13 +1,21 @@
-performance_payloads:
-  create_customer: |
-    {
-      "name": "John Smith",
-      "email": "john.smith@test.com",
-      "status": "ACTIVE"
-    }
+performance:
+  payloads:
+    createCustomer: |
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john.smith@example.com"
+      }
 
-  update_customer: |
-    {
-      "name": "John Smith Updated",
-      "status": "INACTIVE"
-    }
+    updateCustomer: |
+      {
+        "customerId": 1001,
+        "status": "updated"
+      }
+
+    secureCreateCustomer: |
+      {
+        "firstName": "Secure",
+        "lastName": "User",
+        "role": "authenticated"
+      }

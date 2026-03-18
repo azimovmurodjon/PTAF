@@ -327,7 +327,7 @@ public class PerformanceSteps {
 
     @When("^we store bearer token alias \"(.*?)\" with value \"(.*?)\"$")
     public void weStoreBearerTokenAlias(String alias, String tokenValue) {
-        performanceEngine.getAuthTokenManager().saveToken(alias, tokenValue);
+        performanceEngine.storeBearerToken(alias, tokenValue);
     }
 
     @When("^we run authenticated GET performance test for path \"(.*?)\" with name \"(.*?)\" using bearer token alias \"(.*?)\"$")
@@ -385,54 +385,101 @@ public class PerformanceSteps {
     }
 
     // ============================================================
+    // EXPECTED FAILURE EXECUTION - ADDED ONLY
+    // ============================================================
+
+    @When("^we run GET performance test expecting failure for path \"(.*?)\" with name \"(.*?)\"$")
+    public void weRunGetPerformanceTestExpectingFailure(String path, String testName) {
+        PerformanceRequest request = new PerformanceRequestBuilder()
+                .withRequestName(testName)
+                .withMethod("GET")
+                .withPath(path)
+                .build();
+
+        latestResult = performanceEngine.runHttpTestExpectingFailure(request);
+    }
+
+    @When("^we run basic auth GET performance test expecting failure for path \"(.*?)\" with name \"(.*?)\" username \"(.*?)\" password \"(.*?)\"$")
+    public void weRunBasicAuthGetPerformanceTestExpectingFailure(String path,
+                                                                 String testName,
+                                                                 String username,
+                                                                 String password) {
+
+        PerformanceRequest request = new PerformanceRequestBuilder()
+                .withRequestName(testName)
+                .withMethod("GET")
+                .withPath(path)
+                .withBasicAuth(username, password)
+                .build();
+
+        latestResult = performanceEngine.runHttpTestExpectingFailure(request);
+    }
+
+    @When("^we run YAML-driven POST performance test expecting failure for path \"(.*?)\" with name \"(.*?)\" using yaml key \"(.*?)\"$")
+    public void weRunYamlDrivenPostPerformanceTestExpectingFailure(String path,
+                                                                   String testName,
+                                                                   String yamlKey) {
+
+        PerformanceRequest request = new PerformanceRequestBuilder()
+                .withRequestName(testName)
+                .withMethod("POST")
+                .withPath(path)
+                .withYamlBodyKey(yamlKey)
+                .withContentType("application/json")
+                .withAcceptType("application/json")
+                .build();
+
+        latestResult = performanceEngine.runHttpTestExpectingFailure(request);
+    }
+
+    // ============================================================
     // POSITIVE VALIDATIONS
     // ============================================================
 
     @Then("^performance dashboard path should be generated$")
     public void performanceDashboardPathShouldBeGenerated() {
-        if (latestResult == null) {
-            throw new AssertionError("Performance result is null.");
-        }
-
-        if (latestResult.getDashboardPath() == null || latestResult.getDashboardPath().isBlank()) {
-            throw new AssertionError("Performance dashboard path was not generated.");
-        }
+        assertResultAvailable();
+        assertNotBlank(latestResult.getDashboardPath(), "Performance dashboard path was not generated.");
     }
 
     @Then("^performance result should be available$")
     public void performanceResultShouldBeAvailable() {
-        if (latestResult == null) {
-            throw new AssertionError("Performance result is null.");
-        }
+        assertResultAvailable();
     }
 
     @Then("^performance summary file path should be generated$")
     public void performanceSummaryFilePathShouldBeGenerated() {
-        if (latestResult == null) {
-            throw new AssertionError("Performance result is null.");
-        }
-
-        if (latestResult.getSummaryFilePath() == null || latestResult.getSummaryFilePath().isBlank()) {
-            throw new AssertionError("Performance summary file path was not generated.");
-        }
+        assertResultAvailable();
+        assertNotBlank(latestResult.getSummaryFilePath(), "Performance summary file path was not generated.");
     }
 
     @Then("^performance jtl file path should be generated$")
     public void performanceJtlFilePathShouldBeGenerated() {
-        if (latestResult == null) {
-            throw new AssertionError("Performance result is null.");
-        }
+        assertResultAvailable();
+        assertNotBlank(latestResult.getJtlFilePath(), "Performance JTL file path was not generated.");
+    }
 
-        if (latestResult.getJtlFilePath() == null || latestResult.getJtlFilePath().isBlank()) {
-            throw new AssertionError("Performance JTL file path was not generated.");
+    @Then("^performance run report root path should be generated$")
+    public void performanceRunReportRootPathShouldBeGenerated() {
+        assertResultAvailable();
+        assertNotBlank(latestResult.getRunReportRootPath(), "Performance run report root path was not generated.");
+    }
+
+    @Then("^performance execution should pass$")
+    public void performanceExecutionShouldPass() {
+        assertResultAvailable();
+
+        if (!latestResult.isExecutionPassed()) {
+            throw new AssertionError(
+                    "Expected performance execution to pass, but it failed. Failure message: "
+                            + latestResult.getFailureMessage()
+            );
         }
     }
 
     @Then("^performance average response time should be less than (\\d+) ms$")
     public void performanceAverageResponseTimeShouldBeLessThan(long maxAverageResponseTime) {
-        if (latestResult == null) {
-            throw new AssertionError("Performance result is null.");
-        }
+        assertResultAvailable();
 
         if (latestResult.getAverageResponseTimeMs() > maxAverageResponseTime) {
             throw new AssertionError(
@@ -447,9 +494,7 @@ public class PerformanceSteps {
 
     @Then("^performance error percentage should be less than (\\d+(?:\\.\\d+)?)$")
     public void performanceErrorPercentageShouldBeLessThan(double maxErrorPercentage) {
-        if (latestResult == null) {
-            throw new AssertionError("Performance result is null.");
-        }
+        assertResultAvailable();
 
         if (latestResult.getErrorPercent() > maxErrorPercentage) {
             throw new AssertionError(
@@ -461,15 +506,46 @@ public class PerformanceSteps {
         }
     }
 
+    @Then("^performance p95 response time should be less than (\\d+) ms$")
+    public void performanceP95ResponseTimeShouldBeLessThan(long maxP95ResponseTime) {
+        assertResultAvailable();
+
+        if (latestResult.getP95ResponseTimeMs() > maxP95ResponseTime) {
+            throw new AssertionError(
+                    "P95 response time validation failed. Actual: "
+                            + latestResult.getP95ResponseTimeMs()
+                            + " ms, Expected less than: "
+                            + maxP95ResponseTime
+                            + " ms"
+            );
+        }
+    }
+
     // ============================================================
-    // NEGATIVE / FAILURE VALIDATIONS
+    // NEGATIVE / FAILURE VALIDATIONS - ADDED ONLY
     // ============================================================
+
+    @Then("^performance execution should fail$")
+    public void performanceExecutionShouldFail() {
+        assertResultAvailable();
+
+        if (!latestResult.isActualFailureDetected()) {
+            throw new AssertionError("Expected performance execution to fail, but no actual failure was detected.");
+        }
+    }
+
+    @Then("^performance execution should be in expected failure mode$")
+    public void performanceExecutionShouldBeInExpectedFailureMode() {
+        assertResultAvailable();
+
+        if (!latestResult.isExpectedFailureMode()) {
+            throw new AssertionError("Expected performance execution to be in expected failure mode.");
+        }
+    }
 
     @Then("^performance total errors should be greater than (\\d+)$")
     public void performanceTotalErrorsShouldBeGreaterThan(long expectedMinimumErrors) {
-        if (latestResult == null) {
-            throw new AssertionError("Performance result is null.");
-        }
+        assertResultAvailable();
 
         if (latestResult.getTotalErrors() <= expectedMinimumErrors) {
             throw new AssertionError(
@@ -483,9 +559,7 @@ public class PerformanceSteps {
 
     @Then("^performance error percentage should be greater than (\\d+(?:\\.\\d+)?)$")
     public void performanceErrorPercentageShouldBeGreaterThan(double minimumErrorPercentage) {
-        if (latestResult == null) {
-            throw new AssertionError("Performance result is null.");
-        }
+        assertResultAvailable();
 
         if (latestResult.getErrorPercent() <= minimumErrorPercentage) {
             throw new AssertionError(
@@ -499,9 +573,7 @@ public class PerformanceSteps {
 
     @Then("^performance total samples should be greater than (\\d+)$")
     public void performanceTotalSamplesShouldBeGreaterThan(long expectedMinimumSamples) {
-        if (latestResult == null) {
-            throw new AssertionError("Performance result is null.");
-        }
+        assertResultAvailable();
 
         if (latestResult.getTotalSamples() <= expectedMinimumSamples) {
             throw new AssertionError(
@@ -513,20 +585,31 @@ public class PerformanceSteps {
         }
     }
 
-    @Then("^performance p95 response time should be less than (\\d+) ms$")
-    public void performanceP95ResponseTimeShouldBeLessThan(long maxP95ResponseTime) {
+    @Then("^performance failure message should contain \"(.*?)\"$")
+    public void performanceFailureMessageShouldContain(String expectedText) {
+        assertResultAvailable();
+
+        String actualMessage = latestResult.getFailureMessage();
+        if (actualMessage == null || !actualMessage.contains(expectedText)) {
+            throw new AssertionError(
+                    "Expected failure message to contain [" + expectedText + "] but actual was [" + actualMessage + "]"
+            );
+        }
+    }
+
+    // ============================================================
+    // HELPERS
+    // ============================================================
+
+    private void assertResultAvailable() {
         if (latestResult == null) {
             throw new AssertionError("Performance result is null.");
         }
+    }
 
-        if (latestResult.getP95ResponseTimeMs() > maxP95ResponseTime) {
-            throw new AssertionError(
-                    "P95 response time validation failed. Actual: "
-                            + latestResult.getP95ResponseTimeMs()
-                            + " ms, Expected less than: "
-                            + maxP95ResponseTime
-                            + " ms"
-            );
+    private void assertNotBlank(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new AssertionError(message);
         }
     }
 }

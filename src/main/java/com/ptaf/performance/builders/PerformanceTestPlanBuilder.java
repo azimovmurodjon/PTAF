@@ -8,6 +8,8 @@ import us.abstracta.jmeter.javadsl.core.threadgroups.DslDefaultThreadGroup;
 import us.abstracta.jmeter.javadsl.http.DslHttpSampler;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static java.time.Duration.ofSeconds;
@@ -26,6 +28,33 @@ import static us.abstracta.jmeter.javadsl.JmeterDsl.threadGroup;
  * from testers and step definitions.</p>
  */
 public class PerformanceTestPlanBuilder {
+
+    /**
+     * New overload matching the updated engine call.
+     *
+     * <p>It resolves headers internally from request + token store, then delegates
+     * to the existing Path-based builder.</p>
+     */
+    public DslTestPlan buildHttpTestPlan(PerformanceRequest request,
+                                         PerformanceProfile profile,
+                                         Map<String, String> tokenStore,
+                                         String jtlFilePath,
+                                         String dashboardPath,
+                                         String summaryPath) {
+
+        Path jtlPath = Paths.get(jtlFilePath);
+        Path dashboardOutputPath = Paths.get(dashboardPath);
+
+        Map<String, String> resolvedHeaders = resolveHeaders(request, tokenStore);
+
+        return buildHttpTestPlan(
+                request,
+                profile,
+                resolvedHeaders,
+                dashboardOutputPath,
+                jtlPath
+        );
+    }
 
     /**
      * Builds a complete HTTP test plan using already-resolved headers.
@@ -57,6 +86,53 @@ public class PerformanceTestPlanBuilder {
                 ),
                 htmlReporter(dashboardPath.toString())
         );
+    }
+
+    private Map<String, String> resolveHeaders(PerformanceRequest request,
+                                               Map<String, String> tokenStore) {
+
+        Map<String, String> headers = new LinkedHashMap<>();
+
+        if (request.getHeaders() != null && !request.getHeaders().isEmpty()) {
+            headers.putAll(request.getHeaders());
+        }
+
+        if (request.getAcceptType() != null && !request.getAcceptType().isBlank()) {
+            headers.putIfAbsent("Accept", request.getAcceptType().trim());
+        }
+
+        if (request.getContentType() != null && !request.getContentType().isBlank()) {
+            headers.putIfAbsent("Content-Type", request.getContentType().trim());
+        }
+
+        if (request.getBearerTokenAlias() != null && !request.getBearerTokenAlias().isBlank()) {
+            if (tokenStore == null) {
+                throw new IllegalArgumentException(
+                        "Bearer token alias was provided but token store is null. Alias: "
+                                + request.getBearerTokenAlias()
+                );
+            }
+
+            String resolvedToken = tokenStore.get(request.getBearerTokenAlias());
+            if (resolvedToken == null || resolvedToken.isBlank()) {
+                throw new IllegalArgumentException(
+                        "No bearer token found for alias: " + request.getBearerTokenAlias()
+                );
+            }
+
+            headers.put("Authorization", "Bearer " + resolvedToken);
+        }
+
+        if (request.getBasicAuthUsername() != null && !request.getBasicAuthUsername().isBlank()) {
+            String username = request.getBasicAuthUsername();
+            String password = request.getBasicAuthPassword() == null ? "" : request.getBasicAuthPassword();
+            String rawValue = username + ":" + password;
+            String encoded = java.util.Base64.getEncoder()
+                    .encodeToString(rawValue.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            headers.put("Authorization", "Basic " + encoded);
+        }
+
+        return headers;
     }
 
     private DslHttpSampler buildSampler(PerformanceRequest request) {

@@ -2,16 +2,15 @@ package com.ptaf.performance.builders;
 
 import com.ptaf.performance.config.PerformanceConfigurationProperties;
 import com.ptaf.performance.models.PerformanceRequest;
-import com.ptaf.performance.models.PerformanceRequest.AuthStrategy;
-import com.ptaf.performance.payloads.PayloadSourceType;
-import com.ptaf.performance.payloads.PerformancePayloadDefinition;
 import com.ptaf.performance.payloads.PerformancePayloadResolver;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Architect-controlled builder for framework-owned performance requests.
+ * Architect-controlled builder for performance requests.
+ *
+ * <p>This builder hides request construction complexity from testers and step definitions.</p>
  */
 public class PerformanceRequestBuilder {
 
@@ -22,21 +21,30 @@ public class PerformanceRequestBuilder {
     private int port;
     private String path;
     private String requestBody;
-    private final Map<String, String> headers = new LinkedHashMap<>();
     private String contentType;
     private String acceptType;
-    private PerformancePayloadDefinition payloadDefinition;
-    private AuthStrategy authStrategy;
-    private String tokenAlias;
+
+    private final Map<String, String> headers = new LinkedHashMap<>();
+
+    private String bearerTokenAlias;
     private String basicAuthUsername;
     private String basicAuthPassword;
+
+    // Payload-source support
+    private String yamlBodyKey;
+    private String csvFilePath;
+    private String csvRowIdentifier;
+    private String csvColumnName;
+    private String excelFilePath;
+    private String excelRowIdentifier;
+    private String excelColumnName;
 
     public PerformanceRequestBuilder() {
         this.protocol = PerformanceConfigurationProperties.getProtocol();
         this.host = PerformanceConfigurationProperties.getHost();
         this.port = PerformanceConfigurationProperties.getPort();
-        this.method = "GET";
-        this.authStrategy = AuthStrategy.NONE;
+        this.contentType = "application/json";
+        this.acceptType = "application/json";
     }
 
     public PerformanceRequestBuilder withRequestName(String requestName) {
@@ -45,7 +53,7 @@ public class PerformanceRequestBuilder {
     }
 
     public PerformanceRequestBuilder withMethod(String method) {
-        this.method = normalizeMethod(method);
+        this.method = method;
         return this;
     }
 
@@ -69,75 +77,13 @@ public class PerformanceRequestBuilder {
         return this;
     }
 
-    public PerformanceRequestBuilder withBody(String requestBody) {
+    public PerformanceRequestBuilder withJsonBody(String requestBody) {
         this.requestBody = requestBody;
-        this.payloadDefinition = new PerformancePayloadDefinition(
-                PayloadSourceType.INLINE,
-                requestBody,
-                null,
-                null,
-                null,
-                null,
-                null
-        );
         return this;
     }
 
-    public PerformanceRequestBuilder withJsonBody(String jsonBody) {
-        this.requestBody = jsonBody;
-        this.contentType = "application/json";
-        this.payloadDefinition = new PerformancePayloadDefinition(
-                PayloadSourceType.INLINE,
-                jsonBody,
-                null,
-                null,
-                null,
-                null,
-                null
-        );
-        return this;
-    }
-
-    public PerformanceRequestBuilder withYamlBodyKey(String yamlKey) {
-        this.payloadDefinition = new PerformancePayloadDefinition(
-                PayloadSourceType.YAML,
-                null,
-                yamlKey,
-                null,
-                null,
-                null,
-                null
-        );
-        return this;
-    }
-
-    public PerformanceRequestBuilder withCsvBody(String classpathFilePath,
-                                                 String rowIdentifier,
-                                                 String columnName) {
-        this.payloadDefinition = new PerformancePayloadDefinition(
-                PayloadSourceType.CSV,
-                null,
-                null,
-                classpathFilePath,
-                null,
-                rowIdentifier,
-                columnName
-        );
-        return this;
-    }
-
-    public PerformanceRequestBuilder withExcelBody(String filePath,
-                                                   String rowIdentifier,
-                                                   String columnName) {
-        this.payloadDefinition = new PerformancePayloadDefinition(
-                PayloadSourceType.EXCEL,
-                null,
-                null,
-                filePath,
-                null,
-                rowIdentifier,
-                columnName
-        );
+    public PerformanceRequestBuilder withRequestBody(String requestBody) {
+        this.requestBody = requestBody;
         return this;
     }
 
@@ -151,77 +97,57 @@ public class PerformanceRequestBuilder {
         return this;
     }
 
-    public PerformanceRequestBuilder addHeader(String key, String value) {
-        validateHeader(key, value);
-        headers.put(key, value);
-        return this;
-    }
-
-    public PerformanceRequestBuilder addHeaders(Map<String, String> inputHeaders) {
-        if (inputHeaders == null || inputHeaders.isEmpty()) {
-            return this;
-        }
-
-        for (Map.Entry<String, String> entry : inputHeaders.entrySet()) {
-            addHeader(entry.getKey(), entry.getValue());
+    public PerformanceRequestBuilder withHeader(String name, String value) {
+        if (name != null && !name.isBlank() && value != null) {
+            this.headers.put(name, value);
         }
         return this;
     }
 
-    public PerformanceRequestBuilder withBearerTokenAlias(String tokenAlias) {
-        if (tokenAlias == null || tokenAlias.isBlank()) {
-            throw new IllegalArgumentException("Token alias cannot be null or blank.");
+    public PerformanceRequestBuilder withHeaders(Map<String, String> headers) {
+        if (headers != null && !headers.isEmpty()) {
+            this.headers.putAll(headers);
         }
+        return this;
+    }
 
-        this.authStrategy = AuthStrategy.BEARER_TOKEN;
-        this.tokenAlias = tokenAlias.trim();
-        this.basicAuthUsername = null;
-        this.basicAuthPassword = null;
+    public PerformanceRequestBuilder withBearerTokenAlias(String bearerTokenAlias) {
+        this.bearerTokenAlias = bearerTokenAlias;
         return this;
     }
 
     public PerformanceRequestBuilder withBasicAuth(String username, String password) {
-        if (username == null || username.isBlank()) {
-            throw new IllegalArgumentException("Basic auth username cannot be null or blank.");
-        }
-
-        if (password == null) {
-            throw new IllegalArgumentException("Basic auth password cannot be null.");
-        }
-
-        this.authStrategy = AuthStrategy.BASIC_AUTH;
-        this.basicAuthUsername = username.trim();
+        this.basicAuthUsername = username;
         this.basicAuthPassword = password;
-        this.tokenAlias = null;
         return this;
     }
 
-    public PerformanceRequestBuilder withNoAuth() {
-        this.authStrategy = AuthStrategy.NONE;
-        this.tokenAlias = null;
-        this.basicAuthUsername = null;
-        this.basicAuthPassword = null;
+    public PerformanceRequestBuilder withYamlBodyKey(String yamlBodyKey) {
+        this.yamlBodyKey = yamlBodyKey;
+        return this;
+    }
+
+    public PerformanceRequestBuilder withCsvBody(String csvFilePath,
+                                                 String csvRowIdentifier,
+                                                 String csvColumnName) {
+        this.csvFilePath = csvFilePath;
+        this.csvRowIdentifier = csvRowIdentifier;
+        this.csvColumnName = csvColumnName;
+        return this;
+    }
+
+    public PerformanceRequestBuilder withExcelBody(String excelFilePath,
+                                                   String excelRowIdentifier,
+                                                   String excelColumnName) {
+        this.excelFilePath = excelFilePath;
+        this.excelRowIdentifier = excelRowIdentifier;
+        this.excelColumnName = excelColumnName;
         return this;
     }
 
     public PerformanceRequest build() {
-        String finalRequestBody = requestBody;
-
-        if (payloadDefinition != null) {
-            finalRequestBody = PerformancePayloadResolver.resolve(payloadDefinition);
-        }
-
-        validate(finalRequestBody);
-
-        Map<String, String> finalHeaders = new LinkedHashMap<>(headers);
-
-        if (contentType != null && !contentType.isBlank() && !finalHeaders.containsKey("Content-Type")) {
-            finalHeaders.put("Content-Type", contentType.trim());
-        }
-
-        if (acceptType != null && !acceptType.isBlank() && !finalHeaders.containsKey("Accept")) {
-            finalHeaders.put("Accept", acceptType.trim());
-        }
+        resolvePayloadIfNeeded();
+        validate();
 
         return new PerformanceRequest(
                 requestName,
@@ -229,99 +155,69 @@ public class PerformanceRequestBuilder {
                 protocol,
                 host,
                 port,
-                normalizePath(path),
-                finalRequestBody,
-                finalHeaders,
+                path,
+                requestBody,
                 contentType,
                 acceptType,
-                payloadDefinition,
-                authStrategy,
-                tokenAlias,
+                headers,
+                bearerTokenAlias,
                 basicAuthUsername,
                 basicAuthPassword
         );
     }
 
-    private void validate(String finalRequestBody) {
-        if (requestName == null || requestName.isBlank()) {
-            throw new IllegalArgumentException("Performance request validation failed: requestName cannot be null or blank.");
+    private void resolvePayloadIfNeeded() {
+        if (requestBody != null && !requestBody.isBlank()) {
+            return;
         }
 
+        if (yamlBodyKey != null && !yamlBodyKey.isBlank()) {
+            requestBody = PerformancePayloadResolver.resolveYaml(yamlBodyKey);
+            return;
+        }
+
+        if (csvFilePath != null && !csvFilePath.isBlank()) {
+            requestBody = PerformancePayloadResolver.resolveCsv(
+                    csvFilePath,
+                    csvRowIdentifier,
+                    csvColumnName
+            );
+            return;
+        }
+
+        if (excelFilePath != null && !excelFilePath.isBlank()) {
+            requestBody = PerformancePayloadResolver.resolveExcel(
+                    excelFilePath,
+                    excelRowIdentifier,
+                    excelColumnName
+            );
+        }
+    }
+
+    private void validate() {
         if (method == null || method.isBlank()) {
-            throw new IllegalArgumentException("Performance request validation failed: method cannot be null or blank.");
+            throw new IllegalArgumentException("Performance request method cannot be null or blank.");
         }
 
         if (protocol == null || protocol.isBlank()) {
-            throw new IllegalArgumentException("Performance request validation failed: protocol cannot be null or blank.");
+            throw new IllegalArgumentException("Performance request protocol cannot be null or blank.");
         }
 
         if (host == null || host.isBlank()) {
-            throw new IllegalArgumentException("Performance request validation failed: host cannot be null or blank.");
+            throw new IllegalArgumentException("Performance request host cannot be null or blank.");
         }
 
         if (port <= 0) {
-            throw new IllegalArgumentException("Performance request validation failed: port must be greater than 0.");
+            throw new IllegalArgumentException("Performance request port must be greater than 0.");
         }
 
         if (path == null || path.isBlank()) {
-            throw new IllegalArgumentException("Performance request validation failed: path cannot be null or blank.");
+            throw new IllegalArgumentException("Performance request path cannot be null or blank.");
         }
 
-        boolean bodyAllowed = isBodyAllowed(method);
-        if (!bodyAllowed && finalRequestBody != null && !finalRequestBody.isBlank()) {
-            throw new IllegalArgumentException(
-                    "Performance request validation failed: method " + method + " should not contain request body."
-            );
-        }
-
-        if (authStrategy == AuthStrategy.BEARER_TOKEN) {
-            if (tokenAlias == null || tokenAlias.isBlank()) {
-                throw new IllegalArgumentException(
-                        "Performance request validation failed: tokenAlias is required for BEARER_TOKEN strategy."
-                );
-            }
-        }
-
-        if (authStrategy == AuthStrategy.BASIC_AUTH) {
-            if (basicAuthUsername == null || basicAuthUsername.isBlank()) {
-                throw new IllegalArgumentException(
-                        "Performance request validation failed: basicAuthUsername is required for BASIC_AUTH strategy."
-                );
-            }
-
-            if (basicAuthPassword == null) {
-                throw new IllegalArgumentException(
-                        "Performance request validation failed: basicAuthPassword is required for BASIC_AUTH strategy."
-                );
-            }
-        }
-    }
-
-    private boolean isBodyAllowed(String method) {
-        String normalizedMethod = normalizeMethod(method);
-        return "POST".equals(normalizedMethod)
-                || "PUT".equals(normalizedMethod)
-                || "PATCH".equals(normalizedMethod);
-    }
-
-    private String normalizeMethod(String method) {
-        return method == null ? null : method.trim().toUpperCase();
-    }
-
-    private String normalizePath(String path) {
-        if (path == null || path.isBlank()) {
-            return path;
-        }
-        return path.startsWith("/") ? path : "/" + path.trim();
-    }
-
-    private void validateHeader(String key, String value) {
-        if (key == null || key.isBlank()) {
-            throw new IllegalArgumentException("Header name cannot be null or blank.");
-        }
-
-        if (value == null) {
-            throw new IllegalArgumentException("Header value cannot be null for header: " + key);
+        if (bearerTokenAlias != null && !bearerTokenAlias.isBlank()
+                && basicAuthUsername != null && !basicAuthUsername.isBlank()) {
+            throw new IllegalArgumentException("Performance request cannot use bearer token auth and basic auth at the same time.");
         }
     }
 }

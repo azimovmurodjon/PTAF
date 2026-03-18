@@ -1,18 +1,16 @@
 package com.ptaf.performance.models;
 
-import com.ptaf.performance.payloads.PerformancePayloadDefinition;
-
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Immutable framework-owned request model for performance execution.
+ * Framework-owned immutable request model for performance execution.
  *
- * <p>This model is intentionally independent from JMeter-specific classes.
- * It allows the framework to remain clean, reusable, and architect-controlled.</p>
+ * <p>This object is constructed only through builder layers and consumed
+ * by architect-controlled engine/test-plan classes.</p>
  */
-public final class PerformanceRequest {
+public class PerformanceRequest {
 
     private final String requestName;
     private final String method;
@@ -21,13 +19,27 @@ public final class PerformanceRequest {
     private final int port;
     private final String path;
     private final String requestBody;
-    private final Map<String, String> headers;
     private final String contentType;
     private final String acceptType;
-    private final PerformancePayloadDefinition payloadDefinition;
-    private final AuthStrategy authStrategy;
-    private final String tokenAlias;
+
+    /**
+     * Optional resolved/custom headers.
+     */
+    private final Map<String, String> headers;
+
+    /**
+     * Optional bearer token alias stored in engine token store.
+     */
+    private final String bearerTokenAlias;
+
+    /**
+     * Optional basic auth username.
+     */
     private final String basicAuthUsername;
+
+    /**
+     * Optional basic auth password.
+     */
     private final String basicAuthPassword;
 
     public PerformanceRequest(String requestName,
@@ -37,12 +49,10 @@ public final class PerformanceRequest {
                               int port,
                               String path,
                               String requestBody,
-                              Map<String, String> headers,
                               String contentType,
                               String acceptType,
-                              PerformancePayloadDefinition payloadDefinition,
-                              AuthStrategy authStrategy,
-                              String tokenAlias,
+                              Map<String, String> headers,
+                              String bearerTokenAlias,
                               String basicAuthUsername,
                               String basicAuthPassword) {
         this.requestName = requestName;
@@ -52,14 +62,12 @@ public final class PerformanceRequest {
         this.port = port;
         this.path = path;
         this.requestBody = requestBody;
+        this.contentType = contentType;
+        this.acceptType = acceptType;
         this.headers = headers == null
                 ? Collections.emptyMap()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(headers));
-        this.contentType = contentType;
-        this.acceptType = acceptType;
-        this.payloadDefinition = payloadDefinition;
-        this.authStrategy = authStrategy == null ? AuthStrategy.NONE : authStrategy;
-        this.tokenAlias = tokenAlias;
+        this.bearerTokenAlias = bearerTokenAlias;
         this.basicAuthUsername = basicAuthUsername;
         this.basicAuthPassword = basicAuthPassword;
     }
@@ -92,10 +100,6 @@ public final class PerformanceRequest {
         return requestBody;
     }
 
-    public Map<String, String> getHeaders() {
-        return headers;
-    }
-
     public String getContentType() {
         return contentType;
     }
@@ -104,16 +108,12 @@ public final class PerformanceRequest {
         return acceptType;
     }
 
-    public PerformancePayloadDefinition getPayloadDefinition() {
-        return payloadDefinition;
+    public Map<String, String> getHeaders() {
+        return headers;
     }
 
-    public AuthStrategy getAuthStrategy() {
-        return authStrategy;
-    }
-
-    public String getTokenAlias() {
-        return tokenAlias;
+    public String getBearerTokenAlias() {
+        return bearerTokenAlias;
     }
 
     public String getBasicAuthUsername() {
@@ -124,9 +124,22 @@ public final class PerformanceRequest {
         return basicAuthPassword;
     }
 
-    public enum AuthStrategy {
-        NONE,
-        BEARER_TOKEN,
-        BASIC_AUTH
+    @Override
+    public String toString() {
+        return "PerformanceRequest{" +
+                "requestName='" + requestName + '\'' +
+                ", method='" + method + '\'' +
+                ", protocol='" + protocol + '\'' +
+                ", host='" + host + '\'' +
+                ", port=" + port +
+                ", path='" + path + '\'' +
+                ", requestBody='" + requestBody + '\'' +
+                ", contentType='" + contentType + '\'' +
+                ", acceptType='" + acceptType + '\'' +
+                ", headers=" + headers +
+                ", bearerTokenAlias='" + bearerTokenAlias + '\'' +
+                ", basicAuthUsername='" + basicAuthUsername + '\'' +
+                ", basicAuthPassword='***'" +
+                '}';
     }
 }

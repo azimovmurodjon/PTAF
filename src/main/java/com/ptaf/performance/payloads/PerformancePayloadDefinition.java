@@ -30,6 +30,73 @@ public final class PerformancePayloadDefinition {
         this.columnName = columnName;
     }
 
+    public static PerformancePayloadDefinition inline(String inlineBody) {
+        return new PerformancePayloadDefinition(
+                PayloadSourceType.INLINE,
+                inlineBody,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    public static PerformancePayloadDefinition yaml(String yamlKey) {
+        return new PerformancePayloadDefinition(
+                PayloadSourceType.YAML,
+                null,
+                yamlKey,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    public static PerformancePayloadDefinition csv(String filePath,
+                                                   String rowIdentifier,
+                                                   String columnName) {
+        return new PerformancePayloadDefinition(
+                PayloadSourceType.CSV,
+                null,
+                null,
+                filePath,
+                null,
+                rowIdentifier,
+                columnName
+        );
+    }
+
+    public static PerformancePayloadDefinition excel(String filePath,
+                                                     String rowIdentifier,
+                                                     String columnName) {
+        return new PerformancePayloadDefinition(
+                PayloadSourceType.EXCEL,
+                null,
+                null,
+                filePath,
+                null,
+                rowIdentifier,
+                columnName
+        );
+    }
+
+    public static PerformancePayloadDefinition excel(String filePath,
+                                                     String sheetName,
+                                                     String rowIdentifier,
+                                                     String columnName) {
+        return new PerformancePayloadDefinition(
+                PayloadSourceType.EXCEL,
+                null,
+                null,
+                filePath,
+                sheetName,
+                rowIdentifier,
+                columnName
+        );
+    }
+
     public PayloadSourceType getSourceType() {
         return sourceType;
     }

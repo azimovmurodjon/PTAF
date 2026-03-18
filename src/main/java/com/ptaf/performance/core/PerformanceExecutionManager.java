@@ -62,7 +62,12 @@ public class PerformanceExecutionManager {
                     p95ResponseTimeMs,
                     dashboardPath == null ? null : dashboardPath.toString(),
                     jtlFilePath == null ? null : jtlFilePath.toString(),
-                    summaryFilePath == null ? null : summaryFilePath.toString()
+                    summaryFilePath == null ? null : summaryFilePath.toString(),
+                    "",     // runReportRootPath
+                    true,   // executionPassed
+                    false,  // expectedFailureMode
+                    false,  // actualFailureDetected
+                    null    // failureMessage
             );
 
         } catch (Exception e) {

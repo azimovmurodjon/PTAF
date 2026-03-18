@@ -28,6 +28,65 @@ public final class PerformancePayloadResolver {
         };
     }
 
+    /**
+     * Public wrapper for YAML payload resolution.
+     * Used by PerformanceRequestBuilder and other higher framework layers.
+     */
+    public static String resolveYaml(String yamlKey) {
+        if (yamlKey == null || yamlKey.isBlank()) {
+            throw new IllegalArgumentException("YAML payload key cannot be null or blank.");
+        }
+
+        PerformancePayloadDefinition definition = PerformancePayloadDefinition.yaml(yamlKey);
+        return resolveYaml(definition);
+    }
+
+    /**
+     * Public wrapper for CSV payload resolution.
+     * Used by PerformanceRequestBuilder and other higher framework layers.
+     */
+    public static String resolveCsv(String filePath, String rowIdentifier, String columnName) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("CSV payload file path cannot be null or blank.");
+        }
+
+        if (rowIdentifier == null || rowIdentifier.isBlank()) {
+            throw new IllegalArgumentException("CSV row identifier cannot be null or blank.");
+        }
+
+        if (columnName == null || columnName.isBlank()) {
+            throw new IllegalArgumentException("CSV column name cannot be null or blank.");
+        }
+
+        PerformancePayloadDefinition definition =
+                PerformancePayloadDefinition.csv(filePath, rowIdentifier, columnName);
+
+        return resolveCsv(definition);
+    }
+
+    /**
+     * Public wrapper for Excel payload resolution.
+     * Used by PerformanceRequestBuilder and other higher framework layers.
+     */
+    public static String resolveExcel(String filePath, String rowIdentifier, String columnName) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("Excel payload file path cannot be null or blank.");
+        }
+
+        if (rowIdentifier == null || rowIdentifier.isBlank()) {
+            throw new IllegalArgumentException("Excel row identifier cannot be null or blank.");
+        }
+
+        if (columnName == null || columnName.isBlank()) {
+            throw new IllegalArgumentException("Excel column name cannot be null or blank.");
+        }
+
+        PerformancePayloadDefinition definition =
+                PerformancePayloadDefinition.excel(filePath, rowIdentifier, columnName);
+
+        return resolveExcel(definition);
+    }
+
     private static String resolveInline(PerformancePayloadDefinition definition) {
         return definition.getInlineBody();
     }

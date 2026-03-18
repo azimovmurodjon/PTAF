@@ -43,4 +43,8 @@ public class PerformanceConfigurationProperties {
     public static String getDashboardFolder() {
         return PerformanceYamlReader.getString(ROOT + "reporting.dashboardFolder");
     }
+
+    public static String getReportsBaseDirectory() {
+        return "test-output/performance-reports";
+    }
 }

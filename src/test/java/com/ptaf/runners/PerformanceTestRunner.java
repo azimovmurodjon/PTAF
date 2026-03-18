@@ -11,7 +11,7 @@ import org.junit.runner.RunWith;
                 "html:target/performance-cucumber-report.html",
                 "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:"
         },
-        tags = "@performance_negative_testing",
+        tags = "@performance_testing",
         features = "src/test/resources/features/performance",
         glue = {"com.ptaf.stepdefinitions", "com.ptaf.hooks"}
 )
