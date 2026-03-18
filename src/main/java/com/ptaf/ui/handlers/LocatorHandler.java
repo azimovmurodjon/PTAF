@@ -9,6 +9,10 @@ import com.microsoft.playwright.options.AriaRole;
  * LocatorHandler maps locator "types" to Playwright locators for Page, FrameLocator, or chained Locator.
  * Backward-compatible with patterns like "ROW_rowElement > Button_buttonName",
  * and now also supports unnamed roles like "ROW_rowElement > Button" (first button).
+ *
+ * ONLY change from your version:
+ * - When locatorType is unknown, throw a prettier + more transparent message (exact why)
+ * - NO behavior changes for valid types
  */
 public class LocatorHandler {
 
@@ -206,7 +210,7 @@ public class LocatorHandler {
                 return page.locator("." + locator);
 
             default:
-                throw new IllegalArgumentException("Unknown locator type: " + locatorType);
+                throw new IllegalArgumentException(prettyUnknownType("Unknown locator type", locatorType, locator, "PAGE"));
         }
     }
 
@@ -308,7 +312,7 @@ public class LocatorHandler {
                 return frame.locator("." + locator);
 
             default:
-                throw new IllegalArgumentException("Unknown locator type: " + locatorType);
+                throw new IllegalArgumentException(prettyUnknownType("Unknown locator type", locatorType, locator, "FRAME"));
         }
     }
 
@@ -411,7 +415,21 @@ public class LocatorHandler {
                 return baseLocator.locator("." + locator);
 
             default:
-                throw new IllegalArgumentException("Unknown chained locator type: " + locatorType);
+                throw new IllegalArgumentException(prettyUnknownType("Unknown chained locator type", locatorType, locator, "CHAINED"));
         }
+    }
+
+    // ============================ PRETTY ERROR ============================
+
+    private String prettyUnknownType(String title, String locatorType, String locator, String context) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n========== LOCATOR TYPE FAILURE (EXACT WHY) ==========\n");
+        sb.append("Context    : ").append(context).append("\n");
+        sb.append("Title      : ").append(title).append("\n");
+        sb.append("Type       : ").append(locatorType).append("\n");
+        sb.append("Locator    : ").append(locator).append("\n");
+        sb.append("Hint       : Check YAML token TYPE_value. Example: CSS_.class OR XPATH_//div\n");
+        sb.append("=====================================================\n");
+        return sb.toString();
     }
 }

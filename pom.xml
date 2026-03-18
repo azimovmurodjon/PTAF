@@ -103,9 +103,19 @@
         </dependency>
 
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>1.7.30</version>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>2.20.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.20.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-1.2-api</artifactId>
+            <version>2.20.0</version>
         </dependency>
 
         <dependency>
@@ -138,6 +148,7 @@
             <version>1.18.24</version>
             <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
@@ -145,6 +156,17 @@
             <scope>compile</scope>
         </dependency>
 
+        <dependency>
+            <groupId>us.abstracta.jmeter</groupId>
+            <artifactId>jmeter-java-dsl</artifactId>
+            <version>1.29.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>us.abstracta.jmeter</groupId>
+            <artifactId>jmeter-java-dsl-dashboard</artifactId>
+            <version>1.29.1</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -167,60 +189,14 @@
                 <version>3.1.2</version>
                 <configuration>
                     <includes>
-                        <include>**/Regression_Runner.java</include>
+<!--                        <include>**/Regression_Runner.java</include>-->
+                        <include>**/PerformanceTestRunner.java</include>
                     </includes>
                     <parallel>methods</parallel>
                     <threadCount>4</threadCount>
                     <useUnlimitedThreads>false</useUnlimitedThreads>
                 </configuration>
             </plugin>
-
-            <!-- Surefire Plugin for Running Tests -->
-<!--            <plugin>-->
-<!--                <groupId>org.apache.maven.plugins</groupId>-->
-<!--                <artifactId>maven-surefire-plugin</artifactId>-->
-<!--                <version>2.22.2</version>-->
-<!--                <configuration>-->
-<!--                    <suiteXmlFiles>-->
-<!--                        <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>-->
-<!--                    </suiteXmlFiles>-->
-<!--                    <parallel>methods</parallel>-->
-<!--                    <threadCount>4</threadCount>-->
-<!--                    <useUnlimitedThreads>false</useUnlimitedThreads>-->
-
-<!--                    <systemPropertyVariables>-->
-<!--                        <cucumber.plugin>json:target/cucumber-reports/cucumber.json, junit:target/cucumber-reports/cucumber.xml</cucumber.plugin>-->
-<!--                        <cucumber.options>&#45;&#45;plugin json:target/cucumber-reports/cucumber.json &#45;&#45;plugin junit:target/cucumber-reports/cucumber.xml</cucumber.options>-->
-<!--                    </systemPropertyVariables>-->
-
-<!--                    <reportsDirectory>target/surefire-reports</reportsDirectory>-->
-<!--                    <useFile>true</useFile>  &lt;!&ndash; Ensures XML TestNG reports are generated &ndash;&gt;-->
-<!--                </configuration>-->
-<!--            </plugin>-->
-
-            <!-- Cucumber Reporting Plugin -->
-<!--            <plugin>-->
-<!--                <groupId>net.masterthought</groupId>-->
-<!--                <artifactId>maven-cucumber-reporting</artifactId>-->
-<!--                <version>5.0.0</version>-->
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <id>generate-cucumber-reports</id>-->
-<!--                        <phase>verify</phase>-->
-<!--                        <goals>-->
-<!--                            <goal>generate</goal>-->
-<!--                        </goals>-->
-<!--                        <configuration>-->
-<!--                            <projectName>FNB PTAF</projectName>-->
-<!--                            <outputDirectory>target/cucumber-reports</outputDirectory>-->
-<!--                            <jsonFiles>-->
-<!--                                <param>target/cucumber-reports/cucumber.json</param>-->
-<!--                            </jsonFiles>-->
-<!--                        </configuration>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-<!--            </plugin>-->
-
         </plugins>
     </build>
 

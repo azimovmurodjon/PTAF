@@ -171,6 +171,15 @@ public class PageCommonSteps {
         Thread.sleep(3000);
     }
 
+    @And("^time out for (.*?) seconds$")
+    public void timeOutFoSeconds(String time_to_wait) throws InterruptedException {
+        // Convert the string to an integer representing seconds
+        int seconds = Integer.parseInt(time_to_wait);
+
+        // Wait for the specified number of seconds (converted to milliseconds)
+        Thread.sleep(seconds * 1000L);
+    }
+
     @Then("^Stop Execution")
     public void stopExecution() throws Exception
     {

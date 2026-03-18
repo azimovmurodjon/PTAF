@@ -8,17 +8,60 @@ public class ElementLocatorHelper {
     private static final Logger logger = LoggerFactory.getLogger(ElementLocatorHelper.class);
 
     public String getElement(String element, String key) {
+        String fullKey = "elements." + element + "." + key;
+
         try {
-            Object raw = YamlReader.get("elements." + element + "." + key);
+            Object raw = YamlReader.get(fullKey);
             if (raw == null) {
-                throw new IllegalArgumentException("YAML value is null for elements." + element + "." + key);
+                String msg = buildCleanYamlError(
+                        "YAML LOCATOR NOT FOUND",
+                        fullKey,
+                        element,
+                        key,
+                        "Value is null (missing key or wrong path)"
+                );
+                logger.error(msg);
+                throw new IllegalArgumentException("YAML value is null for " + fullKey);
             }
+
             return String.valueOf(raw);
+
         } catch (Exception e) {
-            logger.error("Failed to retrieve YAML for elements.{}.{}: {}", element, key, e.getMessage());
+            String msg = buildCleanYamlError(
+                    "YAML LOCATOR FAILURE",
+                    fullKey,
+                    element,
+                    key,
+                    e.getClass().getSimpleName() + ": " + e.getMessage()
+            );
+
+            logger.error(msg, e);
             throw e;
         }
     }
+
+    // =========================
+    // Clean professional formatter (no ASCII boxes)
+    // =========================
+    private String buildCleanYamlError(String title,
+                                       String fullPath,
+                                       String element,
+                                       String key,
+                                       String reason) {
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n========== ").append(title).append(" ==========\n");
+        sb.append("Element   : ").append(element).append("\n");
+        sb.append("Key       : ").append(key).append("\n");
+        sb.append("FullPath  : ").append(fullPath).append("\n");
+        sb.append("Reason    : ").append(reason).append("\n");
+        sb.append("============================================\n");
+        return sb.toString();
+    }
+
+    // =========================
+    // Original logic (unchanged)
+    // =========================
 
     /** TYPE from "TYPE_value" or "TYPE value" or just "TYPE" */
     public String getLocatorType(String part) {

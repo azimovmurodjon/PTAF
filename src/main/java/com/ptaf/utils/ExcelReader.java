@@ -18,7 +18,11 @@ public class ExcelReader {
             Iterator<Row> rowIterator = sheet.iterator();
 
             if (!rowIterator.hasNext()) {
-                logger.warning("The sheet is empty. No rows found.");
+                logger.warning(buildExcelPrettyError(
+                        "EXCEL SHEET IS EMPTY",
+                        filePath, testCaseName, columnName,
+                        "No rows found in the sheet"
+                ));
                 return null;
             }
 
@@ -30,7 +34,11 @@ public class ExcelReader {
             }
 
             if (!headerMap.containsKey(columnName)) {
-                logger.warning("Column name '" + columnName + "' not found in header row.");
+                logger.warning(buildExcelPrettyError(
+                        "COLUMN NOT FOUND",
+                        filePath, testCaseName, columnName,
+                        "Column does not exist in header row"
+                ));
                 return null;
             }
 
@@ -45,20 +53,56 @@ public class ExcelReader {
                         if (targetCell != null) {
                             return targetCell.toString();
                         } else {
-                            logger.warning("Target cell is null for test case '" + testCaseName + "' and column '" + columnName + "'.");
+                            logger.warning(buildExcelPrettyError(
+                                    "TARGET CELL IS NULL",
+                                    filePath, testCaseName, columnName,
+                                    "Row exists but cell is empty/null"
+                            ));
                             return null;
                         }
                     } else {
-                        logger.warning("Column index for '" + columnName + "' is null.");
+                        logger.warning(buildExcelPrettyError(
+                                "COLUMN INDEX IS NULL",
+                                filePath, testCaseName, columnName,
+                                "Header map returned null index"
+                        ));
                         return null;
                     }
                 }
             }
 
-            logger.warning("Test case name '" + testCaseName + "' not found in the sheet.");
+            logger.warning(buildExcelPrettyError(
+                    "TEST CASE NOT FOUND",
+                    filePath, testCaseName, columnName,
+                    "No row matched the given test case name"
+            ));
+
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Exception occurred while reading Excel file: " + e.getMessage(), e);
+            logger.log(Level.SEVERE, buildExcelPrettyError(
+                    "EXCEL READ FAILURE",
+                    filePath, testCaseName, columnName,
+                    e.getClass().getSimpleName() + ": " + e.getMessage()
+            ), e);
         }
         return null;
+    }
+
+    // ============================================================
+    // Same clean professional formatter used in ExcelWriter
+    // ============================================================
+    private static String buildExcelPrettyError(String title,
+                                                String filePath,
+                                                String testCaseName,
+                                                String columnName,
+                                                String reason) {
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n========== ").append(title).append(" (EXACT WHY) ==========\n");
+        sb.append("FilePath  : ").append(filePath).append("\n");
+        sb.append("TestCase  : ").append(testCaseName).append("\n");
+        sb.append("Column    : ").append(columnName).append("\n");
+        sb.append("Reason    : ").append(reason).append("\n");
+        sb.append("===========================================================\n");
+        return sb.toString();
     }
 }

@@ -1,4 +1,4 @@
-package com.ptaf.api.stepdefinitions;
+package com.ptaf.stepdefinitions;
 
 import com.ptaf.api.methods.ApiCommonMethods;
 import io.cucumber.java.en.And;
