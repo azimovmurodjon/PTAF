@@ -42,6 +42,20 @@ public class PerformanceRequest {
      */
     private final String basicAuthPassword;
 
+    /**
+     * Human-readable payload source type.
+     * Examples: Inline JSON, YAML, CSV, Excel, No Payload
+     */
+    private final String payloadSourceType;
+
+    /**
+     * Human-readable payload source details.
+     * Examples:
+     * YAML key: performance.payloads.createCustomer
+     * CSV file: data.csv, row: row1, column: requestBody
+     */
+    private final String payloadSourceDetails;
+
     public PerformanceRequest(String requestName,
                               String method,
                               String protocol,
@@ -54,7 +68,9 @@ public class PerformanceRequest {
                               Map<String, String> headers,
                               String bearerTokenAlias,
                               String basicAuthUsername,
-                              String basicAuthPassword) {
+                              String basicAuthPassword,
+                              String payloadSourceType,
+                              String payloadSourceDetails) {
         this.requestName = requestName;
         this.method = method;
         this.protocol = protocol;
@@ -70,6 +86,8 @@ public class PerformanceRequest {
         this.bearerTokenAlias = bearerTokenAlias;
         this.basicAuthUsername = basicAuthUsername;
         this.basicAuthPassword = basicAuthPassword;
+        this.payloadSourceType = payloadSourceType;
+        this.payloadSourceDetails = payloadSourceDetails;
     }
 
     public String getRequestName() {
@@ -124,6 +142,14 @@ public class PerformanceRequest {
         return basicAuthPassword;
     }
 
+    public String getPayloadSourceType() {
+        return payloadSourceType;
+    }
+
+    public String getPayloadSourceDetails() {
+        return payloadSourceDetails;
+    }
+
     @Override
     public String toString() {
         return "PerformanceRequest{" +
@@ -140,6 +166,8 @@ public class PerformanceRequest {
                 ", bearerTokenAlias='" + bearerTokenAlias + '\'' +
                 ", basicAuthUsername='" + basicAuthUsername + '\'' +
                 ", basicAuthPassword='***'" +
+                ", payloadSourceType='" + payloadSourceType + '\'' +
+                ", payloadSourceDetails='" + payloadSourceDetails + '\'' +
                 '}';
     }
 }

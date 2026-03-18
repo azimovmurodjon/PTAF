@@ -1,7 +1,5 @@
 package com.ptaf.performance.reports;
 
-import com.ptaf.performance.utils.PerformancePathResolver;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,15 +7,12 @@ import java.nio.file.Path;
 /**
  * Centralized report manager for all performance execution artifacts.
  *
- * <p>This class is framework-owned and ensures that performance-related
- * folders and output files are handled in a consistent enterprise-grade way.</p>
- *
- * <p>Responsibilities:
+ * <p>This class is framework-owned and supports the current PTAF reporting model:
  * <ul>
- *   <li>Create and validate report/output directories</li>
- *   <li>Provide standardized dashboard paths</li>
- *   <li>Provide standardized raw result file paths</li>
- *   <li>Provide standardized summary file paths</li>
+ *   <li>one shared run-level root folder per execution</li>
+ *   <li>one scenario-level subfolder per performance scenario</li>
+ *   <li>technical and readable summaries inside each scenario folder</li>
+ *   <li>aggregate run-level files inside the run root folder</li>
  * </ul>
  * </p>
  *
@@ -27,64 +22,121 @@ import java.nio.file.Path;
 public class PerformanceReportManager {
 
     /**
-     * Ensures that all base performance reporting folders exist before execution.
+     * Ensures the run root folder exists.
+     *
+     * @param runRootPath shared run-level folder
      */
-    public void ensureReportFoldersExist() {
-        createDirectoryIfMissing(PerformancePathResolver.getResultsRootPath());
-        createDirectoryIfMissing(PerformancePathResolver.getDashboardRootPath());
+    public void ensureRunRootExists(Path runRootPath) {
+        validatePath(runRootPath, "Run root path cannot be null.");
+        createDirectoryIfMissing(runRootPath);
     }
 
     /**
-     * Builds and creates a unique dashboard folder path for a given test execution.
+     * Ensures the scenario root folder exists.
      *
-     * @param testName logical performance test name
-     * @return created dashboard folder path
+     * @param scenarioRootPath scenario-level folder
      */
-    public Path prepareDashboardPath(String testName) {
-        Path dashboardPath = PerformancePathResolver.buildDashboardPath(testName);
+    public void ensureScenarioRootExists(Path scenarioRootPath) {
+        validatePath(scenarioRootPath, "Scenario root path cannot be null.");
+        createDirectoryIfMissing(scenarioRootPath);
+    }
+
+    /**
+     * Returns dashboard folder path inside a scenario folder and ensures it exists.
+     *
+     * @param scenarioRootPath scenario-level folder
+     * @return dashboard folder path
+     */
+    public Path prepareDashboardPath(Path scenarioRootPath) {
+        validatePath(scenarioRootPath, "Scenario root path cannot be null.");
+
+        Path dashboardPath = scenarioRootPath.resolve("dashboard");
         createDirectoryIfMissing(dashboardPath);
         return dashboardPath;
     }
 
     /**
-     * Builds a standardized JTL file path for the test execution.
+     * Returns JTL file path inside a scenario folder.
      *
-     * <p>The file itself is not created here. Only the parent folder is ensured.</p>
-     *
-     * @param testName logical performance test name
+     * @param scenarioRootPath scenario-level folder
      * @return JTL file path
      */
-    public Path prepareJtlFilePath(String testName) {
-        Path jtlFilePath = PerformancePathResolver.buildJtlFilePath(testName);
+    public Path prepareJtlFilePath(Path scenarioRootPath) {
+        validatePath(scenarioRootPath, "Scenario root path cannot be null.");
+
+        Path jtlFilePath = scenarioRootPath.resolve("results.jtl");
         createParentDirectoryIfMissing(jtlFilePath);
         return jtlFilePath;
     }
 
     /**
-     * Builds a standardized summary file path for the test execution.
+     * Returns technical summary file path inside a scenario folder.
      *
-     * <p>The file itself is not created here. Only the parent folder is ensured.</p>
-     *
-     * @param testName logical performance test name
-     * @return summary file path
+     * @param scenarioRootPath scenario-level folder
+     * @return technical summary file path
      */
-    public Path prepareSummaryFilePath(String testName) {
-        Path summaryFilePath = PerformancePathResolver.buildSummaryFilePath(testName);
+    public Path prepareSummaryFilePath(Path scenarioRootPath) {
+        validatePath(scenarioRootPath, "Scenario root path cannot be null.");
+
+        Path summaryFilePath = scenarioRootPath.resolve("summary.txt");
         createParentDirectoryIfMissing(summaryFilePath);
         return summaryFilePath;
     }
 
     /**
-     * Builds a standardized raw results base path for future extensions
-     * such as CSV, JSON, or custom export files.
+     * Returns readable summary file path inside a scenario folder.
      *
-     * @param testName logical performance test name
-     * @return raw result base path
+     * @param scenarioRootPath scenario-level folder
+     * @return readable summary file path
      */
-    public Path prepareResultFileBasePath(String testName) {
-        Path resultBasePath = PerformancePathResolver.buildResultFileBasePath(testName);
-        createParentDirectoryIfMissing(resultBasePath);
-        return resultBasePath;
+    public Path prepareReadableSummaryFilePath(Path scenarioRootPath) {
+        validatePath(scenarioRootPath, "Scenario root path cannot be null.");
+
+        Path readableSummaryFilePath = scenarioRootPath.resolve("readable-summary.txt");
+        createParentDirectoryIfMissing(readableSummaryFilePath);
+        return readableSummaryFilePath;
+    }
+
+    /**
+     * Returns run-level technical aggregate summary path.
+     *
+     * @param runRootPath shared run-level folder
+     * @return run summary file path
+     */
+    public Path prepareRunSummaryFilePath(Path runRootPath) {
+        validatePath(runRootPath, "Run root path cannot be null.");
+
+        Path runSummaryFilePath = runRootPath.resolve("run-summary.txt");
+        createParentDirectoryIfMissing(runSummaryFilePath);
+        return runSummaryFilePath;
+    }
+
+    /**
+     * Returns run-level readable aggregate summary path.
+     *
+     * @param runRootPath shared run-level folder
+     * @return readable run summary file path
+     */
+    public Path prepareReadableRunSummaryFilePath(Path runRootPath) {
+        validatePath(runRootPath, "Run root path cannot be null.");
+
+        Path readableRunSummaryFilePath = runRootPath.resolve("run-readable-summary.txt");
+        createParentDirectoryIfMissing(readableRunSummaryFilePath);
+        return readableRunSummaryFilePath;
+    }
+
+    /**
+     * Returns run-level index file path.
+     *
+     * @param runRootPath shared run-level folder
+     * @return run index file path
+     */
+    public Path prepareRunIndexFilePath(Path runRootPath) {
+        validatePath(runRootPath, "Run root path cannot be null.");
+
+        Path runIndexFilePath = runRootPath.resolve("run-index.txt");
+        createParentDirectoryIfMissing(runIndexFilePath);
+        return runIndexFilePath;
     }
 
     /**
@@ -112,6 +164,18 @@ public class PerformanceReportManager {
         Path parent = filePath.getParent();
         if (parent != null) {
             createDirectoryIfMissing(parent);
+        }
+    }
+
+    /**
+     * Validates incoming path.
+     *
+     * @param path path to validate
+     * @param message exception message
+     */
+    private void validatePath(Path path, String message) {
+        if (path == null) {
+            throw new IllegalArgumentException(message);
         }
     }
 }

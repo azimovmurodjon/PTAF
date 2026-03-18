@@ -1,7 +1,5 @@
 package com.ptaf.performance.utils;
 
-import com.ptaf.performance.config.PerformanceConfigurationProperties;
-
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
@@ -11,48 +9,28 @@ import java.util.Locale;
 /**
  * Resolves standardized output paths for the Performance Engine.
  *
- * <p>This class is architect-controlled and ensures that all reports,
- * dashboards, raw result files, and future performance artifacts are
- * created in a single standardized structure.</p>
- *
- * <p>Advantages:
+ * <p>This version is aligned with the current PTAF reporting structure:
  * <ul>
- *   <li>Prevents hardcoded folder duplication across classes</li>
- *   <li>Improves maintainability and consistency</li>
- *   <li>Allows future expansion for CSV, JTL, JSON, and summary outputs</li>
+ *   <li>one run-level root folder per execution</li>
+ *   <li>one scenario-level subfolder per scenario</li>
+ *   <li>fixed artifact names within each scenario folder</li>
+ *   <li>aggregate run-level files inside the run root folder</li>
  * </ul>
  * </p>
  */
 public final class PerformancePathResolver {
 
-
     private static final DateTimeFormatter TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("dd-MMM-yy_HH-mm-ss", Locale.ENGLISH);
+
+    private static final String DEFAULT_REPORTS_BASE_DIR = "test-output-performance-reports";
 
     private PerformancePathResolver() {
         // Utility class
     }
 
     /**
-     * Returns the base results folder configured for performance execution.
-     *
-     * @return base results folder path
-     */
-    public static Path getResultsRootPath() {
-        return Paths.get(PerformanceConfigurationProperties.getResultsFolder());
-    }
-
-    /**
-     * Returns the base dashboard folder configured for performance reporting.
-     *
-     * @return base dashboard folder path
-     */
-    public static Path getDashboardRootPath() {
-        return Paths.get(PerformanceConfigurationProperties.getDashboardFolder());
-    }
-
-    /**
-     * Builds a unique timestamp string for folder/file creation.
+     * Builds a timestamp string used for the shared run folder.
      *
      * @return formatted execution timestamp
      */
@@ -61,67 +39,149 @@ public final class PerformancePathResolver {
     }
 
     /**
-     * Builds a unique dashboard path for a specific test run.
+     * Returns the default base reports directory.
      *
-     * @param testName logical test name
-     * @return dashboard folder path
+     * @return base reports root path
      */
-    public static Path buildDashboardPath(String testName) {
-        return getDashboardRootPath().resolve(buildSafeExecutionName(testName));
+    public static Path getReportsBaseDirectory() {
+        return Paths.get(DEFAULT_REPORTS_BASE_DIR);
     }
 
     /**
-     * Builds a unique raw results file path for a specific test run.
-     * This is useful for future JTL or CSV result storage.
+     * Builds the shared run root folder path.
      *
-     * @param testName logical test name
-     * @return results file path without extension
+     * @param runFolderName generated run folder name
+     * @return run root path
      */
-    public static Path buildResultFileBasePath(String testName) {
-        return getResultsRootPath().resolve(buildSafeExecutionName(testName));
+    public static Path buildRunRootPath(String runFolderName) {
+        validateText(runFolderName, "Run folder name cannot be null or blank.");
+        return getReportsBaseDirectory().resolve(runFolderName);
     }
 
     /**
-     * Builds a unique JTL path for the performance run.
+     * Builds a scenario folder path inside the run root folder.
      *
+     * @param runRootPath run root path
+     * @param scenarioSequence scenario sequence number
      * @param testName logical test name
-     * @return JTL result file path
+     * @return scenario root path
      */
-    public static Path buildJtlFilePath(String testName) {
-        return getResultsRootPath().resolve(buildSafeExecutionName(testName) + ".jtl");
+    public static Path buildScenarioRootPath(Path runRootPath,
+                                             int scenarioSequence,
+                                             String testName) {
+        validatePath(runRootPath, "Run root path cannot be null.");
+
+        String safeScenarioName = String.format(
+                "%02d_%s",
+                scenarioSequence,
+                buildSafeScenarioName(testName)
+        );
+
+        return runRootPath.resolve(safeScenarioName);
     }
 
     /**
-     * Builds a unique summary file path for future aggregated reporting.
+     * Builds dashboard folder path inside a scenario folder.
      *
-     * @param testName logical test name
-     * @return summary txt file path
+     * @param scenarioRootPath scenario root path
+     * @return dashboard path
      */
-    public static Path buildSummaryFilePath(String testName) {
-        return getResultsRootPath().resolve(buildSafeExecutionName(testName) + "_summary.txt");
+    public static Path buildDashboardPath(Path scenarioRootPath) {
+        validatePath(scenarioRootPath, "Scenario root path cannot be null.");
+        return scenarioRootPath.resolve("dashboard");
     }
 
     /**
-     * Creates a safe standardized execution name from the incoming test name.
+     * Builds JTL file path inside a scenario folder.
      *
-     * <p>Rules:
-     * <ul>
-     *   <li>trims spaces</li>
-     *   <li>replaces invalid/special characters with underscore</li>
-     *   <li>appends timestamp for uniqueness</li>
-     * </ul>
-     * </p>
+     * @param scenarioRootPath scenario root path
+     * @return JTL file path
+     */
+    public static Path buildJtlFilePath(Path scenarioRootPath) {
+        validatePath(scenarioRootPath, "Scenario root path cannot be null.");
+        return scenarioRootPath.resolve("results.jtl");
+    }
+
+    /**
+     * Builds technical summary file path inside a scenario folder.
+     *
+     * @param scenarioRootPath scenario root path
+     * @return summary file path
+     */
+    public static Path buildSummaryFilePath(Path scenarioRootPath) {
+        validatePath(scenarioRootPath, "Scenario root path cannot be null.");
+        return scenarioRootPath.resolve("summary.txt");
+    }
+
+    /**
+     * Builds readable summary file path inside a scenario folder.
+     *
+     * @param scenarioRootPath scenario root path
+     * @return readable summary file path
+     */
+    public static Path buildReadableSummaryFilePath(Path scenarioRootPath) {
+        validatePath(scenarioRootPath, "Scenario root path cannot be null.");
+        return scenarioRootPath.resolve("readable-summary.txt");
+    }
+
+    /**
+     * Builds run-level technical summary file path.
+     *
+     * @param runRootPath run root path
+     * @return run summary path
+     */
+    public static Path buildRunSummaryFilePath(Path runRootPath) {
+        validatePath(runRootPath, "Run root path cannot be null.");
+        return runRootPath.resolve("run-summary.txt");
+    }
+
+    /**
+     * Builds run-level readable summary file path.
+     *
+     * @param runRootPath run root path
+     * @return readable run summary path
+     */
+    public static Path buildReadableRunSummaryFilePath(Path runRootPath) {
+        validatePath(runRootPath, "Run root path cannot be null.");
+        return runRootPath.resolve("run-readable-summary.txt");
+    }
+
+    /**
+     * Builds run-level index file path.
+     *
+     * @param runRootPath run root path
+     * @return run index path
+     */
+    public static Path buildRunIndexFilePath(Path runRootPath) {
+        validatePath(runRootPath, "Run root path cannot be null.");
+        return runRootPath.resolve("run-index.txt");
+    }
+
+    /**
+     * Creates a safe scenario folder name from the test name.
      *
      * @param testName logical test name
-     * @return sanitized execution name
+     * @return sanitized scenario name
      */
-    public static String buildSafeExecutionName(String testName) {
+    public static String buildSafeScenarioName(String testName) {
         String safeName = testName == null || testName.trim().isEmpty()
                 ? "performance_test"
                 : testName.trim()
                 .replaceAll("[^a-zA-Z0-9._-]", "_")
                 .replaceAll("_+", "_");
 
-        return safeName + "_" + buildExecutionTimestamp();
+        return safeName;
+    }
+
+    private static void validatePath(Path path, String message) {
+        if (path == null) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private static void validateText(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(message);
+        }
     }
 }

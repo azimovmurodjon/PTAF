@@ -30,10 +30,7 @@ import static us.abstracta.jmeter.javadsl.JmeterDsl.threadGroup;
 public class PerformanceTestPlanBuilder {
 
     /**
-     * New overload matching the updated engine call.
-     *
-     * <p>It resolves headers internally from request + token store, then delegates
-     * to the existing Path-based builder.</p>
+     * Overload used by PerformanceEngine.
      */
     public DslTestPlan buildHttpTestPlan(PerformanceRequest request,
                                          PerformanceProfile profile,
@@ -58,13 +55,6 @@ public class PerformanceTestPlanBuilder {
 
     /**
      * Builds a complete HTTP test plan using already-resolved headers.
-     *
-     * @param request request definition
-     * @param profile execution profile
-     * @param resolvedHeaders fully resolved headers including auth and defaults
-     * @param dashboardPath dashboard output path
-     * @param jtlFilePath jtl output path
-     * @return prepared test plan
      */
     public DslTestPlan buildHttpTestPlan(PerformanceRequest request,
                                          PerformanceProfile profile,
@@ -149,7 +139,7 @@ public class PerformanceTestPlanBuilder {
         DslHttpSampler sampler = httpSampler(samplerName, fullUrl)
                 .method(method);
 
-        if (hasBody(requestBody)) {
+        if (hasBody(requestBody) && allowsBody(method)) {
             sampler = sampler
                     .contentType(resolveContentType(request.getContentType()))
                     .body(requestBody);
@@ -224,6 +214,10 @@ public class PerformanceTestPlanBuilder {
 
     private boolean hasBody(String requestBody) {
         return requestBody != null && !requestBody.isBlank();
+    }
+
+    private boolean allowsBody(String method) {
+        return "POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method);
     }
 
     private String normalizeMethod(String method) {

@@ -162,7 +162,9 @@ public class PerformanceRequestBuilder {
                 headers,
                 bearerTokenAlias,
                 basicAuthUsername,
-                basicAuthPassword
+                basicAuthPassword,
+                resolvePayloadSourceType(),
+                resolvePayloadSourceDetails()
         );
     }
 
@@ -194,6 +196,63 @@ public class PerformanceRequestBuilder {
         }
     }
 
+    private String resolvePayloadSourceType() {
+        String normalizedMethod = method == null ? "" : method.trim().toUpperCase();
+
+        if (yamlBodyKey != null && !yamlBodyKey.isBlank()) {
+            return "YAML";
+        }
+
+        if (csvFilePath != null && !csvFilePath.isBlank()) {
+            return "CSV";
+        }
+
+        if (excelFilePath != null && !excelFilePath.isBlank()) {
+            return "Excel";
+        }
+
+        if (requestBody != null && !requestBody.isBlank()) {
+            return "Inline JSON";
+        }
+
+        if ("GET".equals(normalizedMethod) || "DELETE".equals(normalizedMethod)) {
+            return "No Payload";
+        }
+
+        return "Unknown";
+    }
+
+    private String resolvePayloadSourceDetails() {
+        String normalizedMethod = method == null ? "" : method.trim().toUpperCase();
+
+        if (yamlBodyKey != null && !yamlBodyKey.isBlank()) {
+            return "YAML key: " + yamlBodyKey;
+        }
+
+        if (csvFilePath != null && !csvFilePath.isBlank()) {
+            return "CSV file: " + csvFilePath
+                    + ", row: " + safe(csvRowIdentifier)
+                    + ", column: " + safe(csvColumnName);
+        }
+
+        if (excelFilePath != null && !excelFilePath.isBlank()) {
+            return "Excel file: " + excelFilePath
+                    + ", row: " + safe(excelRowIdentifier)
+                    + ", column: " + safe(excelColumnName);
+        }
+
+        if (requestBody != null && !requestBody.isBlank()) {
+            String trimmed = requestBody.trim();
+            return trimmed.length() > 120 ? trimmed.substring(0, 120) + "..." : trimmed;
+        }
+
+        if ("GET".equals(normalizedMethod) || "DELETE".equals(normalizedMethod)) {
+            return "Request type does not require a body payload.";
+        }
+
+        return "Payload details not available.";
+    }
+
     private void validate() {
         if (method == null || method.isBlank()) {
             throw new IllegalArgumentException("Performance request method cannot be null or blank.");
@@ -219,5 +278,9 @@ public class PerformanceRequestBuilder {
                 && basicAuthUsername != null && !basicAuthUsername.isBlank()) {
             throw new IllegalArgumentException("Performance request cannot use bearer token auth and basic auth at the same time.");
         }
+    }
+
+    private String safe(String value) {
+        return value == null || value.isBlank() ? "N/A" : value;
     }
 }

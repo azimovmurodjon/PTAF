@@ -10,6 +10,9 @@ import com.ptaf.performance.models.PerformanceRequest;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 /**
  * High-level performance step definitions.
  *
@@ -385,7 +388,7 @@ public class PerformanceSteps {
     }
 
     // ============================================================
-    // EXPECTED FAILURE EXECUTION - ADDED ONLY
+    // EXPECTED FAILURE EXECUTION
     // ============================================================
 
     @When("^we run GET performance test expecting failure for path \"(.*?)\" with name \"(.*?)\"$")
@@ -433,8 +436,13 @@ public class PerformanceSteps {
     }
 
     // ============================================================
-    // POSITIVE VALIDATIONS
+    // CORE FILE / RESULT VALIDATIONS
     // ============================================================
+
+    @Then("^performance result should be available$")
+    public void performanceResultShouldBeAvailable() {
+        assertResultAvailable();
+    }
 
     @Then("^performance dashboard path should be generated$")
     public void performanceDashboardPathShouldBeGenerated() {
@@ -442,15 +450,16 @@ public class PerformanceSteps {
         assertNotBlank(latestResult.getDashboardPath(), "Performance dashboard path was not generated.");
     }
 
-    @Then("^performance result should be available$")
-    public void performanceResultShouldBeAvailable() {
-        assertResultAvailable();
-    }
-
     @Then("^performance summary file path should be generated$")
     public void performanceSummaryFilePathShouldBeGenerated() {
         assertResultAvailable();
         assertNotBlank(latestResult.getSummaryFilePath(), "Performance summary file path was not generated.");
+    }
+
+    @Then("^performance readable summary file path should be generated$")
+    public void performanceReadableSummaryFilePathShouldBeGenerated() {
+        assertResultAvailable();
+        assertNotBlank(latestResult.getReadableSummaryFilePath(), "Performance readable summary file path was not generated.");
     }
 
     @Then("^performance jtl file path should be generated$")
@@ -465,6 +474,20 @@ public class PerformanceSteps {
         assertNotBlank(latestResult.getRunReportRootPath(), "Performance run report root path was not generated.");
     }
 
+    @Then("^performance excel report should be generated$")
+    public void performanceExcelReportShouldBeGenerated() {
+        assertResultAvailable();
+
+        Path excelReportPath = Path.of(latestResult.getRunReportRootPath(), "performance-run-report.xlsx");
+        if (!Files.exists(excelReportPath)) {
+            throw new AssertionError("Performance Excel report was not generated at path: " + excelReportPath);
+        }
+    }
+
+    // ============================================================
+    // EXECUTION / STATUS VALIDATIONS
+    // ============================================================
+
     @Then("^performance execution should pass$")
     public void performanceExecutionShouldPass() {
         assertResultAvailable();
@@ -476,54 +499,6 @@ public class PerformanceSteps {
             );
         }
     }
-
-    @Then("^performance average response time should be less than (\\d+) ms$")
-    public void performanceAverageResponseTimeShouldBeLessThan(long maxAverageResponseTime) {
-        assertResultAvailable();
-
-        if (latestResult.getAverageResponseTimeMs() > maxAverageResponseTime) {
-            throw new AssertionError(
-                    "Average response time validation failed. Actual: "
-                            + latestResult.getAverageResponseTimeMs()
-                            + " ms, Expected less than: "
-                            + maxAverageResponseTime
-                            + " ms"
-            );
-        }
-    }
-
-    @Then("^performance error percentage should be less than (\\d+(?:\\.\\d+)?)$")
-    public void performanceErrorPercentageShouldBeLessThan(double maxErrorPercentage) {
-        assertResultAvailable();
-
-        if (latestResult.getErrorPercent() > maxErrorPercentage) {
-            throw new AssertionError(
-                    "Error percentage validation failed. Actual: "
-                            + latestResult.getErrorPercent()
-                            + ", Expected less than: "
-                            + maxErrorPercentage
-            );
-        }
-    }
-
-    @Then("^performance p95 response time should be less than (\\d+) ms$")
-    public void performanceP95ResponseTimeShouldBeLessThan(long maxP95ResponseTime) {
-        assertResultAvailable();
-
-        if (latestResult.getP95ResponseTimeMs() > maxP95ResponseTime) {
-            throw new AssertionError(
-                    "P95 response time validation failed. Actual: "
-                            + latestResult.getP95ResponseTimeMs()
-                            + " ms, Expected less than: "
-                            + maxP95ResponseTime
-                            + " ms"
-            );
-        }
-    }
-
-    // ============================================================
-    // NEGATIVE / FAILURE VALIDATIONS - ADDED ONLY
-    // ============================================================
 
     @Then("^performance execution should fail$")
     public void performanceExecutionShouldFail() {
@@ -543,16 +518,62 @@ public class PerformanceSteps {
         }
     }
 
-    @Then("^performance total errors should be greater than (\\d+)$")
-    public void performanceTotalErrorsShouldBeGreaterThan(long expectedMinimumErrors) {
+    @Then("^performance failure message should contain \"(.*?)\"$")
+    public void performanceFailureMessageShouldContain(String expectedText) {
         assertResultAvailable();
 
-        if (latestResult.getTotalErrors() <= expectedMinimumErrors) {
+        String actualMessage = latestResult.getFailureMessage();
+        if (actualMessage == null || !actualMessage.contains(expectedText)) {
             throw new AssertionError(
-                    "Expected total errors to be greater than "
-                            + expectedMinimumErrors
-                            + " but actual was "
-                            + latestResult.getTotalErrors()
+                    "Expected failure message to contain [" + expectedText + "] but actual was [" + actualMessage + "]"
+            );
+        }
+    }
+
+    // ============================================================
+    // METRIC VALIDATIONS
+    // ============================================================
+
+    @Then("^performance average response time should be less than (\\d+) ms$")
+    public void performanceAverageResponseTimeShouldBeLessThan(long maxAverageResponseTime) {
+        assertResultAvailable();
+
+        if (latestResult.getAverageResponseTimeMs() > maxAverageResponseTime) {
+            throw new AssertionError(
+                    "Average response time validation failed. Actual: "
+                            + latestResult.getAverageResponseTimeMs()
+                            + " ms, Expected less than: "
+                            + maxAverageResponseTime
+                            + " ms"
+            );
+        }
+    }
+
+    @Then("^performance p95 response time should be less than (\\d+) ms$")
+    public void performanceP95ResponseTimeShouldBeLessThan(long maxP95ResponseTime) {
+        assertResultAvailable();
+
+        if (latestResult.getP95ResponseTimeMs() > maxP95ResponseTime) {
+            throw new AssertionError(
+                    "P95 response time validation failed. Actual: "
+                            + latestResult.getP95ResponseTimeMs()
+                            + " ms, Expected less than: "
+                            + maxP95ResponseTime
+                            + " ms"
+            );
+        }
+    }
+
+    @Then("^performance error percentage should be less than (\\d+(?:\\.\\d+)?)$")
+    public void performanceErrorPercentageShouldBeLessThan(double maxErrorPercentage) {
+        assertResultAvailable();
+
+        if (latestResult.getErrorPercent() > maxErrorPercentage) {
+            throw new AssertionError(
+                    "Error percentage validation failed. Actual: "
+                            + latestResult.getErrorPercent()
+                            + ", Expected less than: "
+                            + maxErrorPercentage
             );
         }
     }
@@ -571,6 +592,20 @@ public class PerformanceSteps {
         }
     }
 
+    @Then("^performance total errors should be greater than (\\d+)$")
+    public void performanceTotalErrorsShouldBeGreaterThan(long expectedMinimumErrors) {
+        assertResultAvailable();
+
+        if (latestResult.getTotalErrors() <= expectedMinimumErrors) {
+            throw new AssertionError(
+                    "Expected total errors to be greater than "
+                            + expectedMinimumErrors
+                            + " but actual was "
+                            + latestResult.getTotalErrors()
+            );
+        }
+    }
+
     @Then("^performance total samples should be greater than (\\d+)$")
     public void performanceTotalSamplesShouldBeGreaterThan(long expectedMinimumSamples) {
         assertResultAvailable();
@@ -585,14 +620,85 @@ public class PerformanceSteps {
         }
     }
 
-    @Then("^performance failure message should contain \"(.*?)\"$")
-    public void performanceFailureMessageShouldContain(String expectedText) {
+    @Then("^performance total scenario duration should be greater than (\\d+) ms$")
+    public void performanceTotalScenarioDurationShouldBeGreaterThan(long minimumDurationMs) {
         assertResultAvailable();
 
-        String actualMessage = latestResult.getFailureMessage();
-        if (actualMessage == null || !actualMessage.contains(expectedText)) {
+        if (latestResult.getTotalScenarioDurationMs() <= minimumDurationMs) {
             throw new AssertionError(
-                    "Expected failure message to contain [" + expectedText + "] but actual was [" + actualMessage + "]"
+                    "Expected total scenario duration to be greater than "
+                            + minimumDurationMs
+                            + " ms but actual was "
+                            + latestResult.getTotalScenarioDurationMs()
+                            + " ms"
+            );
+        }
+    }
+
+    // ============================================================
+    // SMART REPORTING VALIDATIONS
+    // ============================================================
+
+    @Then("^performance risk score should be greater than (\\d+)$")
+    public void performanceRiskScoreShouldBeGreaterThan(int minimumRiskScore) {
+        assertResultAvailable();
+
+        if (latestResult.getRiskScore() <= minimumRiskScore) {
+            throw new AssertionError(
+                    "Expected risk score to be greater than "
+                            + minimumRiskScore
+                            + " but actual was "
+                            + latestResult.getRiskScore()
+            );
+        }
+    }
+
+    @Then("^performance risk score should be less than (\\d+)$")
+    public void performanceRiskScoreShouldBeLessThan(int maximumRiskScore) {
+        assertResultAvailable();
+
+        if (latestResult.getRiskScore() >= maximumRiskScore) {
+            throw new AssertionError(
+                    "Expected risk score to be less than "
+                            + maximumRiskScore
+                            + " but actual was "
+                            + latestResult.getRiskScore()
+            );
+        }
+    }
+
+    @Then("^performance risk level should be \"(.*?)\"$")
+    public void performanceRiskLevelShouldBe(String expectedRiskLevel) {
+        assertResultAvailable();
+
+        String actualRiskLevel = latestResult.getRiskLevel();
+        if (actualRiskLevel == null || !actualRiskLevel.equalsIgnoreCase(expectedRiskLevel)) {
+            throw new AssertionError(
+                    "Expected risk level to be [" + expectedRiskLevel + "] but actual was [" + actualRiskLevel + "]"
+            );
+        }
+    }
+
+    @Then("^performance threshold breach summary should contain \"(.*?)\"$")
+    public void performanceThresholdBreachSummaryShouldContain(String expectedText) {
+        assertResultAvailable();
+
+        String actualSummary = latestResult.getThresholdBreachSummary();
+        if (actualSummary == null || !actualSummary.contains(expectedText)) {
+            throw new AssertionError(
+                    "Expected threshold breach summary to contain [" + expectedText + "] but actual was [" + actualSummary + "]"
+            );
+        }
+    }
+
+    @Then("^performance recommended action should contain \"(.*?)\"$")
+    public void performanceRecommendedActionShouldContain(String expectedText) {
+        assertResultAvailable();
+
+        String actualAction = latestResult.getRecommendedAction();
+        if (actualAction == null || !actualAction.contains(expectedText)) {
+            throw new AssertionError(
+                    "Expected recommended action to contain [" + expectedText + "] but actual was [" + actualAction + "]"
             );
         }
     }

@@ -22,6 +22,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,26 +36,49 @@ public class Hooks {
     private static final ThreadLocal<Scenario> scenarioThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<PageCommonMethods> pageCommonMethodsThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<String> activeFeatureThreadLocal = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> performanceScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     /**
-     * Feature has @LastScenario tag
+     * Feature has @LastScenario tag.
      */
     private static final Map<String, Boolean> lastScenarioFeatureMap = new ConcurrentHashMap<>();
 
     /**
-     * Total runnable scenarios in feature
+     * Total runnable scenarios in feature.
      */
     private static final Map<String, Integer> featureScenarioTotalMap = new ConcurrentHashMap<>();
 
     /**
-     * How many scenarios already completed @After
+     * How many scenarios already completed @After.
      */
     private static final Map<String, AtomicInteger> featureScenarioExecutedMap = new ConcurrentHashMap<>();
 
     /**
-     * Once true, all next scenarios in that feature must fail immediately
+     * Once true, all next scenarios in that feature must fail immediately.
      */
     private static final Map<String, Boolean> featureFailureMap = new ConcurrentHashMap<>();
+
+    /**
+     * Performance-related tags that should never initialize UI browser stack.
+     */
+    private static final Set<String> PERFORMANCE_TAGS = Set.of(
+            "@performance_testing",
+            "@performance_full_regression",
+            "@performance_get",
+            "@performance_post",
+            "@performance_put",
+            "@performance_delete",
+            "@performance_profile",
+            "@performance_inline_json",
+            "@performance_yaml",
+            "@performance_csv",
+            "@performance_excel",
+            "@performance_auth",
+            "@performance_bearer",
+            "@performance_basic_auth",
+            "@performance_negative",
+            "@performance_expected_failure"
+    );
 
     public Hooks() {
     }
@@ -65,6 +89,14 @@ public class Hooks {
 
         String featureKey = getFeatureKey(scenario);
         activeFeatureThreadLocal.set(featureKey);
+
+        if (isPerformanceScenario(scenario)) {
+            performanceScenarioThreadLocal.set(Boolean.TRUE);
+            logger.info("Performance scenario detected [{}]. Skipping Playwright browser initialization.", scenario.getName());
+            return;
+        }
+
+        performanceScenarioThreadLocal.set(Boolean.FALSE);
 
         boolean isLastScenarioTaggedFeature = scenario.getSourceTagNames().contains("@LastScenario");
         lastScenarioFeatureMap.putIfAbsent(featureKey, isLastScenarioTaggedFeature);
@@ -143,7 +175,7 @@ public class Hooks {
         String featureKey = activeFeatureThreadLocal.get();
 
         try {
-            if (scenario.getStatus() == Status.PASSED) {
+            if (!Boolean.TRUE.equals(performanceScenarioThreadLocal.get()) && scenario.getStatus() == Status.PASSED) {
                 PageCommonMethods pageCommonMethods = pageCommonMethodsThreadLocal.get();
                 if (pageCommonMethods != null) {
                     pageCommonMethods.finalizeScenario();
@@ -152,6 +184,12 @@ public class Hooks {
         } catch (Exception e) {
             logger.error("Error during scenario teardown: {}", e.getMessage(), e);
         } finally {
+            if (Boolean.TRUE.equals(performanceScenarioThreadLocal.get())) {
+                clearPerformanceScenarioStateOnly();
+                logger.info("Performance scenario teardown completed without UI browser cleanup requirement.");
+                return;
+            }
+
             boolean isLastScenarioFeature = Boolean.TRUE.equals(lastScenarioFeatureMap.get(featureKey));
 
             if (isLastScenarioFeature) {
@@ -379,6 +417,7 @@ public class Hooks {
         pageCommonMethodsThreadLocal.remove();
         scenarioThreadLocal.remove();
         activeFeatureThreadLocal.remove();
+        performanceScenarioThreadLocal.remove();
     }
 
     private static void clearFeatureTracking(String featureKey) {
@@ -386,6 +425,31 @@ public class Hooks {
         featureScenarioTotalMap.remove(featureKey);
         featureScenarioExecutedMap.remove(featureKey);
         featureFailureMap.remove(featureKey);
+    }
+
+    private void clearPerformanceScenarioStateOnly() {
+        scenarioThreadLocal.remove();
+        activeFeatureThreadLocal.remove();
+        performanceScenarioThreadLocal.remove();
+    }
+
+    private boolean isPerformanceScenario(Scenario scenario) {
+        if (scenario == null) {
+            return false;
+        }
+
+        for (String tag : scenario.getSourceTagNames()) {
+            if (PERFORMANCE_TAGS.contains(tag)) {
+                return true;
+            }
+
+            if (tag != null && tag.startsWith("@performance")) {
+                return true;
+            }
+        }
+
+        String featureKey = getFeatureKey(scenario);
+        return featureKey != null && featureKey.toLowerCase().contains("performance");
     }
 
     private String getFeatureKey(Scenario scenario) {

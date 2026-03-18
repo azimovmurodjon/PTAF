@@ -12,8 +12,10 @@ Feature: Full Phase 1 Performance Engine Validation
     Then performance result should be available
     And performance dashboard path should be generated
     And performance summary file path should be generated
+    And performance readable summary file path should be generated
     And performance jtl file path should be generated
     And performance run report root path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -25,6 +27,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run GET performance test for path "/get" with name "custom_profile_get_test" using 5 users ramp 5 seconds hold 10 seconds
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -34,6 +39,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run POST performance test for path "/post" with name "inline_post_performance_test" and json body "{\"name\":\"PTAF\",\"type\":\"performance\"}"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -43,6 +51,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run POST performance test for path "/post" with name "inline_post_profile_test" and json body "{\"name\":\"PTAF\",\"mode\":\"profile\"}" using 5 users ramp 5 seconds hold 10 seconds
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -52,6 +63,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run PUT performance test for path "/put" with name "inline_put_performance_test" and json body "{\"update\":\"true\",\"source\":\"ptaf\"}"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -61,6 +75,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run PUT performance test for path "/put" with name "inline_put_profile_test" and json body "{\"update\":\"profile\",\"enabled\":\"yes\"}" using 5 users ramp 5 seconds hold 10 seconds
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -70,6 +87,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run DELETE performance test for path "/delete" with name "delete_performance_test"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -79,6 +99,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run DELETE performance test for path "/delete" with name "delete_profile_test" using 5 users ramp 5 seconds hold 10 seconds
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -88,6 +111,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run YAML-driven POST performance test for path "/post" with name "yaml_post_performance_test" using yaml key "performance.payloads.createCustomer"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -97,6 +123,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run YAML-driven PUT performance test for path "/put" with name "yaml_put_performance_test" using yaml key "performance.payloads.updateCustomer"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -107,6 +136,9 @@ Feature: Full Phase 1 Performance Engine Validation
     And we run authenticated GET performance test for path "/bearer" with name "authenticated_get_test" using bearer token alias "valid_token"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance total samples should be greater than 0
 
   @performance_auth @performance_bearer @performance_yaml
@@ -115,6 +147,9 @@ Feature: Full Phase 1 Performance Engine Validation
     And we run authenticated YAML-driven POST performance test for path "/post" with name "authenticated_yaml_post_test" using yaml key "performance.payloads.secureCreateCustomer" and bearer token alias "api_token"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance total samples should be greater than 0
 
   @performance_auth @performance_basic_auth
@@ -122,6 +157,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run basic auth GET performance test for path "/basic-auth/admin/secret" with name "basic_auth_get_test" username "admin" password "secret"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should pass
     And performance total samples should be greater than 0
     And performance error percentage should be less than 5
@@ -131,6 +169,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run GET performance test expecting failure for path "/invalid-performance-endpoint" with name "invalid_endpoint_failure_test"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should fail
     And performance execution should be in expected failure mode
     And performance total errors should be greater than 0
@@ -141,6 +182,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run basic auth GET performance test expecting failure for path "/basic-auth/admin/secret" with name "basic_auth_invalid_credentials_test" username "admin" password "wrong_password"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should fail
     And performance execution should be in expected failure mode
     And performance total errors should be greater than 0
@@ -151,6 +195,9 @@ Feature: Full Phase 1 Performance Engine Validation
     When we run YAML-driven POST performance test expecting failure for path "/status/500" with name "yaml_post_expected_failure_test" using yaml key "performance.payloads.createCustomer"
     Then performance result should be available
     And performance dashboard path should be generated
+    And performance summary file path should be generated
+    And performance readable summary file path should be generated
+    And performance excel report should be generated
     And performance execution should fail
     And performance execution should be in expected failure mode
     And performance total errors should be greater than 0
