@@ -2,6 +2,7 @@ package com.ptaf.performance.models;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -9,8 +10,16 @@ import java.util.List;
  *
  * <p>This object represents one full performance execution run and contains
  * all scenario-level results that belong to the same run.</p>
+ *
+ * <p>Design goals:
+ * - keep reporting calculations centralized
+ * - remain backward-compatible for enterprise framework usage
+ * - avoid touching execution logic
+ * - provide safe aggregated metrics for Excel reporting</p>
  */
 public class PerformanceRunReport {
+
+    private static final String NO_THRESHOLD_BREACHES = "No configured threshold breaches detected.";
 
     private final String runFolderName;
     private final String runRootPath;
@@ -52,6 +61,10 @@ public class PerformanceRunReport {
         return scenarioResults.size();
     }
 
+    public boolean hasScenarioResults() {
+        return !scenarioResults.isEmpty();
+    }
+
     public long getPassedScenarios() {
         return scenarioResults.stream()
                 .filter(result -> result.getExecutionStatus() == PerformanceExecutionStatus.PASS)
@@ -80,6 +93,20 @@ public class PerformanceRunReport {
         return scenarioResults.stream()
                 .filter(result -> result.getExecutionStatus() == PerformanceExecutionStatus.SKIPPED)
                 .count();
+    }
+
+    public double getPassRatePercent() {
+        if (scenarioResults.isEmpty()) {
+            return 0.0;
+        }
+        return (getPassedScenarios() * 100.0) / scenarioResults.size();
+    }
+
+    public double getFailRatePercent() {
+        if (scenarioResults.isEmpty()) {
+            return 0.0;
+        }
+        return (getFailedScenarios() * 100.0) / scenarioResults.size();
     }
 
     public double getAverageErrorPercent() {
@@ -120,6 +147,18 @@ public class PerformanceRunReport {
         return Math.round((double) getTotalScenarioDurationMs() / scenarioResults.size());
     }
 
+    public long getTotalSamples() {
+        return scenarioResults.stream()
+                .mapToLong(PerformanceExecutionResult::getTotalSamples)
+                .sum();
+    }
+
+    public long getTotalErrors() {
+        return scenarioResults.stream()
+                .mapToLong(PerformanceExecutionResult::getTotalErrors)
+                .sum();
+    }
+
     public long getSlowestP95ResponseTimeMs() {
         return scenarioResults.stream()
                 .mapToLong(PerformanceExecutionResult::getP95ResponseTimeMs)
@@ -148,27 +187,114 @@ public class PerformanceRunReport {
                 .orElse(0L);
     }
 
+    public long getShortestScenarioDurationMs() {
+        return scenarioResults.stream()
+                .mapToLong(PerformanceExecutionResult::getTotalScenarioDurationMs)
+                .min()
+                .orElse(0L);
+    }
+
+    public long getHighestTotalErrors() {
+        return scenarioResults.stream()
+                .mapToLong(PerformanceExecutionResult::getTotalErrors)
+                .max()
+                .orElse(0L);
+    }
+
+    public double getHighestErrorPercent() {
+        return scenarioResults.stream()
+                .mapToDouble(PerformanceExecutionResult::getErrorPercent)
+                .max()
+                .orElse(0.0);
+    }
+
+    public long getThresholdBreachScenarioCount() {
+        return scenarioResults.stream()
+                .filter(this::hasThresholdBreach)
+                .count();
+    }
+
+    public long getErrorScenarioCount() {
+        return scenarioResults.stream()
+                .filter(result -> result.getTotalErrors() > 0 || result.getErrorPercent() > 0.0)
+                .count();
+    }
+
+    public long getHighOrCriticalRiskScenarioCount() {
+        return scenarioResults.stream()
+                .filter(this::isHighOrCriticalRisk)
+                .count();
+    }
+
+    public long getCriticalRiskScenarioCount() {
+        return scenarioResults.stream()
+                .filter(result -> equalsIgnoreCase(result.getRiskLevel(), "Critical"))
+                .count();
+    }
+
+    public long getHighRiskScenarioCount() {
+        return scenarioResults.stream()
+                .filter(result -> equalsIgnoreCase(result.getRiskLevel(), "High"))
+                .count();
+    }
+
+    public long getMediumRiskScenarioCount() {
+        return scenarioResults.stream()
+                .filter(result -> equalsIgnoreCase(result.getRiskLevel(), "Medium"))
+                .count();
+    }
+
+    public long getLowRiskScenarioCount() {
+        return scenarioResults.stream()
+                .filter(result -> equalsIgnoreCase(result.getRiskLevel(), "Low"))
+                .count();
+    }
+
+    public long getNoIssueScenarioCount() {
+        return scenarioResults.stream()
+                .filter(result -> !isAttentionNeeded(result))
+                .count();
+    }
+
     public PerformanceExecutionResult getSlowestP95Scenario() {
         return scenarioResults.stream()
-                .max((a, b) -> Long.compare(a.getP95ResponseTimeMs(), b.getP95ResponseTimeMs()))
+                .max(Comparator.comparingLong(PerformanceExecutionResult::getP95ResponseTimeMs))
+                .orElse(null);
+    }
+
+    public PerformanceExecutionResult getSlowestAverageResponseScenario() {
+        return scenarioResults.stream()
+                .max(Comparator.comparingLong(PerformanceExecutionResult::getAverageResponseTimeMs))
                 .orElse(null);
     }
 
     public PerformanceExecutionResult getHighestErrorScenario() {
         return scenarioResults.stream()
-                .max((a, b) -> Double.compare(a.getErrorPercent(), b.getErrorPercent()))
+                .max(Comparator.comparingDouble(PerformanceExecutionResult::getErrorPercent))
                 .orElse(null);
     }
 
     public PerformanceExecutionResult getHighestRiskScenario() {
         return scenarioResults.stream()
-                .max((a, b) -> Integer.compare(a.getRiskScore(), b.getRiskScore()))
+                .max(Comparator.comparingInt(PerformanceExecutionResult::getRiskScore))
                 .orElse(null);
     }
 
     public PerformanceExecutionResult getLongestDurationScenario() {
         return scenarioResults.stream()
-                .max((a, b) -> Long.compare(a.getTotalScenarioDurationMs(), b.getTotalScenarioDurationMs()))
+                .max(Comparator.comparingLong(PerformanceExecutionResult::getTotalScenarioDurationMs))
+                .orElse(null);
+    }
+
+    public PerformanceExecutionResult getShortestDurationScenario() {
+        return scenarioResults.stream()
+                .min(Comparator.comparingLong(PerformanceExecutionResult::getTotalScenarioDurationMs))
+                .orElse(null);
+    }
+
+    public PerformanceExecutionResult getHighestTotalErrorsScenario() {
+        return scenarioResults.stream()
+                .max(Comparator.comparingLong(PerformanceExecutionResult::getTotalErrors))
                 .orElse(null);
     }
 
@@ -183,13 +309,21 @@ public class PerformanceRunReport {
         long expectedNotTriggeredCount = getExpectedFailNotTriggeredScenarios();
         long skippedCount = getSkippedScenarios();
         int highestRiskScore = getHighestRiskScore();
+        long thresholdBreaches = getThresholdBreachScenarioCount();
+        long errorScenarios = getErrorScenarioCount();
 
         if (failCount == 0 && expectedNotTriggeredCount == 0 && skippedCount == 0) {
             if (expectedConfirmedCount > 0) {
                 return "Run completed successfully. Positive scenarios passed, and expected-failure scenarios behaved as designed.";
             }
+            if (highestRiskScore >= 81) {
+                return "All scenarios completed, but one or more scenarios still show critical risk and should be reviewed.";
+            }
             if (highestRiskScore >= 51) {
                 return "All scenarios completed, but some scenarios still show elevated risk and should be reviewed.";
+            }
+            if (thresholdBreaches > 0 || errorScenarios > 0) {
+                return "All scenarios completed, but threshold or error indicators were detected and should be reviewed.";
             }
             return "All performance scenarios passed in this run.";
         }
@@ -210,7 +344,40 @@ public class PerformanceRunReport {
             return "This run contains high-risk scenarios that should be investigated before release.";
         }
 
+        if (thresholdBreaches > 0) {
+            return "This run contains threshold breaches that should be reviewed before release.";
+        }
+
+        if (errorScenarios > 0) {
+            return "This run contains request errors that should be reviewed before release.";
+        }
+
         return "This run contains a mix of passed, failed, expected-failure, or skipped scenarios. Review the scenario summary and charts for detailed risk areas.";
+    }
+
+    private boolean hasThresholdBreach(PerformanceExecutionResult result) {
+        String summary = result.getThresholdBreachSummary();
+        return summary != null
+                && !summary.isBlank()
+                && !NO_THRESHOLD_BREACHES.equalsIgnoreCase(summary.trim());
+    }
+
+    private boolean isHighOrCriticalRisk(PerformanceExecutionResult result) {
+        return equalsIgnoreCase(result.getRiskLevel(), "High")
+                || equalsIgnoreCase(result.getRiskLevel(), "Critical")
+                || result.getRiskScore() >= 51;
+    }
+
+    private boolean isAttentionNeeded(PerformanceExecutionResult result) {
+        return result.getExecutionStatus() == PerformanceExecutionStatus.FAIL
+                || result.getExecutionStatus() == PerformanceExecutionStatus.EXPECTED_FAIL_NOT_TRIGGERED
+                || hasThresholdBreach(result)
+                || result.getTotalErrors() > 0
+                || isHighOrCriticalRisk(result);
+    }
+
+    private boolean equalsIgnoreCase(String value, String target) {
+        return value != null && value.equalsIgnoreCase(target);
     }
 
     @Override
@@ -228,6 +395,9 @@ public class PerformanceRunReport {
                 ", averageRiskScore=" + getAverageRiskScore() +
                 ", highestRiskScore=" + getHighestRiskScore() +
                 ", totalScenarioDurationMs=" + getTotalScenarioDurationMs() +
+                ", shortestScenarioDurationMs=" + getShortestScenarioDurationMs() +
+                ", totalSamples=" + getTotalSamples() +
+                ", totalErrors=" + getTotalErrors() +
                 '}';
     }
 }

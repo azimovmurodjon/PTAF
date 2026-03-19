@@ -19,15 +19,11 @@ import java.util.stream.Collectors;
 /**
  * Writes a single Excel report for the entire performance run.
  *
- * <p>Design goals:
- * <ul>
- *   <li>Executive summary should be leadership-friendly</li>
- *   <li>Only the most important charts should be shown</li>
- *   <li>Durations should be readable in seconds instead of confusing raw ms values</li>
- *   <li>Percentages should visibly include %</li>
- *   <li>One combined chart should summarize the main scenario-level metrics</li>
- * </ul>
- * </p>
+ * Enterprise-safe design principles:
+ * - Keep all existing report sheets
+ * - Improve only reporting / presentation logic
+ * - Avoid changing execution behavior or scenario result calculations
+ * - Keep report generation deterministic and reusable for large-scale framework use
  */
 public class PerformanceExcelReportWriter {
 
@@ -56,7 +52,7 @@ public class PerformanceExcelReportWriter {
             );
 
             writeScenarioSummarySheet(
-                    workbook, runReport, titleStyle, headerStyle, normalStyle,
+                    workbook, runReport, titleStyle, sectionStyle, headerStyle, normalStyle,
                     passStyle, failStyle, warningStyle, infoStyle
             );
 
@@ -84,6 +80,7 @@ public class PerformanceExcelReportWriter {
             );
 
             autoSizeAllColumns(workbook);
+            enforceBusinessFriendlyColumnWidths(workbook);
 
             try (OutputStream outputStream = Files.newOutputStream(reportPath)) {
                 workbook.write(outputStream);
@@ -95,6 +92,10 @@ public class PerformanceExcelReportWriter {
             throw new RuntimeException("Failed to write Excel performance report: " + reportPath, e);
         }
     }
+
+    // ========================================================================
+    // EXECUTIVE SUMMARY
+    // ========================================================================
 
     private void writeExecutiveSummarySheet(XSSFWorkbook workbook,
                                             PerformanceRunReport runReport,
@@ -111,16 +112,16 @@ public class PerformanceExcelReportWriter {
         int rowIndex = 0;
 
         Row titleRow = sheet.createRow(rowIndex++);
-        Cell titleCell = titleRow.createCell(0);
-        titleCell.setCellValue("Performance Run Executive Summary");
-        titleCell.setCellStyle(titleStyle);
+        createCell(titleRow, 0, "Performance Run Executive Summary", titleStyle);
+
+        Row subtitleRow = sheet.createRow(rowIndex++);
+        createCell(subtitleRow, 0, "Business-friendly summary of run health, major risks, and critical scenario highlights.", normalStyle);
 
         rowIndex++;
 
         PerformanceExecutionResult slowestP95Scenario = runReport.getSlowestP95Scenario();
-        PerformanceExecutionResult highestErrorScenario = runReport.getHighestErrorScenario();
-        PerformanceExecutionResult highestRiskScenario = runReport.getHighestRiskScenario();
         PerformanceExecutionResult longestDurationScenario = runReport.getLongestDurationScenario();
+        PerformanceExecutionResult shortestDurationScenario = runReport.getShortestDurationScenario();
 
         Row section1 = sheet.createRow(rowIndex++);
         createCell(section1, 0, "Run Overview", sectionStyle);
@@ -149,106 +150,175 @@ public class PerformanceExcelReportWriter {
         rowIndex++;
 
         Row section3 = sheet.createRow(rowIndex++);
-        createCell(section3, 0, "Important Scenarios", sectionStyle);
+        createCell(section3, 0, "Critical Business Highlights", sectionStyle);
 
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Slowest P95 Scenario",
-                slowestP95Scenario == null ? "N/A" : slowestP95Scenario.getTestName(), headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Slowest P95 Value",
-                PerformanceExcelFormatHelper.formatMillisecondsDetailed(runReport.getSlowestP95ResponseTimeMs()), headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Highest Error Scenario",
-                highestErrorScenario == null ? "N/A" : highestErrorScenario.getTestName(), headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Highest Risk Scenario",
-                highestRiskScenario == null ? "N/A" : highestRiskScenario.getTestName(), headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Highest Risk Score",
-                String.valueOf(runReport.getHighestRiskScore()), headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Longest Duration Scenario",
-                longestDurationScenario == null ? "N/A" : longestDurationScenario.getTestName(), headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Longest Duration",
-                PerformanceExcelFormatHelper.formatMillisecondsDetailed(runReport.getHighestScenarioDurationMs()), headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Anomaly Count",
-                String.valueOf(getAnomalies(runReport).size()), headerStyle, normalStyle);
+        int importantHeaderRow = rowIndex++;
+        Row importantHeader = sheet.createRow(importantHeaderRow);
+        createCell(importantHeader, 0, "Metric", headerStyle);
+        createCell(importantHeader, 1, "Scenario", headerStyle);
+        createCell(importantHeader, 2, "Display Value", headerStyle);
+        createCell(importantHeader, 3, "Chart Value", headerStyle);
+        createCell(importantHeader, 4, "Unit", headerStyle);
+
+        int importantDataStart = rowIndex;
+
+        Row r1 = sheet.createRow(rowIndex++);
+        createCell(r1, 0, "Slowest P95 (sec)", normalStyle);
+        createCell(r1, 1, slowestP95Scenario == null ? "N/A" : slowestP95Scenario.getTestName(), normalStyle);
+        createCell(r1, 2, PerformanceExcelFormatHelper.formatMillisecondsDetailed(runReport.getSlowestP95ResponseTimeMs()), normalStyle);
+        createCell(r1, 3, roundToThreeDecimals(toSeconds(runReport.getSlowestP95ResponseTimeMs())), normalStyle);
+        createCell(r1, 4, "sec", normalStyle);
+
+        Row r2 = sheet.createRow(rowIndex++);
+        createCell(r2, 0, "Longest Duration (sec)", normalStyle);
+        createCell(r2, 1, longestDurationScenario == null ? "N/A" : longestDurationScenario.getTestName(), normalStyle);
+        createCell(r2, 2, longestDurationScenario == null
+                ? "N/A"
+                : PerformanceExcelFormatHelper.formatMillisecondsDetailed(runReport.getHighestScenarioDurationMs()), normalStyle);
+        createCell(r2, 3, roundToThreeDecimals(toSeconds(runReport.getHighestScenarioDurationMs())), normalStyle);
+        createCell(r2, 4, "sec", normalStyle);
+
+        Row r3 = sheet.createRow(rowIndex++);
+        createCell(r3, 0, "Shortest Duration (sec)", normalStyle);
+        createCell(r3, 1, shortestDurationScenario == null ? "N/A" : shortestDurationScenario.getTestName(), normalStyle);
+        createCell(r3, 2, shortestDurationScenario == null
+                ? "N/A"
+                : PerformanceExcelFormatHelper.formatMillisecondsDetailed(runReport.getShortestScenarioDurationMs()), normalStyle);
+        createCell(r3, 3, roundToThreeDecimals(toSeconds(runReport.getShortestScenarioDurationMs())), normalStyle);
+        createCell(r3, 4, "sec", normalStyle);
+
+        int importantDataEnd = rowIndex - 1;
+
+        createExecutiveHighlightsBarChart(
+                sheet,
+                "Critical Performance Highlights",
+                importantDataStart,
+                importantDataEnd,
+                0,
+                3,
+                6,
+                3,
+                17,
+                17,
+                "Seconds"
+        );
 
         rowIndex += 2;
 
-        int statusTableStartRow = rowIndex;
-        Row statusHeader = sheet.createRow(rowIndex++);
-        createCell(statusHeader, 0, "Execution Status", headerStyle);
-        createCell(statusHeader, 1, "Count", headerStyle);
+        Row noteRow = sheet.createRow(rowIndex++);
+        createCell(noteRow, 0, "Chart values are time-based and shown in seconds for cleaner executive review.", normalStyle);
 
-        Row status1 = sheet.createRow(rowIndex++);
-        createCell(status1, 0, "PASS", normalStyle);
-        createCell(status1, 1, runReport.getPassedScenarios(), normalStyle);
+        rowIndex++;
 
-        Row status2 = sheet.createRow(rowIndex++);
-        createCell(status2, 0, "FAIL", normalStyle);
-        createCell(status2, 1, runReport.getFailedScenarios(), normalStyle);
+        Row section4 = sheet.createRow(rowIndex++);
+        createCell(section4, 0, "Distribution Snapshots", sectionStyle);
 
-        Row status3 = sheet.createRow(rowIndex++);
-        createCell(status3, 0, "EXPECTED_FAIL_CONFIRMED", normalStyle);
-        createCell(status3, 1, runReport.getExpectedFailConfirmedScenarios(), normalStyle);
+        int businessOutcomeHeaderRow = rowIndex++;
+        Row businessOutcomeHeader = sheet.createRow(businessOutcomeHeaderRow);
+        createCell(businessOutcomeHeader, 0, "Business Outcome", headerStyle);
+        createCell(businessOutcomeHeader, 1, "Count", headerStyle);
 
-        Row status4 = sheet.createRow(rowIndex++);
-        createCell(status4, 0, "EXPECTED_FAIL_NOT_TRIGGERED", normalStyle);
-        createCell(status4, 1, runReport.getExpectedFailNotTriggeredScenarios(), normalStyle);
+        int businessOutcomeDataStart = rowIndex;
 
-        Row status5 = sheet.createRow(rowIndex++);
-        createCell(status5, 0, "SKIPPED", normalStyle);
-        createCell(status5, 1, runReport.getSkippedScenarios(), normalStyle);
+        Row bo1 = sheet.createRow(rowIndex++);
+        createCell(bo1, 0, "Passed", normalStyle);
+        createCell(bo1, 1, runReport.getPassedScenarios(), normalStyle);
 
-        int statusTableEndRow = rowIndex - 1;
+        Row bo2 = sheet.createRow(rowIndex++);
+        createCell(bo2, 0, "Failed", normalStyle);
+        createCell(bo2, 1, runReport.getFailedScenarios(), normalStyle);
 
-        rowIndex += 2;
+        Row bo3 = sheet.createRow(rowIndex++);
+        createCell(bo3, 0, "Expected Fail Confirmed", normalStyle);
+        createCell(bo3, 1, runReport.getExpectedFailConfirmedScenarios(), normalStyle);
 
-        int riskTableStartRow = rowIndex;
-        Row riskHeader = sheet.createRow(rowIndex++);
-        createCell(riskHeader, 0, "Risk Level", headerStyle);
-        createCell(riskHeader, 1, "Count", headerStyle);
+        Row bo4 = sheet.createRow(rowIndex++);
+        createCell(bo4, 0, "Expected Fail Not Triggered", normalStyle);
+        createCell(bo4, 1, runReport.getExpectedFailNotTriggeredScenarios(), normalStyle);
 
-        Row risk1 = sheet.createRow(rowIndex++);
-        createCell(risk1, 0, "Low", normalStyle);
-        createCell(risk1, 1, countRiskLevel(runReport, "Low"), normalStyle);
+        Row bo5 = sheet.createRow(rowIndex++);
+        createCell(bo5, 0, "Skipped", normalStyle);
+        createCell(bo5, 1, runReport.getSkippedScenarios(), normalStyle);
 
-        Row risk2 = sheet.createRow(rowIndex++);
-        createCell(risk2, 0, "Medium", normalStyle);
-        createCell(risk2, 1, countRiskLevel(runReport, "Medium"), normalStyle);
+        int businessOutcomeDataEnd = rowIndex - 1;
 
-        Row risk3 = sheet.createRow(rowIndex++);
-        createCell(risk3, 0, "High", normalStyle);
-        createCell(risk3, 1, countRiskLevel(runReport, "High"), normalStyle);
+        int attentionHeaderRow = rowIndex++;
+        Row attentionHeader = sheet.createRow(attentionHeaderRow);
+        createCell(attentionHeader, 0, "Attention Area", headerStyle);
+        createCell(attentionHeader, 1, "Count", headerStyle);
 
-        Row risk4 = sheet.createRow(rowIndex++);
-        createCell(risk4, 0, "Critical", normalStyle);
-        createCell(risk4, 1, countRiskLevel(runReport, "Critical"), normalStyle);
+        int attentionDataStart = rowIndex;
 
-        int riskTableEndRow = rowIndex - 1;
+        Row at1 = sheet.createRow(rowIndex++);
+        createCell(at1, 0, "No Issue Detected", normalStyle);
+        createCell(at1, 1, countNoIssueScenarios(runReport), normalStyle);
 
-        createPieChart(sheet, "Execution Status Distribution",
-                statusTableStartRow + 1, statusTableEndRow, 0, 1,
-                4, 1, 11, 16);
+        Row at2 = sheet.createRow(rowIndex++);
+        createCell(at2, 0, "Threshold Breach", normalStyle);
+        createCell(at2, 1, countThresholdBreachScenarios(runReport), normalStyle);
 
-        createPieChart(sheet, "Risk Distribution",
-                riskTableStartRow + 1, riskTableEndRow, 0, 1,
-                12, 1, 19, 16);
+        Row at3 = sheet.createRow(rowIndex++);
+        createCell(at3, 0, "Errors Present", normalStyle);
+        createCell(at3, 1, countErrorScenarios(runReport), normalStyle);
+
+        Row at4 = sheet.createRow(rowIndex++);
+        createCell(at4, 0, "High / Critical Risk", normalStyle);
+        createCell(at4, 1, countHighOrCriticalRiskScenarios(runReport), normalStyle);
+
+        int attentionDataEnd = rowIndex - 1;
+
+        createPieChart(
+                sheet,
+                "Business Outcome Mix",
+                businessOutcomeDataStart,
+                businessOutcomeDataEnd,
+                0,
+                1,
+                6,
+                23,
+                13,
+                38
+        );
+
+        createPieChart(
+                sheet,
+                "Attention Needed Mix",
+                attentionDataStart,
+                attentionDataEnd,
+                0,
+                1,
+                14,
+                23,
+                21,
+                38
+        );
 
         sheet.createFreezePane(0, 2);
     }
 
+    // ========================================================================
+    // SCENARIO SUMMARY
+    // ========================================================================
+
     private void writeScenarioSummarySheet(XSSFWorkbook workbook,
                                            PerformanceRunReport runReport,
                                            CellStyle titleStyle,
+                                           CellStyle sectionStyle,
                                            CellStyle headerStyle,
                                            CellStyle normalStyle,
                                            CellStyle passStyle,
                                            CellStyle failStyle,
                                            CellStyle warningStyle,
                                            CellStyle infoStyle) {
-        Sheet sheet = workbook.createSheet("Scenario_Summary");
+        XSSFSheet sheet = workbook.createSheet("Scenario_Summary");
 
         int rowIndex = 0;
 
         Row titleRow = sheet.createRow(rowIndex++);
         createCell(titleRow, 0, "Scenario Performance Summary", titleStyle);
-        rowIndex++;
+
+        Row subtitleRow = sheet.createRow(rowIndex++);
+        createCell(subtitleRow, 0, "Detailed scenario-level metrics with added business-review charts.", normalStyle);
 
         String[] headers = {
                 "Test Name",
@@ -336,9 +406,113 @@ public class PerformanceExcelReportWriter {
             createCell(row, col++, result.getFinalConclusion(), normalStyle);
         }
 
-        sheet.createFreezePane(0, 2);
-        sheet.setAutoFilter(new CellRangeAddress(headerRowIndex, Math.max(headerRowIndex, rowIndex - 1), 0, headers.length - 1));
+        int scenarioTableEndRow = rowIndex - 1;
+
+        rowIndex += 2;
+
+        Row chartSection = sheet.createRow(rowIndex++);
+        createCell(chartSection, 0, "Scenario Summary Charts", sectionStyle);
+
+        Row chartNote = sheet.createRow(rowIndex++);
+        createCell(chartNote, 0, "The charts below focus on latency, errors, risk, and run duration. Layout spacing has been widened to prevent chart overlap.", normalStyle);
+
+        rowIndex++;
+
+        List<PerformanceExecutionResult> topLatencyScenarios = runReport.getScenarioResults().stream()
+                .sorted(Comparator.comparingLong(PerformanceExecutionResult::getP95ResponseTimeMs).reversed())
+                .limit(10)
+                .collect(Collectors.toList());
+
+        int responseTableHeaderRow = rowIndex++;
+        Row responseHeader = sheet.createRow(responseTableHeaderRow);
+        createCell(responseHeader, 0, "Scenario", headerStyle);
+        createCell(responseHeader, 1, "Avg Response (sec)", headerStyle);
+        createCell(responseHeader, 2, "P95 Response (sec)", headerStyle);
+        createCell(responseHeader, 3, "Max Response (sec)", headerStyle);
+
+        int responseTableDataStart = rowIndex;
+
+        for (PerformanceExecutionResult result : topLatencyScenarios) {
+            Row row = sheet.createRow(rowIndex++);
+            createCell(row, 0, result.getTestName(), normalStyle);
+            createCell(row, 1, toSeconds(result.getAverageResponseTimeMs()), normalStyle);
+            createCell(row, 2, toSeconds(result.getP95ResponseTimeMs()), normalStyle);
+            createCell(row, 3, toSeconds(result.getMaxResponseTimeMs()), normalStyle);
+        }
+
+        int responseTableDataEnd = rowIndex - 1;
+
+        // First chart sits higher and ends earlier.
+        createMultiSeriesBarChart(
+                sheet,
+                "Top Latency Scenarios",
+                responseTableDataStart,
+                responseTableDataEnd,
+                0,
+                new int[]{1, 2, 3},
+                new String[]{"Avg Response (sec)", "P95 Response (sec)", "Max Response (sec)"},
+                5,
+                responseTableHeaderRow,
+                16,
+                responseTableHeaderRow + 14,
+                "Seconds"
+        );
+
+        // Add deliberate blank space between first and second chart.
+        rowIndex += 16;
+
+        List<PerformanceExecutionResult> topRiskAndErrorScenarios = runReport.getScenarioResults().stream()
+                .sorted(Comparator
+                        .comparingDouble(PerformanceExecutionResult::getErrorPercent).reversed()
+                        .thenComparing(Comparator.comparingInt(PerformanceExecutionResult::getRiskScore).reversed())
+                        .thenComparing(Comparator.comparingLong(PerformanceExecutionResult::getTotalScenarioDurationMs).reversed()))
+                .limit(10)
+                .collect(Collectors.toList());
+
+        int stabilityTableHeaderRow = rowIndex++;
+        Row stabilityHeader = sheet.createRow(stabilityTableHeaderRow);
+        createCell(stabilityHeader, 0, "Scenario", headerStyle);
+        createCell(stabilityHeader, 1, "Error %", headerStyle);
+        createCell(stabilityHeader, 2, "Risk Score", headerStyle);
+        createCell(stabilityHeader, 3, "Duration (sec)", headerStyle);
+        createCell(stabilityHeader, 4, "Total Errors", headerStyle);
+
+        int stabilityTableDataStart = rowIndex;
+
+        for (PerformanceExecutionResult result : topRiskAndErrorScenarios) {
+            Row row = sheet.createRow(rowIndex++);
+            createCell(row, 0, result.getTestName(), normalStyle);
+            createCell(row, 1, result.getErrorPercent(), normalStyle);
+            createCell(row, 2, result.getRiskScore(), normalStyle);
+            createCell(row, 3, toSeconds(result.getTotalScenarioDurationMs()), normalStyle);
+            createCell(row, 4, result.getTotalErrors(), normalStyle);
+        }
+
+        int stabilityTableDataEnd = rowIndex - 1;
+
+        // Second chart is intentionally anchored much lower to prevent overlap.
+        createMultiSeriesBarChart(
+                sheet,
+                "Error, Risk and Duration Focus",
+                stabilityTableDataStart,
+                stabilityTableDataEnd,
+                0,
+                new int[]{1, 2, 3, 4},
+                new String[]{"Error %", "Risk Score", "Duration (sec)", "Total Errors"},
+                5,
+                stabilityTableHeaderRow,
+                16,
+                stabilityTableHeaderRow + 14,
+                "Value"
+        );
+
+        sheet.createFreezePane(0, 3);
+        sheet.setAutoFilter(new CellRangeAddress(headerRowIndex, Math.max(headerRowIndex, scenarioTableEndRow), 0, headers.length - 1));
     }
+
+    // ========================================================================
+    // RISK ANALYSIS
+    // ========================================================================
 
     private void writeRiskAnalysisSheet(XSSFWorkbook workbook,
                                         PerformanceRunReport runReport,
@@ -354,7 +528,9 @@ public class PerformanceExcelReportWriter {
         int rowIndex = 0;
         Row titleRow = sheet.createRow(rowIndex++);
         createCell(titleRow, 0, "Risk Analysis", titleStyle);
-        rowIndex++;
+
+        Row subtitleRow = sheet.createRow(rowIndex++);
+        createCell(subtitleRow, 0, "Scenarios ranked by highest risk first.", normalStyle);
 
         List<PerformanceExecutionResult> sortedByRisk = runReport.getScenarioResults().stream()
                 .sorted(Comparator.comparingInt(PerformanceExecutionResult::getRiskScore).reversed())
@@ -406,8 +582,12 @@ public class PerformanceExcelReportWriter {
         }
 
         sheet.createFreezePane(0, 2);
-        sheet.setAutoFilter(new CellRangeAddress(1, Math.max(1, rowIndex - 1), 0, headers.length - 1));
+        sheet.setAutoFilter(new CellRangeAddress(2, Math.max(2, rowIndex - 1), 0, headers.length - 1));
     }
+
+    // ========================================================================
+    // ANOMALIES
+    // ========================================================================
 
     private void writeAnomaliesSheet(XSSFWorkbook workbook,
                                      PerformanceRunReport runReport,
@@ -423,7 +603,9 @@ public class PerformanceExcelReportWriter {
         int rowIndex = 0;
         Row titleRow = sheet.createRow(rowIndex++);
         createCell(titleRow, 0, "Anomalies / Attention Needed", titleStyle);
-        rowIndex++;
+
+        Row subtitleRow = sheet.createRow(rowIndex++);
+        createCell(subtitleRow, 0, "Scenarios requiring the most immediate review.", normalStyle);
 
         List<PerformanceExecutionResult> anomalies = getAnomalies(runReport);
 
@@ -479,8 +661,12 @@ public class PerformanceExcelReportWriter {
         }
 
         sheet.createFreezePane(0, 2);
-        sheet.setAutoFilter(new CellRangeAddress(1, Math.max(1, rowIndex - 1), 0, headers.length - 1));
+        sheet.setAutoFilter(new CellRangeAddress(2, Math.max(2, rowIndex - 1), 0, headers.length - 1));
     }
+
+    // ========================================================================
+    // READABLE REPORT
+    // ========================================================================
 
     private void writeReadableReportSheet(XSSFWorkbook workbook,
                                           PerformanceRunReport runReport,
@@ -496,7 +682,11 @@ public class PerformanceExcelReportWriter {
         int rowIndex = 0;
         Row titleRow = sheet.createRow(rowIndex++);
         createCell(titleRow, 0, "Readable Performance Report", titleStyle);
-        rowIndex += 2;
+
+        Row subtitleRow = sheet.createRow(rowIndex++);
+        createCell(subtitleRow, 0, "Scenario-by-scenario narrative view for mixed business and technical readers.", normalStyle);
+
+        rowIndex++;
 
         for (PerformanceExecutionResult result : runReport.getScenarioResults()) {
             Row scenarioTitleRow = sheet.createRow(rowIndex++);
@@ -518,63 +708,45 @@ public class PerformanceExcelReportWriter {
             rowIndex = createKeyValueRow(sheet, rowIndex, "Recommended action",
                     safe(result.getRecommendedAction()), headerStyle, normalStyle);
 
-            rowIndex = createKeyValueRow(sheet, rowIndex, "What was tested?",
-                    safe(result.getHttpMethod()) + " " + safe(result.getFullTargetUrl()), headerStyle, normalStyle);
-
-            rowIndex = createKeyValueRow(sheet, rowIndex, "Purpose",
-                    safe(result.getTestPurpose()), headerStyle, normalStyle);
-
-            rowIndex = createKeyValueRow(sheet, rowIndex, "Test Type",
-                    safe(result.getPerformanceTestType()), headerStyle, normalStyle);
-
-            rowIndex = createKeyValueRow(sheet, rowIndex, "Goal",
-                    safe(result.getTestGoal()), headerStyle, normalStyle);
-
-            rowIndex = createKeyValueRow(sheet, rowIndex, "How was it tested?",
-                    "Users=" + result.getUsers()
-                            + ", Ramp-Up=" + result.getRampUpSeconds()
-                            + " sec, Hold=" + result.getHoldSeconds()
-                            + " sec, Iterations=" + result.getIterations()
-                            + ", Mode=" + safe(result.getExecutionMode()),
-                    headerStyle, normalStyle);
-
-            rowIndex = createKeyValueRow(sheet, rowIndex, "Allowed thresholds",
-                    "Error % <= " + PerformanceExcelFormatHelper.formatPercent(result.getMaxAllowedErrorPercent())
-                            + ", Avg <= " + PerformanceExcelFormatHelper.formatMillisecondsAsSeconds(result.getMaxAllowedAverageResponseTimeMs())
-                            + ", P95 <= " + PerformanceExcelFormatHelper.formatMillisecondsAsSeconds(result.getMaxAllowedP95ResponseTimeMs()),
-                    headerStyle, normalStyle);
-
-            rowIndex = createKeyValueRow(sheet, rowIndex, "Scenario duration",
-                    PerformanceExcelFormatHelper.formatMillisecondsDetailed(result.getTotalScenarioDurationMs()), headerStyle, normalStyle);
-
-            rowIndex = createKeyValueRow(sheet, rowIndex, "What happened?",
-                    "Samples=" + result.getTotalSamples()
-                            + ", Errors=" + result.getTotalErrors()
-                            + ", Error %=" + PerformanceExcelFormatHelper.formatPercent(result.getErrorPercent())
-                            + ", Avg=" + PerformanceExcelFormatHelper.formatMillisecondsAsSeconds(result.getAverageResponseTimeMs())
-                            + ", P95=" + PerformanceExcelFormatHelper.formatMillisecondsAsSeconds(result.getP95ResponseTimeMs()),
-                    headerStyle, normalStyle);
-
-            rowIndex = createKeyValueRow(sheet, rowIndex, "Response Time Assessment",
+            rowIndex = createKeyValueRow(sheet, rowIndex, "Response time assessment",
                     safe(result.getResponseTimeAssessment()), headerStyle, normalStyle);
 
-            rowIndex = createKeyValueRow(sheet, rowIndex, "Error Assessment",
+            rowIndex = createKeyValueRow(sheet, rowIndex, "Error assessment",
                     safe(result.getErrorAssessment()), headerStyle, normalStyle);
 
-            rowIndex = createKeyValueRow(sheet, rowIndex, "Stability Assessment",
+            rowIndex = createKeyValueRow(sheet, rowIndex, "Stability assessment",
                     safe(result.getStabilityAssessment()), headerStyle, normalStyle);
 
-            rowIndex = createKeyValueRow(sheet, rowIndex, "Where failures started",
+            rowIndex = createKeyValueRow(sheet, rowIndex, "First failure indicator",
                     safe(result.getFirstFailureIndicator()), headerStyle, normalStyle);
 
-            rowIndex = createKeyValueRow(sheet, rowIndex, "Final Conclusion",
+            rowIndex = createKeyValueRow(sheet, rowIndex, "Final conclusion",
                     safe(result.getFinalConclusion()), headerStyle, normalStyle);
 
-            rowIndex += 2;
+            rowIndex = createKeyValueRow(sheet, rowIndex, "Average response time",
+                    PerformanceExcelFormatHelper.formatMillisecondsDetailed(result.getAverageResponseTimeMs()), headerStyle, normalStyle);
+
+            rowIndex = createKeyValueRow(sheet, rowIndex, "P95 response time",
+                    PerformanceExcelFormatHelper.formatMillisecondsDetailed(result.getP95ResponseTimeMs()), headerStyle, normalStyle);
+
+            rowIndex = createKeyValueRow(sheet, rowIndex, "Maximum response time",
+                    PerformanceExcelFormatHelper.formatMillisecondsDetailed(result.getMaxResponseTimeMs()), headerStyle, normalStyle);
+
+            rowIndex = createKeyValueRow(sheet, rowIndex, "Actual error percent",
+                    PerformanceExcelFormatHelper.formatPercent(result.getErrorPercent()), headerStyle, normalStyle);
+
+            rowIndex = createKeyValueRow(sheet, rowIndex, "Failure message",
+                    safe(result.getFailureMessage()), headerStyle, normalStyle);
+
+            rowIndex++;
         }
 
-        sheet.createFreezePane(0, 1);
+        sheet.createFreezePane(0, 2);
     }
+
+    // ========================================================================
+    // CHARTS SHEET
+    // ========================================================================
 
     private void writeChartsSheet(XSSFWorkbook workbook,
                                   PerformanceRunReport runReport,
@@ -588,14 +760,13 @@ public class PerformanceExcelReportWriter {
         Row titleRow = sheet.createRow(rowIndex++);
         createCell(titleRow, 0, "Main Performance Chart", titleStyle);
 
-        Row descriptionRow = sheet.createRow(rowIndex++);
-        createCell(descriptionRow, 0,
-                "One combined view of the most important scenario metrics. Time values below are shown in readable seconds in tables, while chart source values stay numeric for plotting.",
+        Row noteRow = sheet.createRow(rowIndex++);
+        createCell(noteRow, 0,
+                "One combined view of the most important scenario metrics. Numeric source values stay visible below for business review.",
                 normalStyle);
 
         rowIndex += 2;
 
-        int dataStartRow = rowIndex;
         Row headerRow = sheet.createRow(rowIndex++);
         createCell(headerRow, 0, "Scenario", headerStyle);
         createCell(headerRow, 1, "Avg Response (sec)", headerStyle);
@@ -606,28 +777,26 @@ public class PerformanceExcelReportWriter {
         createCell(headerRow, 6, "Risk Score", headerStyle);
         createCell(headerRow, 7, "Duration (sec)", headerStyle);
 
+        int dataStartRow = rowIndex;
+
         for (PerformanceExecutionResult result : runReport.getScenarioResults()) {
             Row row = sheet.createRow(rowIndex++);
-            row.createCell(0).setCellValue(safe(result.getTestName()));
-            row.createCell(1).setCellValue(toSeconds(result.getAverageResponseTimeMs()));
-            row.createCell(2).setCellValue(toSeconds(result.getP95ResponseTimeMs()));
-            row.createCell(3).setCellValue(result.getErrorPercent());
-            row.createCell(4).setCellValue(result.getTotalSamples());
-            row.createCell(5).setCellValue(result.getTotalErrors());
-            row.createCell(6).setCellValue(result.getRiskScore());
-            row.createCell(7).setCellValue(toSeconds(result.getTotalScenarioDurationMs()));
-
-            for (int i = 0; i <= 7; i++) {
-                row.getCell(i).setCellStyle(normalStyle);
-            }
+            createCell(row, 0, result.getTestName(), normalStyle);
+            createCell(row, 1, toSeconds(result.getAverageResponseTimeMs()), normalStyle);
+            createCell(row, 2, toSeconds(result.getP95ResponseTimeMs()), normalStyle);
+            createCell(row, 3, result.getErrorPercent(), normalStyle);
+            createCell(row, 4, result.getTotalSamples(), normalStyle);
+            createCell(row, 5, result.getTotalErrors(), normalStyle);
+            createCell(row, 6, result.getRiskScore(), normalStyle);
+            createCell(row, 7, toSeconds(result.getTotalScenarioDurationMs()), normalStyle);
         }
 
         int dataEndRow = rowIndex - 1;
 
         createCombinedMainChart(
                 sheet,
-                "Main Scenario Metrics",
-                dataStartRow + 1,
+                "Combined Performance Overview",
+                dataStartRow,
                 dataEndRow,
                 0,
                 1,
@@ -637,14 +806,18 @@ public class PerformanceExcelReportWriter {
                 5,
                 6,
                 7,
-                0,
-                rowIndex + 1,
-                18,
-                rowIndex + 26
+                9,
+                2,
+                24,
+                22
         );
 
-        sheet.createFreezePane(0, 3);
+        sheet.createFreezePane(0, 2);
     }
+
+    // ========================================================================
+    // GLOSSARY
+    // ========================================================================
 
     private void writeGlossarySheet(XSSFWorkbook workbook,
                                     CellStyle titleStyle,
@@ -654,45 +827,63 @@ public class PerformanceExcelReportWriter {
 
         int rowIndex = 0;
         Row titleRow = sheet.createRow(rowIndex++);
-        createCell(titleRow, 0, "Performance Report Glossary", titleStyle);
-        rowIndex += 2;
+        createCell(titleRow, 0, "Glossary", titleStyle);
+
+        Row subtitleRow = sheet.createRow(rowIndex++);
+        createCell(subtitleRow, 0, "Definitions of terms used throughout the report.", normalStyle);
+
+        rowIndex++;
 
         Row headerRow = sheet.createRow(rowIndex++);
         createCell(headerRow, 0, "Term", headerStyle);
         createCell(headerRow, 1, "Meaning", headerStyle);
 
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Total Samples", "The total number of requests sent during the scenario.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Total Errors", "The total number of failed or unsuccessful requests.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Error %", "The percentage of requests that failed out of all requests sent.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Min Response Time", "The fastest request response time recorded during the scenario.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Average Response Time", "The average time taken for requests to complete.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "P95 Response Time", "95% of requests completed within this time. This is a very important performance stability indicator.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Max Response Time", "The slowest request response time recorded during the scenario.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Total Scenario Duration", "The total end-to-end execution time for the full scenario.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Users", "The number of virtual users simulated during the test.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Ramp-Up Seconds", "How long it takes to gradually start all virtual users.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Hold Seconds", "How long the test keeps running at the target load level.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Iterations", "How many repeated cycles of requests were configured for the scenario.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Execution Mode", "Whether the scenario ran by time duration or by fixed iterations.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Allowed Error %", "The maximum acceptable failure percentage configured for the test.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Allowed Avg Response", "The maximum acceptable average response time configured for the test.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Allowed P95 Response", "The maximum acceptable p95 response time configured for the test.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Risk Score", "A calculated score from 0 to 100 that estimates how risky the scenario result is.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Risk Level", "A readable severity level derived from the risk score, such as Low, Medium, High, or Critical.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Threshold Breach Summary", "A plain-English summary of which configured thresholds were exceeded.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "Recommended Action", "The suggested next step based on the scenario result and risk.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "PASS", "The scenario completed successfully and stayed within configured thresholds.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "FAIL", "The scenario failed unexpectedly or exceeded configured thresholds.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "EXPECTED_FAIL_CONFIRMED", "The scenario was intentionally designed to fail, and that failure was correctly detected.", headerStyle, normalStyle);
-        rowIndex = createKeyValueRow(sheet, rowIndex, "EXPECTED_FAIL_NOT_TRIGGERED", "The scenario was supposed to fail, but the expected failure did not happen.", headerStyle, normalStyle);
+        rowIndex = createKeyValueRow(sheet, rowIndex, "P95 Response Time", "95% of responses finished at or below this time.", headerStyle, normalStyle);
+        rowIndex = createKeyValueRow(sheet, rowIndex, "Average Response Time", "Average time for requests in the scenario.", headerStyle, normalStyle);
+        rowIndex = createKeyValueRow(sheet, rowIndex, "Error %", "Percentage of requests that failed.", headerStyle, normalStyle);
+        rowIndex = createKeyValueRow(sheet, rowIndex, "Risk Score", "Framework-computed risk severity score for a scenario.", headerStyle, normalStyle);
+        rowIndex = createKeyValueRow(sheet, rowIndex, "PASS", "Scenario completed within configured rules and thresholds.", headerStyle, normalStyle);
+        rowIndex = createKeyValueRow(sheet, rowIndex, "FAIL", "Scenario failed thresholds or execution validations.", headerStyle, normalStyle);
+        rowIndex = createKeyValueRow(sheet, rowIndex, "EXPECTED_FAIL_CONFIRMED", "Scenario was designed to fail and did fail as expected.", headerStyle, normalStyle);
+        rowIndex = createKeyValueRow(sheet, rowIndex, "EXPECTED_FAIL_NOT_TRIGGERED", "Scenario was supposed to fail, but the expected failure did not happen.", headerStyle, normalStyle);
         createKeyValueRow(sheet, rowIndex, "SKIPPED", "The scenario did not run.", headerStyle, normalStyle);
 
         sheet.createFreezePane(0, 3);
     }
 
-    private long countRiskLevel(PerformanceRunReport runReport, String level) {
+    // ========================================================================
+    // COUNTERS / ANALYSIS HELPERS
+    // ========================================================================
+
+    private long countHighOrCriticalRiskScenarios(PerformanceRunReport runReport) {
         return runReport.getScenarioResults().stream()
-                .filter(r -> r.getRiskLevel() != null && r.getRiskLevel().equalsIgnoreCase(level))
+                .filter(r -> {
+                    String level = r.getRiskLevel();
+                    return level != null && ("High".equalsIgnoreCase(level) || "Critical".equalsIgnoreCase(level));
+                })
+                .count();
+    }
+
+    private long countErrorScenarios(PerformanceRunReport runReport) {
+        return runReport.getScenarioResults().stream()
+                .filter(r -> r.getTotalErrors() > 0 || r.getErrorPercent() > 0.0)
+                .count();
+    }
+
+    private long countThresholdBreachScenarios(PerformanceRunReport runReport) {
+        return runReport.getScenarioResults().stream()
+                .filter(r -> {
+                    String breachSummary = r.getThresholdBreachSummary();
+                    return breachSummary != null
+                            && !breachSummary.isBlank()
+                            && !NO_THRESHOLD_BREACHES.equalsIgnoreCase(breachSummary.trim());
+                })
+                .count();
+    }
+
+    private long countNoIssueScenarios(PerformanceRunReport runReport) {
+        return runReport.getScenarioResults().stream()
+                .filter(r -> !isAnomaly(r))
                 .count();
     }
 
@@ -757,6 +948,10 @@ public class PerformanceExcelReportWriter {
         return "Attention needed.";
     }
 
+    // ========================================================================
+    // CHART HELPERS
+    // ========================================================================
+
     private void createPieChart(XSSFSheet sheet,
                                 String chartTitle,
                                 int firstRow,
@@ -793,6 +988,108 @@ public class PerformanceExcelReportWriter {
         XDDFChartData data = chart.createData(ChartTypes.PIE, null, null);
         XDDFChartData.Series series = data.addSeries(categories, values);
         series.setTitle(chartTitle, null);
+
+        chart.plot(data);
+    }
+
+    private void createExecutiveHighlightsBarChart(XSSFSheet sheet,
+                                                   String chartTitle,
+                                                   int firstRow,
+                                                   int lastRow,
+                                                   int categoryColumn,
+                                                   int valueColumn,
+                                                   int anchorCol1,
+                                                   int anchorRow1,
+                                                   int anchorCol2,
+                                                   int anchorRow2,
+                                                   String valueAxisTitle) {
+
+        if (lastRow < firstRow) {
+            return;
+        }
+
+        XSSFDrawing drawing = sheet.createDrawingPatriarch();
+        XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, anchorCol1, anchorRow1, anchorCol2, anchorRow2);
+
+        XSSFChart chart = drawing.createChart(anchor);
+        chart.setTitleText(chartTitle);
+        chart.setTitleOverlay(false);
+        chart.getOrAddLegend().setPosition(LegendPosition.BOTTOM);
+
+        XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+        bottomAxis.setTitle("Metric");
+
+        XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+        leftAxis.setTitle(valueAxisTitle);
+
+        XDDFDataSource<String> categories = XDDFDataSourcesFactory.fromStringCellRange(
+                sheet,
+                new CellRangeAddress(firstRow, lastRow, categoryColumn, categoryColumn)
+        );
+
+        XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromNumericCellRange(
+                sheet,
+                new CellRangeAddress(firstRow, lastRow, valueColumn, valueColumn)
+        );
+
+        XDDFBarChartData data = (XDDFBarChartData) chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+        data.setBarDirection(BarDirection.COL);
+        data.setVaryColors(true);
+
+        XDDFBarChartData.Series series = (XDDFBarChartData.Series) data.addSeries(categories, values);
+        series.setTitle("Critical Time Values", null);
+
+        chart.plot(data);
+    }
+
+    private void createMultiSeriesBarChart(XSSFSheet sheet,
+                                           String chartTitle,
+                                           int firstRow,
+                                           int lastRow,
+                                           int categoryColumn,
+                                           int[] valueColumns,
+                                           String[] seriesTitles,
+                                           int anchorCol1,
+                                           int anchorRow1,
+                                           int anchorCol2,
+                                           int anchorRow2,
+                                           String valueAxisTitle) {
+
+        if (lastRow < firstRow || valueColumns == null || seriesTitles == null || valueColumns.length != seriesTitles.length) {
+            return;
+        }
+
+        XSSFDrawing drawing = sheet.createDrawingPatriarch();
+        XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, anchorCol1, anchorRow1, anchorCol2, anchorRow2);
+
+        XSSFChart chart = drawing.createChart(anchor);
+        chart.setTitleText(chartTitle);
+        chart.setTitleOverlay(false);
+        chart.getOrAddLegend().setPosition(LegendPosition.RIGHT);
+
+        XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+        bottomAxis.setTitle("Scenario");
+
+        XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
+        leftAxis.setTitle(valueAxisTitle);
+
+        XDDFDataSource<String> categories = XDDFDataSourcesFactory.fromStringCellRange(
+                sheet,
+                new CellRangeAddress(firstRow, lastRow, categoryColumn, categoryColumn)
+        );
+
+        XDDFBarChartData data = (XDDFBarChartData) chart.createData(ChartTypes.BAR, bottomAxis, leftAxis);
+        data.setBarDirection(BarDirection.COL);
+        data.setVaryColors(true);
+
+        for (int i = 0; i < valueColumns.length; i++) {
+            XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromNumericCellRange(
+                    sheet,
+                    new CellRangeAddress(firstRow, lastRow, valueColumns[i], valueColumns[i])
+            );
+            XDDFBarChartData.Series series = (XDDFBarChartData.Series) data.addSeries(categories, values);
+            series.setTitle(seriesTitles[i], null);
+        }
 
         chart.plot(data);
     }
@@ -869,6 +1166,7 @@ public class PerformanceExcelReportWriter {
                 sheet, new CellRangeAddress(firstRow, lastRow, totalErrorsColumn, totalErrorsColumn));
 
         XDDFLineChartData lineData = (XDDFLineChartData) chart.createData(ChartTypes.LINE, bottomAxis, rightAxis);
+
         XDDFLineChartData.Series errorSeries = (XDDFLineChartData.Series) lineData.addSeries(categories, errorValues);
         errorSeries.setTitle("Error %", null);
         errorSeries.setSmooth(false);
@@ -886,6 +1184,10 @@ public class PerformanceExcelReportWriter {
 
         chart.plot(lineData);
     }
+
+    // ========================================================================
+    // STYLE HELPERS
+    // ========================================================================
 
     private CellStyle resolveStatusStyle(PerformanceExecutionStatus status,
                                          CellStyle passStyle,
@@ -1000,6 +1302,10 @@ public class PerformanceExcelReportWriter {
         style.setBorderRight(BorderStyle.THIN);
     }
 
+    // ========================================================================
+    // SHEET SIZING
+    // ========================================================================
+
     private void autoSizeAllColumns(Workbook workbook) {
         for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
             Sheet sheet = workbook.getSheetAt(i);
@@ -1015,6 +1321,38 @@ public class PerformanceExcelReportWriter {
         }
     }
 
+    private void enforceBusinessFriendlyColumnWidths(Workbook workbook) {
+        Sheet executive = workbook.getSheet("Executive_Summary");
+        if (executive != null) {
+            setMinimumWidth(executive, 0, 7500);
+            setMinimumWidth(executive, 1, 10000);
+            setMinimumWidth(executive, 2, 7000);
+            setMinimumWidth(executive, 3, 4500);
+            setMinimumWidth(executive, 4, 3500);
+        }
+
+        Sheet scenarioSummary = workbook.getSheet("Scenario_Summary");
+        if (scenarioSummary != null) {
+            setMinimumWidth(scenarioSummary, 0, 8000);
+            setMinimumWidth(scenarioSummary, 1, 5000);
+            setMinimumWidth(scenarioSummary, 2, 3500);
+            setMinimumWidth(scenarioSummary, 3, 3500);
+            setMinimumWidth(scenarioSummary, 4, 8500);
+            setMinimumWidth(scenarioSummary, 5, 10000);
+            setMinimumWidth(scenarioSummary, 28, 8500);
+            setMinimumWidth(scenarioSummary, 29, 8500);
+            setMinimumWidth(scenarioSummary, 30, 8500);
+            setMinimumWidth(scenarioSummary, 31, 8500);
+            setMinimumWidth(scenarioSummary, 32, 10000);
+        }
+    }
+
+    private void setMinimumWidth(Sheet sheet, int columnIndex, int width) {
+        if (sheet.getColumnWidth(columnIndex) < width) {
+            sheet.setColumnWidth(columnIndex, width);
+        }
+    }
+
     private int findMaxColumnCount(Sheet sheet) {
         int maxColumns = 0;
         for (Row row : sheet) {
@@ -1024,6 +1362,10 @@ public class PerformanceExcelReportWriter {
         }
         return maxColumns;
     }
+
+    // ========================================================================
+    // VALIDATION / LOW-LEVEL HELPERS
+    // ========================================================================
 
     private void validateRunReport(PerformanceRunReport runReport) {
         if (runReport == null) {
@@ -1037,6 +1379,10 @@ public class PerformanceExcelReportWriter {
 
     private double toSeconds(long milliseconds) {
         return milliseconds / 1000.0;
+    }
+
+    private double roundToThreeDecimals(double value) {
+        return Math.round(value * 1000.0) / 1000.0;
     }
 
     private String safe(String value) {

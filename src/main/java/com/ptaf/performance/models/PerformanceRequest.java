@@ -9,8 +9,19 @@ import java.util.Map;
  *
  * <p>This object is constructed only through builder layers and consumed
  * by architect-controlled engine/test-plan classes.</p>
+ *
+ * <p>Reporting-safe goals:
+ * <ul>
+ *   <li>keep constructor compatibility</li>
+ *   <li>normalize request fields for cleaner report output</li>
+ *   <li>preserve immutability</li>
+ *   <li>add helper methods only</li>
+ * </ul>
+ * </p>
  */
 public class PerformanceRequest {
+
+    private static final String NOT_AVAILABLE = "N/A";
 
     private final String requestName;
     private final String method;
@@ -71,23 +82,23 @@ public class PerformanceRequest {
                               String basicAuthPassword,
                               String payloadSourceType,
                               String payloadSourceDetails) {
-        this.requestName = requestName;
-        this.method = method;
-        this.protocol = protocol;
-        this.host = host;
-        this.port = port;
-        this.path = path;
-        this.requestBody = requestBody;
-        this.contentType = contentType;
-        this.acceptType = acceptType;
+        this.requestName = normalizeText(requestName);
+        this.method = normalizeMethod(method);
+        this.protocol = normalizeProtocol(protocol);
+        this.host = normalizeText(host);
+        this.port = sanitizePort(port);
+        this.path = normalizePath(path);
+        this.requestBody = normalizeMultilineText(requestBody);
+        this.contentType = normalizeText(contentType);
+        this.acceptType = normalizeText(acceptType);
         this.headers = headers == null
                 ? Collections.emptyMap()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(headers));
-        this.bearerTokenAlias = bearerTokenAlias;
-        this.basicAuthUsername = basicAuthUsername;
-        this.basicAuthPassword = basicAuthPassword;
-        this.payloadSourceType = payloadSourceType;
-        this.payloadSourceDetails = payloadSourceDetails;
+        this.bearerTokenAlias = normalizeText(bearerTokenAlias);
+        this.basicAuthUsername = normalizeText(basicAuthUsername);
+        this.basicAuthPassword = basicAuthPassword == null ? "" : basicAuthPassword;
+        this.payloadSourceType = normalizeText(payloadSourceType);
+        this.payloadSourceDetails = normalizeText(payloadSourceDetails);
     }
 
     public String getRequestName() {
@@ -148,6 +159,131 @@ public class PerformanceRequest {
 
     public String getPayloadSourceDetails() {
         return payloadSourceDetails;
+    }
+
+    // ============================================================
+    // REPORTING / HELPER METHODS
+    // ============================================================
+
+    public boolean hasBearerTokenAuth() {
+        return !bearerTokenAlias.isBlank();
+    }
+
+    public boolean hasBasicAuth() {
+        return !basicAuthUsername.isBlank();
+    }
+
+    public boolean hasHeaders() {
+        return !headers.isEmpty();
+    }
+
+    public boolean hasRequestBody() {
+        return !requestBody.isBlank();
+    }
+
+    public String getResolvedAuthType() {
+        if (hasBearerTokenAuth()) {
+            return "Bearer Token";
+        }
+        if (hasBasicAuth()) {
+            return "Basic Authentication";
+        }
+        return "No Authentication";
+    }
+
+    public String getSafeRequestName() {
+        return requestName.isBlank() ? NOT_AVAILABLE : requestName;
+    }
+
+    public String getSafeMethod() {
+        return method.isBlank() ? NOT_AVAILABLE : method;
+    }
+
+    public String getSafeProtocol() {
+        return protocol.isBlank() ? NOT_AVAILABLE : protocol;
+    }
+
+    public String getSafeHost() {
+        return host.isBlank() ? NOT_AVAILABLE : host;
+    }
+
+    public String getSafePath() {
+        return path.isBlank() ? "/" : path;
+    }
+
+    public String getSafeContentType() {
+        return contentType.isBlank() ? NOT_AVAILABLE : contentType;
+    }
+
+    public String getSafeAcceptType() {
+        return acceptType.isBlank() ? NOT_AVAILABLE : acceptType;
+    }
+
+    public String getSafePayloadSourceType() {
+        return payloadSourceType.isBlank() ? "No Payload" : payloadSourceType;
+    }
+
+    public String getSafePayloadSourceDetails() {
+        return payloadSourceDetails.isBlank() ? NOT_AVAILABLE : payloadSourceDetails;
+    }
+
+    public String buildDisplayUrl() {
+        if (protocol.isBlank() || host.isBlank() || port <= 0) {
+            return NOT_AVAILABLE;
+        }
+        return protocol + "://" + host + ":" + port + getSafePath();
+    }
+
+    // ============================================================
+    // INTERNAL NORMALIZATION
+    // ============================================================
+
+    private String normalizeText(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        String cleaned = value.trim();
+        if (cleaned.isEmpty()) {
+            return "";
+        }
+
+        return cleaned
+                .replace("\r\n", " ")
+                .replace('\n', ' ')
+                .replace('\r', ' ')
+                .replaceAll("\\s{2,}", " ");
+    }
+
+    private String normalizeMultilineText(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim();
+    }
+
+    private String normalizeMethod(String value) {
+        String cleaned = normalizeText(value);
+        return cleaned.isEmpty() ? "" : cleaned.toUpperCase();
+    }
+
+    private String normalizeProtocol(String value) {
+        String cleaned = normalizeText(value);
+        return cleaned.isEmpty() ? "" : cleaned.toLowerCase();
+    }
+
+    private String normalizePath(String value) {
+        String cleaned = normalizeText(value);
+
+        if (cleaned.isEmpty()) {
+            return "/";
+        }
+
+        return cleaned.startsWith("/") ? cleaned : "/" + cleaned;
+    }
+
+    private int sanitizePort(int value) {
+        return Math.max(value, 0);
     }
 
     @Override

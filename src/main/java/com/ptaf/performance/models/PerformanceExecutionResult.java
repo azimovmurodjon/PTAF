@@ -14,8 +14,21 @@ package com.ptaf.performance.models;
  *   <li>risk scoring and recommended actions</li>
  * </ul>
  * </p>
+ *
+ * <p>Reporting-safe design goals:
+ * <ul>
+ *   <li>keep constructor compatibility</li>
+ *   <li>do not change execution behavior</li>
+ *   <li>normalize null/blank values for Excel/reporting usage</li>
+ *   <li>provide reusable helper methods for business-facing reporting</li>
+ * </ul>
+ * </p>
  */
 public class PerformanceExecutionResult {
+
+    private static final String NO_THRESHOLD_BREACHES = "No configured threshold breaches detected.";
+    private static final String UNKNOWN = "Unknown";
+    private static final String NOT_AVAILABLE = "N/A";
 
     // ============================================================
     // TEST IDENTITY
@@ -181,53 +194,61 @@ public class PerformanceExecutionResult {
             boolean actualFailureDetected,
             String failureMessage
     ) {
-        this.testName = testName;
-        this.testPurpose = testPurpose;
-        this.performanceTestType = performanceTestType;
-        this.testGoal = testGoal;
-        this.httpMethod = httpMethod;
-        this.targetPath = targetPath;
-        this.fullTargetUrl = fullTargetUrl;
-        this.contentType = contentType;
-        this.acceptType = acceptType;
-        this.authType = authType;
-        this.payloadSourceType = payloadSourceType;
-        this.payloadSourceDetails = payloadSourceDetails;
-        this.users = users;
-        this.rampUpSeconds = rampUpSeconds;
-        this.holdSeconds = holdSeconds;
-        this.iterations = iterations;
-        this.executionMode = executionMode;
-        this.maxAllowedErrorPercent = maxAllowedErrorPercent;
-        this.maxAllowedAverageResponseTimeMs = maxAllowedAverageResponseTimeMs;
-        this.maxAllowedP95ResponseTimeMs = maxAllowedP95ResponseTimeMs;
-        this.totalScenarioDurationMs = totalScenarioDurationMs;
-        this.totalSamples = totalSamples;
-        this.totalErrors = totalErrors;
-        this.errorPercent = errorPercent;
-        this.minResponseTimeMs = minResponseTimeMs;
-        this.averageResponseTimeMs = averageResponseTimeMs;
-        this.p95ResponseTimeMs = p95ResponseTimeMs;
-        this.maxResponseTimeMs = maxResponseTimeMs;
-        this.riskScore = riskScore;
-        this.riskLevel = riskLevel;
-        this.thresholdBreachSummary = thresholdBreachSummary;
-        this.recommendedAction = recommendedAction;
-        this.responseTimeAssessment = responseTimeAssessment;
-        this.errorAssessment = errorAssessment;
-        this.stabilityAssessment = stabilityAssessment;
-        this.firstFailureIndicator = firstFailureIndicator;
-        this.finalConclusion = finalConclusion;
-        this.dashboardPath = dashboardPath;
-        this.jtlFilePath = jtlFilePath;
-        this.summaryFilePath = summaryFilePath;
-        this.readableSummaryFilePath = readableSummaryFilePath;
-        this.runReportRootPath = runReportRootPath;
+        this.testName = normalizeText(testName);
+        this.testPurpose = normalizeText(testPurpose);
+        this.performanceTestType = normalizeText(performanceTestType);
+        this.testGoal = normalizeText(testGoal);
+
+        this.httpMethod = normalizeText(httpMethod);
+        this.targetPath = normalizeText(targetPath);
+        this.fullTargetUrl = normalizeText(fullTargetUrl);
+        this.contentType = normalizeText(contentType);
+        this.acceptType = normalizeText(acceptType);
+        this.authType = normalizeText(authType);
+        this.payloadSourceType = normalizeText(payloadSourceType);
+        this.payloadSourceDetails = normalizeText(payloadSourceDetails);
+
+        this.users = sanitizeInt(users);
+        this.rampUpSeconds = sanitizeInt(rampUpSeconds);
+        this.holdSeconds = sanitizeInt(holdSeconds);
+        this.iterations = sanitizeInt(iterations);
+        this.executionMode = normalizeText(executionMode);
+
+        this.maxAllowedErrorPercent = sanitizeDouble(maxAllowedErrorPercent);
+        this.maxAllowedAverageResponseTimeMs = sanitizeLong(maxAllowedAverageResponseTimeMs);
+        this.maxAllowedP95ResponseTimeMs = sanitizeLong(maxAllowedP95ResponseTimeMs);
+
+        this.totalScenarioDurationMs = sanitizeLong(totalScenarioDurationMs);
+        this.totalSamples = sanitizeLong(totalSamples);
+        this.totalErrors = sanitizeLong(totalErrors);
+        this.errorPercent = sanitizeDouble(errorPercent);
+        this.minResponseTimeMs = sanitizeLong(minResponseTimeMs);
+        this.averageResponseTimeMs = sanitizeLong(averageResponseTimeMs);
+        this.p95ResponseTimeMs = sanitizeLong(p95ResponseTimeMs);
+        this.maxResponseTimeMs = sanitizeLong(maxResponseTimeMs);
+
+        this.riskScore = sanitizeInt(riskScore);
+        this.riskLevel = normalizeRiskLevel(riskLevel);
+        this.thresholdBreachSummary = normalizeThresholdBreachSummary(thresholdBreachSummary);
+        this.recommendedAction = normalizeText(recommendedAction);
+
+        this.responseTimeAssessment = normalizeText(responseTimeAssessment);
+        this.errorAssessment = normalizeText(errorAssessment);
+        this.stabilityAssessment = normalizeText(stabilityAssessment);
+        this.firstFailureIndicator = normalizeText(firstFailureIndicator);
+        this.finalConclusion = normalizeText(finalConclusion);
+
+        this.dashboardPath = normalizeText(dashboardPath);
+        this.jtlFilePath = normalizeText(jtlFilePath);
+        this.summaryFilePath = normalizeText(summaryFilePath);
+        this.readableSummaryFilePath = normalizeText(readableSummaryFilePath);
+        this.runReportRootPath = normalizeText(runReportRootPath);
+
         this.executionStatus = executionStatus;
         this.executionPassed = executionPassed;
         this.expectedFailureMode = expectedFailureMode;
         this.actualFailureDetected = actualFailureDetected;
-        this.failureMessage = failureMessage;
+        this.failureMessage = normalizeText(failureMessage);
     }
 
     // ============================================================
@@ -459,6 +480,218 @@ public class PerformanceExecutionResult {
      */
     public double getErrorPercentage() {
         return getErrorPercent();
+    }
+
+    // ============================================================
+    // REPORTING / BUSINESS HELPERS
+    // ============================================================
+
+    public boolean hasThresholdBreach() {
+        return thresholdBreachSummary != null
+                && !thresholdBreachSummary.isBlank()
+                && !NO_THRESHOLD_BREACHES.equalsIgnoreCase(thresholdBreachSummary.trim());
+    }
+
+    public boolean hasErrors() {
+        return totalErrors > 0 || errorPercent > 0.0;
+    }
+
+    public boolean hasHighOrCriticalRisk() {
+        return isHighRisk() || isCriticalRisk() || riskScore >= 51;
+    }
+
+    public boolean isLowRisk() {
+        return "Low".equalsIgnoreCase(riskLevel);
+    }
+
+    public boolean isMediumRisk() {
+        return "Medium".equalsIgnoreCase(riskLevel);
+    }
+
+    public boolean isHighRisk() {
+        return "High".equalsIgnoreCase(riskLevel);
+    }
+
+    public boolean isCriticalRisk() {
+        return "Critical".equalsIgnoreCase(riskLevel);
+    }
+
+    public boolean isAttentionNeeded() {
+        return executionStatus == PerformanceExecutionStatus.FAIL
+                || executionStatus == PerformanceExecutionStatus.EXPECTED_FAIL_NOT_TRIGGERED
+                || hasThresholdBreach()
+                || hasErrors()
+                || hasHighOrCriticalRisk();
+    }
+
+    public String getBusinessOutcomeLabel() {
+        if (executionStatus == null) {
+            return UNKNOWN;
+        }
+
+        return switch (executionStatus) {
+            case PASS -> "Passed";
+            case FAIL -> "Failed";
+            case EXPECTED_FAIL_CONFIRMED -> "Expected Fail Confirmed";
+            case EXPECTED_FAIL_NOT_TRIGGERED -> "Expected Fail Not Triggered";
+            case SKIPPED -> "Skipped";
+        };
+    }
+
+    public String getAttentionCategory() {
+        if (!isAttentionNeeded()) {
+            return "No Issue Detected";
+        }
+
+        if (executionStatus == PerformanceExecutionStatus.FAIL) {
+            return "Execution Failure";
+        }
+
+        if (executionStatus == PerformanceExecutionStatus.EXPECTED_FAIL_NOT_TRIGGERED) {
+            return "Expected Failure Not Triggered";
+        }
+
+        if (hasThresholdBreach()) {
+            return "Threshold Breach";
+        }
+
+        if (hasErrors()) {
+            return "Errors Present";
+        }
+
+        if (hasHighOrCriticalRisk()) {
+            return "High / Critical Risk";
+        }
+
+        return "Attention Needed";
+    }
+
+    public String getPrimaryBusinessConcern() {
+        if (executionStatus == PerformanceExecutionStatus.FAIL) {
+            return "Scenario failed unexpectedly.";
+        }
+
+        if (executionStatus == PerformanceExecutionStatus.EXPECTED_FAIL_NOT_TRIGGERED) {
+            return "Expected failure did not trigger.";
+        }
+
+        if (hasThresholdBreach()) {
+            return thresholdBreachSummary;
+        }
+
+        if (hasErrors()) {
+            return "Request errors were detected.";
+        }
+
+        if (hasHighOrCriticalRisk()) {
+            return "Elevated scenario risk detected.";
+        }
+
+        return "No major business concern detected.";
+    }
+
+    public String getSafeFailureMessage() {
+        return isBlank(failureMessage) ? "" : failureMessage;
+    }
+
+    public String getSafeTestName() {
+        return isBlank(testName) ? NOT_AVAILABLE : testName;
+    }
+
+    public String getSafeTargetPath() {
+        return isBlank(targetPath) ? NOT_AVAILABLE : targetPath;
+    }
+
+    public String getSafeRecommendedAction() {
+        return isBlank(recommendedAction) ? NOT_AVAILABLE : recommendedAction;
+    }
+
+    public String getSafeFinalConclusion() {
+        return isBlank(finalConclusion) ? NOT_AVAILABLE : finalConclusion;
+    }
+
+    public String getSafeResponseTimeAssessment() {
+        return isBlank(responseTimeAssessment) ? NOT_AVAILABLE : responseTimeAssessment;
+    }
+
+    public String getSafeErrorAssessment() {
+        return isBlank(errorAssessment) ? NOT_AVAILABLE : errorAssessment;
+    }
+
+    public String getSafeStabilityAssessment() {
+        return isBlank(stabilityAssessment) ? NOT_AVAILABLE : stabilityAssessment;
+    }
+
+    public String getSafeFirstFailureIndicator() {
+        return isBlank(firstFailureIndicator) ? NOT_AVAILABLE : firstFailureIndicator;
+    }
+
+    // ============================================================
+    // INTERNAL NORMALIZATION HELPERS
+    // ============================================================
+
+    private static String normalizeText(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        String cleaned = value.trim();
+        if (cleaned.isEmpty()) {
+            return "";
+        }
+
+        return cleaned
+                .replace("\r\n", " ")
+                .replace('\n', ' ')
+                .replace('\r', ' ')
+                .replaceAll("\\s{2,}", " ");
+    }
+
+    private static String normalizeRiskLevel(String value) {
+        String cleaned = normalizeText(value);
+
+        if (cleaned.isEmpty()) {
+            return UNKNOWN;
+        }
+
+        if ("low".equalsIgnoreCase(cleaned)) {
+            return "Low";
+        }
+        if ("medium".equalsIgnoreCase(cleaned)) {
+            return "Medium";
+        }
+        if ("high".equalsIgnoreCase(cleaned)) {
+            return "High";
+        }
+        if ("critical".equalsIgnoreCase(cleaned)) {
+            return "Critical";
+        }
+
+        return cleaned;
+    }
+
+    private static String normalizeThresholdBreachSummary(String value) {
+        String cleaned = normalizeText(value);
+        return cleaned.isEmpty() ? NO_THRESHOLD_BREACHES : cleaned;
+    }
+
+    private static int sanitizeInt(int value) {
+        return Math.max(value, 0);
+    }
+
+    private static long sanitizeLong(long value) {
+        return Math.max(value, 0L);
+    }
+
+    private static double sanitizeDouble(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value) || value < 0) {
+            return 0.0;
+        }
+        return value;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     @Override

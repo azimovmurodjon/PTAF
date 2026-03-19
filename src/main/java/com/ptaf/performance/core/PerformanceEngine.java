@@ -43,6 +43,15 @@ import java.util.regex.Pattern;
  *   <li>write TXT summaries and one Excel workbook per run</li>
  * </ul>
  * </p>
+ *
+ * <p>Reporting-safe goals:
+ * <ul>
+ *   <li>preserve existing execution behavior as much as possible</li>
+ *   <li>keep Excel generation deterministic and thread-safe</li>
+ *   <li>avoid partial corruption of run-level reporting state</li>
+ *   <li>improve business-facing reporting inputs without breaking enterprise reuse</li>
+ * </ul>
+ * </p>
  */
 public class PerformanceEngine {
 
@@ -54,6 +63,7 @@ public class PerformanceEngine {
     private static volatile PerformanceRunReport currentRunReport;
 
     private static final String DEFAULT_REPORTS_BASE_DIR = "test-output-performance-reports";
+    private static final String NO_THRESHOLD_BREACHES = "No configured threshold breaches detected.";
 
     private final PerformanceAssertionEngine assertionEngine = new PerformanceAssertionEngine();
     private final PerformanceTestPlanBuilder testPlanBuilder = new PerformanceTestPlanBuilder();
@@ -155,7 +165,7 @@ public class PerformanceEngine {
             p95ResponseTimeMs = metrics.p95ResponseTimeMs;
             maxResponseTimeMs = metrics.maxResponseTimeMs;
 
-            totalScenarioDurationMs = Math.max(0L, System.currentTimeMillis() - scenarioStartTimeMs);
+            totalScenarioDurationMs = elapsedSince(scenarioStartTimeMs);
 
             PerformanceExecutionResult rawResult = buildFinalResult(
                     request,
@@ -189,11 +199,11 @@ public class PerformanceEngine {
             } catch (AssertionError assertionError) {
                 executionPassed = false;
                 actualFailureDetected = true;
-                failureMessage = assertionError.getMessage();
+                failureMessage = safeMessage(assertionError);
                 executionStatus = resolveExecutionStatus(false, expectedFailureMode, true);
 
                 if (!expectedFailureMode) {
-                    totalScenarioDurationMs = Math.max(0L, System.currentTimeMillis() - scenarioStartTimeMs);
+                    totalScenarioDurationMs = elapsedSince(scenarioStartTimeMs);
 
                     PerformanceExecutionResult failedAssertionResult = buildFinalResult(
                             request,
@@ -229,9 +239,9 @@ public class PerformanceEngine {
         } catch (Exception e) {
             executionPassed = false;
             actualFailureDetected = true;
-            failureMessage = e.getMessage();
+            failureMessage = safeMessage(e);
             executionStatus = resolveExecutionStatus(false, expectedFailureMode, true);
-            totalScenarioDurationMs = Math.max(0L, System.currentTimeMillis() - scenarioStartTimeMs);
+            totalScenarioDurationMs = elapsedSince(scenarioStartTimeMs);
 
             if (!expectedFailureMode) {
                 PerformanceExecutionResult failedResult = buildFinalResult(
@@ -262,7 +272,7 @@ public class PerformanceEngine {
             }
         }
 
-        totalScenarioDurationMs = Math.max(0L, System.currentTimeMillis() - scenarioStartTimeMs);
+        totalScenarioDurationMs = elapsedSince(scenarioStartTimeMs);
         executionStatus = resolveExecutionStatus(executionPassed, expectedFailureMode, actualFailureDetected);
 
         PerformanceExecutionResult finalResult = buildFinalResult(
@@ -349,7 +359,7 @@ public class PerformanceEngine {
 
     private void writeExcelRunReport() {
         synchronized (RUN_LOCK) {
-            if (currentRunReport == null) {
+            if (currentRunReport == null || !currentRunReport.hasScenarioResults()) {
                 return;
             }
             excelReportWriter.writeRunReport(currentRunReport);
@@ -465,23 +475,23 @@ public class PerformanceEngine {
                 authType,
                 payloadSourceType,
                 payloadSourceDetails,
-                profile.getUsers(),
-                profile.getRampUpSeconds(),
-                profile.getHoldSeconds(),
-                profile.getIterations(),
+                safeNonNegative(profile.getUsers()),
+                safeNonNegative(profile.getRampUpSeconds()),
+                safeNonNegative(profile.getHoldSeconds()),
+                safeNonNegative(profile.getIterations()),
                 executionMode,
-                assertionProfile.getMaxErrorPercent(),
-                assertionProfile.getMaxAverageResponseTimeMs(),
-                assertionProfile.getMaxP95ResponseTimeMs(),
-                totalScenarioDurationMs,
-                totalSamples,
-                totalErrors,
-                errorPercent,
-                minResponseTimeMs,
-                averageResponseTimeMs,
-                p95ResponseTimeMs,
-                maxResponseTimeMs,
-                riskScore,
+                safeNonNegative(assertionProfile.getMaxErrorPercent()),
+                safeNonNegative(assertionProfile.getMaxAverageResponseTimeMs()),
+                safeNonNegative(assertionProfile.getMaxP95ResponseTimeMs()),
+                safeNonNegative(totalScenarioDurationMs),
+                safeNonNegative(totalSamples),
+                safeNonNegative(totalErrors),
+                safeNonNegative(errorPercent),
+                safeNonNegative(minResponseTimeMs),
+                safeNonNegative(averageResponseTimeMs),
+                safeNonNegative(p95ResponseTimeMs),
+                safeNonNegative(maxResponseTimeMs),
+                safeNonNegative(riskScore),
                 riskLevel,
                 thresholdBreachSummary,
                 recommendedAction,
@@ -569,12 +579,14 @@ public class PerformanceEngine {
         StringBuilder sb = new StringBuilder();
 
         sb.append("=======================================================================").append(nl);
-        sb.append("Test Name                : ").append(result.getTestName()).append(nl);
+        sb.append("Test Name                : ").append(result.getSafeTestName()).append(nl);
         sb.append("Execution Status         : ").append(result.getExecutionStatus()).append(nl);
         sb.append("Risk Score               : ").append(result.getRiskScore()).append(nl);
         sb.append("Risk Level               : ").append(result.getRiskLevel()).append(nl);
         sb.append("Threshold Breach Summary : ").append(result.getThresholdBreachSummary()).append(nl);
-        sb.append("Recommended Action       : ").append(result.getRecommendedAction()).append(nl);
+        sb.append("Recommended Action       : ").append(result.getSafeRecommendedAction()).append(nl);
+        sb.append("Primary Business Concern : ").append(result.getPrimaryBusinessConcern()).append(nl);
+        sb.append("Attention Category       : ").append(result.getAttentionCategory()).append(nl);
         sb.append("Test Type                : ").append(result.getPerformanceTestType()).append(nl);
         sb.append("Purpose                  : ").append(result.getTestPurpose()).append(nl);
         sb.append("Goal                     : ").append(result.getTestGoal()).append(nl);
@@ -596,15 +608,15 @@ public class PerformanceEngine {
         sb.append("Average Response Time    : ").append(result.getAverageResponseTimeMs()).append(" ms").append(nl);
         sb.append("P95 Response Time        : ").append(result.getP95ResponseTimeMs()).append(" ms").append(nl);
         sb.append("Max Response Time        : ").append(result.getMaxResponseTimeMs()).append(" ms").append(nl);
-        sb.append("Response Assessment      : ").append(result.getResponseTimeAssessment()).append(nl);
-        sb.append("Error Assessment         : ").append(result.getErrorAssessment()).append(nl);
-        sb.append("Stability Assessment     : ").append(result.getStabilityAssessment()).append(nl);
-        sb.append("First Failure Indicator  : ").append(result.getFirstFailureIndicator()).append(nl);
-        sb.append("Final Conclusion         : ").append(result.getFinalConclusion()).append(nl);
+        sb.append("Response Assessment      : ").append(result.getSafeResponseTimeAssessment()).append(nl);
+        sb.append("Error Assessment         : ").append(result.getSafeErrorAssessment()).append(nl);
+        sb.append("Stability Assessment     : ").append(result.getSafeStabilityAssessment()).append(nl);
+        sb.append("First Failure Indicator  : ").append(result.getSafeFirstFailureIndicator()).append(nl);
+        sb.append("Final Conclusion         : ").append(result.getSafeFinalConclusion()).append(nl);
         sb.append("Execution Passed         : ").append(result.isExecutionPassed()).append(nl);
         sb.append("Expected Failure Mode    : ").append(result.isExpectedFailureMode()).append(nl);
         sb.append("Actual Failure Detected  : ").append(result.isActualFailureDetected()).append(nl);
-        sb.append("Failure Message          : ").append(safeValue(result.getFailureMessage())).append(nl);
+        sb.append("Failure Message          : ").append(safeValue(result.getSafeFailureMessage())).append(nl);
         sb.append("Dashboard Path           : ").append(result.getDashboardPath()).append(nl);
         sb.append("JTL Path                 : ").append(result.getJtlFilePath()).append(nl);
         sb.append("Scenario Summary         : ").append(result.getSummaryFilePath()).append(nl);
@@ -627,12 +639,14 @@ public class PerformanceEngine {
         StringBuilder sb = new StringBuilder();
 
         sb.append("=======================================================================").append(nl);
-        sb.append("Test Name: ").append(result.getTestName()).append(nl);
+        sb.append("Test Name: ").append(result.getSafeTestName()).append(nl);
+        sb.append("Business Outcome: ").append(result.getBusinessOutcomeLabel()).append(nl);
         sb.append("Execution Status: ").append(result.getExecutionStatus()).append(nl);
         sb.append("Risk Score: ").append(result.getRiskScore()).append(nl);
         sb.append("Risk Level: ").append(result.getRiskLevel()).append(nl);
+        sb.append("Primary concern: ").append(result.getPrimaryBusinessConcern()).append(nl);
         sb.append("Thresholds exceeded: ").append(result.getThresholdBreachSummary()).append(nl);
-        sb.append("Recommended action: ").append(result.getRecommendedAction()).append(nl);
+        sb.append("Recommended action: ").append(result.getSafeRecommendedAction()).append(nl);
         sb.append("What was tested: ").append(result.getHttpMethod()).append(" ").append(result.getFullTargetUrl()).append(nl);
         sb.append("Test type: ").append(result.getPerformanceTestType()).append(nl);
         sb.append("Purpose: ").append(result.getTestPurpose()).append(nl);
@@ -652,11 +666,11 @@ public class PerformanceEngine {
         sb.append("Average response: ").append(result.getAverageResponseTimeMs()).append(" ms").append(nl);
         sb.append("95% of responses were under: ").append(result.getP95ResponseTimeMs()).append(" ms").append(nl);
         sb.append("Slowest response: ").append(result.getMaxResponseTimeMs()).append(" ms").append(nl);
-        sb.append("System behavior: ").append(result.getStabilityAssessment()).append(nl);
-        sb.append("Where failures started: ").append(result.getFirstFailureIndicator()).append(nl);
-        sb.append("Conclusion: ").append(result.getFinalConclusion()).append(nl);
+        sb.append("System behavior: ").append(result.getSafeStabilityAssessment()).append(nl);
+        sb.append("Where failures started: ").append(result.getSafeFirstFailureIndicator()).append(nl);
+        sb.append("Conclusion: ").append(result.getSafeFinalConclusion()).append(nl);
         sb.append("Passed: ").append(result.isExecutionPassed()).append(nl);
-        sb.append("Failure message: ").append(safeValue(result.getFailureMessage())).append(nl);
+        sb.append("Failure message: ").append(safeValue(result.getSafeFailureMessage())).append(nl);
         sb.append("Readable summary file: ").append(result.getReadableSummaryFilePath()).append(nl);
         sb.append("=======================================================================").append(nl);
 
@@ -674,12 +688,14 @@ public class PerformanceEngine {
         String nl = System.lineSeparator();
         StringBuilder sb = new StringBuilder();
 
-        sb.append("Test Name           : ").append(result.getTestName()).append(nl);
+        sb.append("Test Name           : ").append(result.getSafeTestName()).append(nl);
+        sb.append("Business Outcome    : ").append(result.getBusinessOutcomeLabel()).append(nl);
         sb.append("Execution Status    : ").append(result.getExecutionStatus()).append(nl);
         sb.append("Risk Score          : ").append(result.getRiskScore()).append(nl);
         sb.append("Risk Level          : ").append(result.getRiskLevel()).append(nl);
+        sb.append("Attention Category  : ").append(result.getAttentionCategory()).append(nl);
         sb.append("Threshold Breaches  : ").append(result.getThresholdBreachSummary()).append(nl);
-        sb.append("Recommended Action  : ").append(result.getRecommendedAction()).append(nl);
+        sb.append("Recommended Action  : ").append(result.getSafeRecommendedAction()).append(nl);
         sb.append("Test Type           : ").append(result.getPerformanceTestType()).append(nl);
         sb.append("Execution Passed    : ").append(result.isExecutionPassed()).append(nl);
         sb.append("Expected Failure    : ").append(result.isExpectedFailureMode()).append(nl);
@@ -699,7 +715,7 @@ public class PerformanceEngine {
         sb.append("JTL Path            : ").append(result.getJtlFilePath()).append(nl);
         sb.append("Summary Path        : ").append(result.getSummaryFilePath()).append(nl);
         sb.append("Readable Summary    : ").append(result.getReadableSummaryFilePath()).append(nl);
-        sb.append("Failure Message     : ").append(safeValue(result.getFailureMessage())).append(nl);
+        sb.append("Failure Message     : ").append(safeValue(result.getSafeFailureMessage())).append(nl);
         sb.append("------------------------------------------------------------").append(nl);
 
         Files.writeString(
@@ -723,6 +739,10 @@ public class PerformanceEngine {
 
         try {
             String content = Files.readString(jtlPath, StandardCharsets.UTF_8).trim();
+
+            if (content.isBlank()) {
+                return new JtlMetrics(0, 0, 0.0, 0, 0, 0, 0);
+            }
 
             if (content.startsWith("<?xml") || content.startsWith("<testResults")) {
                 return parseXmlJtl(content);
@@ -1017,13 +1037,13 @@ public class PerformanceEngine {
                                               double errorPercent,
                                               String failureMessage,
                                               boolean expectedFailureMode) {
-        if (totalErrors == 0 && (failureMessage == null || failureMessage.isBlank())) {
+        if (totalErrors == 0 && isBlank(failureMessage)) {
             return expectedFailureMode
                     ? "No failure point was captured, even though failure behavior was expected."
                     : "No failure point detected during execution.";
         }
 
-        if (failureMessage != null && !failureMessage.isBlank()) {
+        if (!isBlank(failureMessage)) {
             return "Framework detected failure with message: " + failureMessage;
         }
 
@@ -1051,7 +1071,7 @@ public class PerformanceEngine {
         }
 
         if (breaches.isEmpty()) {
-            return "No configured threshold breaches detected.";
+            return NO_THRESHOLD_BREACHES;
         }
 
         return String.join("; ", breaches);
@@ -1097,11 +1117,7 @@ public class PerformanceEngine {
             score += 10;
         }
 
-        if (score > 100) {
-            score = 100;
-        }
-
-        return score;
+        return Math.min(score, 100);
     }
 
     private String resolveRiskLevel(int riskScore) {
@@ -1214,6 +1230,36 @@ public class PerformanceEngine {
 
     private String safeValue(String value) {
         return value == null || value.isBlank() ? "N/A" : value;
+    }
+
+    private long elapsedSince(long startTimeMs) {
+        return Math.max(0L, System.currentTimeMillis() - startTimeMs);
+    }
+
+    private String safeMessage(Throwable throwable) {
+        if (throwable == null || throwable.getMessage() == null || throwable.getMessage().isBlank()) {
+            return "No failure message available.";
+        }
+        return throwable.getMessage().trim();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private int safeNonNegative(int value) {
+        return Math.max(value, 0);
+    }
+
+    private long safeNonNegative(long value) {
+        return Math.max(value, 0L);
+    }
+
+    private double safeNonNegative(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value) || value < 0.0) {
+            return 0.0;
+        }
+        return value;
     }
 
     private static class JtlMetrics {
