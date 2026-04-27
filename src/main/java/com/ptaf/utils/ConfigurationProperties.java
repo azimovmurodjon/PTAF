@@ -4,59 +4,157 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * ConfigurationProperties is a utility class that provides methods
- * for retrieving configuration properties from a YAML file.
- * It allows access to commonly used configurations, such as the base URL
- * and the browser type for the testing framework.
+ * ConfigurationProperties is a centralized utility class responsible for retrieving
+ * framework-level configuration values from the YAML configuration file.
+ *
+ * <p>
+ * Enterprise Framework Responsibility:
+ * This class provides one controlled access point for configuration values used
+ * across UI, API, DB, PDF, Performance, and other framework modules.
+ * Centralizing configuration access improves maintainability, consistency,
+ * readability, and long-term framework scalability.
+ * </p>
+ *
+ * <p>
+ * Configuration Source:
+ * Values are read from config.yml through the YamlReader utility.
+ * </p>
  */
 public class ConfigurationProperties {
+
     private static final Logger logger = LoggerFactory.getLogger(ConfigurationProperties.class);
+
+    /**
+     * Private constructor prevents object creation because this class is designed
+     * as a static utility class.
+     */
+    private ConfigurationProperties() {
+        throw new IllegalStateException("Utility class");
+    }
 
     /**
      * Retrieves the base URL from the YAML configuration using the specified key.
      *
-     * @param URL The key for the base URL in the YAML file.
-     * @return The base URL as a string. If the key is not found, it returns null.
+     * @param URL the YAML key for the target application URL.
+     * @return the configured base URL as a String, or null if the key is not found.
      */
     public static String getBaseUrl(String URL) {
-        // Retrieve and return the base URL from the YAML file using the provided key
-        return (String) YamlReader.get(URL);
+        return getValue(URL);
     }
 
     /**
-     * Retrieves the browser type from the YAML configuration.
+     * Retrieves the configured browser type from config.yml.
      *
-     * @return The browser type as a string. If the key "browser" is not found, it returns null.
+     * <p>
+     * Example config.yml value:
+     * browser: "chrome"
+     * </p>
+     *
+     * @return the configured browser name, or null if not configured.
      */
     public static String getBrowser() {
-        // Retrieve and return the browser type from the YAML file
-        return (String) YamlReader.get("browser");
+        return getValue("browser");
     }
 
+    /**
+     * Retrieves the configured headless mode value from config.yml.
+     *
+     * <p>
+     * Example config.yml value:
+     * headless: "false"
+     * </p>
+     *
+     * @return "true" or "false" as configured in config.yml.
+     */
     public static String getHeadlessMode() {
-        // Retrieve and return the headless mode value from the YAML file
-        return (String) YamlReader.get("headless");
+        return getValue("headless");
     }
 
+    /**
+     * Retrieves the HTTPS / SSL certificate error handling configuration from config.yml.
+     *
+     * <p>
+     * Example config.yml value:
+     * ignoreHTTPSErrors: "true"
+     * </p>
+     *
+     * <p>
+     * Enterprise Usage:
+     * When this value is set to true, the framework can bypass SSL certificate
+     * validation errors for both UI and API automation. This is commonly required
+     * for QA, DEV, SIT, UAT, and internal test environments where certificates
+     * may be self-signed, expired, internally issued, or not trusted by the local machine.
+     * </p>
+     *
+     * <p>
+     * Security Note:
+     * For production validation, this value can be set to false to enforce strict
+     * certificate validation based on enterprise security requirements.
+     * </p>
+     *
+     * @return "true" or "false" as configured in config.yml. Defaults to "false" if missing.
+     */
+    public static String getIgnoreHTTPSErrors() {
+        String value = getValue("ignoreHTTPSErrors");
+
+        if (value == null || value.trim().isEmpty()) {
+            logger.warn("Configuration key 'ignoreHTTPSErrors' was not found. Defaulting to false.");
+            return "false";
+        }
+
+        return value;
+    }
+
+    /**
+     * Retrieves the YAML store location from config.yml.
+     *
+     * @return the configured YAML store location, or null if not configured.
+     */
     public static String getYamlStoreLocation() {
-        // Retrieve and return the headless mode value from the YAML file
-        return (String) YamlReader.get("yamlStoreLocation");
+        return getValue("yamlStoreLocation");
     }
 
+    /**
+     * Retrieves the Excel document location from config.yml.
+     *
+     * @return the configured Excel document location, or null if not configured.
+     */
     public static String getExcelDocumentLocation() {
-        // Retrieve and return the headless mode value from the YAML file
-        return (String) YamlReader.get("excelDocumentLocation");
+        return getValue("excelDocumentLocation");
     }
 
+    /**
+     * Retrieves the video capture configuration from config.yml.
+     *
+     * <p>
+     * Example config.yml value:
+     * videoCapture: "false"
+     * </p>
+     *
+     * @return "true" or "false" as configured in config.yml.
+     */
     public static String getVideoCapture() {
-        // Retrieve and return the headless mode value from the YAML file
-        return (String) YamlReader.get("videoCapture");
+        return getValue("videoCapture");
     }
 
+    /**
+     * Retrieves a generic configuration value from config.yml.
+     *
+     * <p>
+     * This method supports nested YAML paths when the YamlReader implementation
+     * supports dot notation.
+     * </p>
+     *
+     * <p>
+     * Example:
+     * api_services.jsonplaceholder.base_url
+     * </p>
+     *
+     * @param value the YAML key or nested YAML path.
+     * @return the configuration value as a String, or null if not found.
+     */
     public static String getValue(String value) {
         Object rawValue = YamlReader.get(value);
-        // Retrieve and return the headless mode value from the YAML file
         return rawValue == null ? null : String.valueOf(rawValue);
     }
-
 }

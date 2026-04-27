@@ -173,30 +173,56 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
-                <configuration>
-                    <source>21</source>
-                    <target>21</target>
-                    <compilerArgs>
-                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</arg>
-                    </compilerArgs>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.1.2</version>
+                <version>3.2.5</version>
+
                 <configuration>
+                    <!--
+                        Enterprise Runner Configuration
+
+                        This section controls which Cucumber runner classes Maven Surefire can execute.
+                        Keeping all supported runner classes here allows teams to run specific suites
+                        from local machines, Jenkins, GitHub Actions, or any CI/CD pipeline.
+
+                        Example commands:
+                        mvn test -Dtest=DatabaseTestRunner
+                        mvn test -Dtest=ApiTestRunner
+                        mvn test -Dtest=TestRunner
+                        mvn test -Dtest=PerformanceTestRunner
+                    -->
+
                     <includes>
-<!--                        <include>**/Regression_Runner.java</include>-->
+                        <!-- UI / Regression Runner -->
+                        <include>**/TestRunner.java</include>
+
+                        <!-- API Runner -->
+                        <include>**/ApiTestRunner.java</include>
+
+                        <!-- Database / SQL Server Runner -->
+                        <include>**/DatabaseTestRunner.java</include>
+
+                        <!-- PDF Runner -->
+                        <include>**/PdfTestRunner.java</include>
+
+                        <!-- Performance Runner -->
                         <include>**/PerformanceTestRunner.java</include>
                     </includes>
-                    <parallel>methods</parallel>
-                    <threadCount>4</threadCount>
-                    <useUnlimitedThreads>false</useUnlimitedThreads>
+
+                    <!--
+                        Prevents Maven from failing when a specific runner is not selected
+                        or when some teams do not use all framework modules.
+                    -->
+                    <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
+                    <failIfNoTests>false</failIfNoTests>
+
+                    <!--
+                        Required for some modern Java dependency combinations.
+                        Keeps test execution stable across local and CI environments.
+                    -->
+                    <useModulePath>false</useModulePath>
                 </configuration>
             </plugin>
+
         </plugins>
     </build>
 

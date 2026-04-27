@@ -1,106 +1,64 @@
-// JSON
-ScenarioUtil.reportJson(scenario, "CreateCustomerRequest", requestJson);
-
-// Table (list of strings)
-ScenarioUtil.reportTable(scenario, "Visible Menu Items", menuItems);
-
-// Key–Value
-ScenarioUtil.reportKeyValues(scenario, "Runtime Config", Map.of(
-    "env", "QA",
-    "branch", "release/1.4.0",
-    "build", "2025.10.09"
-));
-
-// Value + Screenshot (no iframes)
-ScenarioUtil.reportElementStringWithScreenshot(
-    scenario, page, null, null, null, "#totalAmount", "Total Amount");
-
-// Value + Screenshot (nested iframes)
-ScenarioUtil.reportElementStringWithScreenshot(
-    scenario, page,
-    "iframe[name='iframeApplicationContent']",
-    "iframe[name='iframeContent']",
-    null,
-    "input[name='accountNumber']",
-    "Account Number");
-
-
-
-Here’s a polished Teams chat message you can share with your colleagues. It summarizes all the changes we made to ScenarioUtil and the reporting configuration updates:
-
-⸻
-
 Hi Team,
 
-I’d like to share the latest updates we made to our FNB-PTAF test automation framework reporting:
+I have completed a framework enhancement for PTAF to support configurable SSL/HTTPS handling and Microsoft SQL Server database connectivity.
 
-⸻
+The changes include two major updates:
 
-✅ ScenarioUtil Enhancements
+1. Config-controlled SSL/HTTPS bypass for UI and API automation
+2. SQL Server DB connection setup using Windows Authentication
 
-We extended the reporting utilities with non-breaking helpers for more robust logging and evidence collection.
-New capabilities include:
-	•	reportString(...) → attach any plain text value (IDs, notes, debug info).
-	•	captureElementString(...) → capture element text/value across pages & nested frames.
-	•	reportElementString(...) → convenience wrapper to capture + attach value with a label.
-	•	reportJson(...) → pretty-print & attach JSON (requests, responses, fixtures).
-	•	reportTable(...) → attach a numbered multi-line table from a List<String>.
-	•	reportKeyValues(...) → attach configs/headers as key–value pairs.
-	•	reportElementStringWithScreenshot(...) → capture element value + screenshot in one step.
+For SSL/HTTPS handling, we added a new configuration value in config.yml:
 
-These were added without changing existing methods or naming — so backward compatibility is preserved.
+yaml ignoreHTTPSErrors: "true" 
 
-⸻
+When this value is set to "true", the framework will bypass SSL/HTTPS certificate validation errors. This is useful for QA, DEV, SIT, UAT, and internal environments where certificates may be self-signed, expired, internally issued, or not trusted by the local machine.
 
-📄 Usage Examples
+When this value is set to "false", the framework will enforce normal certificate validation.
 
-// Report plain string
-ScenarioUtil.reportString(scenario, "Environment", "QA-US-East");
+This setting is now applied in both areas:
 
-// Capture & report element text
-ScenarioUtil.reportElementString(scenario, page, null, null, null, "#totalAmount", "Total Amount");
+text UI  -> BrowserFactory applies ignoreHTTPSErrors at BrowserContext level API -> ApiRequestHandler applies ignoreHTTPSErrors at APIRequestContext level 
 
-// Attach JSON
-ScenarioUtil.reportJson(scenario, "CreateCustomerRequest", requestJson);
+For the database enhancement, the framework is now set up to support Microsoft SQL Server using Windows Authentication. This means the DB connection does not require username or password when the logged-in user already has database access.
 
-// Attach a table
-ScenarioUtil.reportTable(scenario, "Visible Menu Items", menuItems);
+The DB configuration is controlled from config.yml under the database: section:
 
-// Attach key-values
-ScenarioUtil.reportKeyValues(scenario, "Runtime Config", configMap);
+yaml database:   db_type: "sqlserver"   server_type: "Database Engine"   server_name: "VSDISSQLQA01"   port: "1433"   database_name: "YOUR_DATABASE_NAME"   authentication: "windows"   encrypt: "true"   trust_server_certificate: "true"   login_timeout_seconds: "30"   query_timeout_seconds: "60"   fetch_size: "500"   application_name: "PTAF Automation Framework"   username: ""   password_env_variable: "" 
 
-// Value + Screenshot combo
-ScenarioUtil.reportElementStringWithScreenshot(scenario, page, null, null, null, "#orderId", "Order ID");
+Before running DB tests, please update:
 
+yaml database_name: "YOUR_DATABASE_NAME" 
 
-⸻
+with the actual database name from SQL Server Management Studio.
 
-📝 Extent Reports Configuration Update
+The DB connection flow is now:
 
-We updated extent.properties so reports are no longer overwritten on each run.
-Now, each execution generates its own timestamped folder, e.g.:
+text config.yml   -> DatabaseHandler   -> DatabaseConnectionValidator   -> DatabaseSteps   -> DatabaseTestRunner 
 
-reports/09-Oct-25_14-33-10/
-   SparkReport/Spark.html
-   Base64Report/Report.html
-   PdfReport/FNB-PTAF-Report.pdf
-   screenshots/...
+A DB health-check scenario was also added so we can validate the DB connection before running full DB validations.
 
-This ensures every run is preserved for traceability and comparison.
+To run the DB health check:
 
-⸻
+bash mvn test -Dtest=DatabaseTestRunner -Dcucumber.filter.tags="@database_health_check" 
 
-🔗 Next Steps
-	•	Everyone should pull the updated ScenarioUtil.java and extent.properties from the repo.
-	•	Use the new reporting methods in your step definitions for clearer test evidence.
+If the DB connection is successful, the scenario should pass and the logs should show SQL Server database product information and JDBC driver details.
 
-⸻
+If the following error appears:
 
-✅ With these improvements, we’ll have richer, non-overwriting reports that capture text, JSON, tables, key-values, and screenshots across both pages and frames.
+text This driver is not configured for integrated authentication 
 
-Thanks,
-Murodjon
+then the framework code is correct, but the local machine may need the Microsoft JDBC native authentication setup for Windows Authentication.
 
-⸻
+For Maven/Surefire, we are keeping the current plugin version. The only needed update is to make sure the DB runner is included:
 
-Would you like me to also prepare a short slide (PPTX) version of this summary for management/demo sessions?
+xml <include>**/DatabaseTestRunner.java</include> 
+
+Updated/added framework areas include:
+
+text ConfigurationProperties.java ApiRequestHandler.java BrowserFactory.java DatabaseHandler.java DatabaseHooks.java DatabaseActionPerformer.java DatabaseActionImpl.java DatabaseCommonMethods.java DatabaseAction.java DatabaseSteps.java DatabaseTestRunner.java DatabaseConnectionValidator.java database_connection_health_check.feature config.yml pom.xml runner include if needed 
+
+Usage summary:
+
+text For UI/API SSL bypass: - Set ignoreHTTPSErrors: "true" in config.yml  For strict SSL validation: - Set ignoreHTTPSErrors: "false" in config.yml  For SQL Server Windows Authentication: - Set authentication: "windows" - Keep username and password_env_variable empty - Make sure the logged-in Windows user has access to the target DB  For DB health check: - Run DatabaseTestRunner with @database_health_check tag 
+
+This update keeps the framework configuration-driven, avoids hardcoded environment values, and improves enterprise-level maintainability for UI, API, and DB automation.

@@ -4,58 +4,94 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * DatabaseAction defines the contract for performing high-level, reusable database operations.
- * This interface abstracts away the underlying SQL, allowing tests to interact with the
- * database using logical actions like "performQuery" or "verifyRecordExists".
+ * DatabaseAction defines the contract for all high-level database automation actions.
+ *
+ * <p>
+ * Enterprise Framework Responsibility:
+ * This interface provides a clean abstraction layer between database test-facing
+ * classes and the actual database implementation. Step definitions and common
+ * methods should depend on this interface rather than directly depending on JDBC
+ * or SQL Server implementation details.
+ * </p>
+ *
+ * <p>
+ * This design makes the framework easier to maintain, extend, and refactor.
+ * For example, the current implementation supports Microsoft SQL Server, but
+ * the framework can later add another implementation without changing the
+ * higher-level DB test methods.
+ * </p>
  */
 public interface DatabaseAction {
 
     /**
-     * Executes a SELECT query identified by a key from the db_queries.yml file.
+     * Executes a SELECT query using a logical SQL query key.
      *
-     * @param queryKey The key corresponding to the SQL query in the YAML file (e.g., "users.get_user_by_email").
-     * @param params   A varargs array of parameters to be safely passed to the query.
-     * @return A List of Maps, where each map represents a row of the result set. Returns an empty list if no results are found.
+     * <p>
+     * The query key should point to a SQL statement stored in the framework YAML files.
+     * Parameters are passed as varargs and safely bound through PreparedStatement
+     * in the implementation layer.
+     * </p>
+     *
+     * @param queryKey logical SQL query key from YAML.
+     * @param params   optional SQL parameters.
+     * @return list of database records. Each map represents one row.
      */
     List<Map<String, Object>> performQuery(String queryKey, Object... params);
 
     /**
-     * Executes an INSERT, UPDATE, or DELETE statement identified by a key from the db_queries.yml file.
+     * Executes an INSERT, UPDATE, or DELETE statement using a logical SQL query key.
      *
-     * @param queryKey The key corresponding to the SQL statement in the YAML file (e.g., "users.delete_user_by_email").
-     * @param params   A varargs array of parameters to be safely passed to the statement.
-     * @return The number of rows affected by the execution.
+     * <p>
+     * This method is intended for SQL statements that modify data and return
+     * an affected row count.
+     * </p>
+     *
+     * @param queryKey logical SQL query key from YAML.
+     * @param params   optional SQL parameters.
+     * @return number of affected rows, or -1 when execution fails.
      */
     int performUpdate(String queryKey, Object... params);
 
     /**
-     * A convenience method to verify if at least one record exists for a given query and parameters.
+     * Checks whether at least one database record exists for the given query key.
      *
-     * @param queryKey The key for the SELECT query in the YAML file.
-     * @param params   The parameters for the query.
-     * @return true if the query returns one or more records, false otherwise.
+     * @param queryKey logical SQL query key from YAML.
+     * @param params   optional SQL parameters.
+     * @return true when one or more records are found; otherwise false.
      */
     boolean recordExists(String queryKey, Object... params);
 
     /**
-     * A convenience method to retrieve a single record from the database.
-     * Useful for queries that are expected to return exactly one result (e.g., find by primary key).
+     * Retrieves a single database record for the given query key.
      *
-     * @param queryKey The key for the SELECT query in the YAML file.
-     * @param params   The parameters for the query.
-     * @return A Map representing the single record, or null if no record is found.
-     * @throws IllegalStateException if the query returns more than one record.
+     * <p>
+     * This method should be used when the SQL query is expected to return zero
+     * or one row. The implementation can throw an exception if more than one row
+     * is returned because that means the validation result is ambiguous.
+     * </p>
+     *
+     * @param queryKey logical SQL query key from YAML.
+     * @param params   optional SQL parameters.
+     * @return single database row, or null when no record is found.
      */
     Map<String, Object> getSingleRecord(String queryKey, Object... params);
 
     /**
-     * A convenience method to retrieve a single value from a query result.
-     * Useful for queries that return one row and one column (e.g., SELECT COUNT(*)...).
+     * Retrieves one value from the first column of the first row returned by a query.
      *
-     * @param queryKey The key for the SELECT query in the YAML file.
-     * @param params   The parameters for the query.
-     * @return The single value as an Object, or null if no value is found.
+     * <p>
+     * This is useful for simple validation queries such as:
+     * </p>
+     *
+     * <ul>
+     *     <li>SELECT COUNT(*) FROM table WHERE condition = ?</li>
+     *     <li>SELECT Status FROM table WHERE Id = ?</li>
+     *     <li>SELECT TOP 1 CreatedDate FROM table ORDER BY CreatedDate DESC</li>
+     * </ul>
+     *
+     * @param queryKey logical SQL query key from YAML.
+     * @param params   optional SQL parameters.
+     * @return first column value from the first row, or null when no value is available.
      */
     Object getSingleValue(String queryKey, Object... params);
-
 }
