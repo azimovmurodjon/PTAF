@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Paths;
+import java.util.Arrays;
 
 /**
  * BrowserFactory is responsible for creating Playwright Browser and BrowserContext instances.
@@ -40,24 +41,6 @@ import java.nio.file.Paths;
 public class BrowserFactory {
 
     private static final Logger logger = LoggerFactory.getLogger(BrowserFactory.class);
-
-    /**
-     * Reads browser headless execution mode from framework configuration.
-     * Expected config.yml values: "true" or "false".
-     */
-    private static final String headlessMode = ConfigurationProperties.getHeadlessMode();
-
-    /**
-     * Reads video capture setting from framework configuration.
-     * Expected config.yml values: "true" or "false".
-     */
-    private static final String videoCapture = ConfigurationProperties.getVideoCapture();
-
-    /**
-     * Reads HTTPS / SSL certificate error handling setting from framework configuration.
-     * Expected config.yml values: "true" or "false".
-     */
-    private static final String ignoreHTTPSErrors = ConfigurationProperties.getIgnoreHTTPSErrors();
 
     /**
      * Centralized directory where Playwright video recordings are stored.
@@ -97,45 +80,79 @@ public class BrowserFactory {
         Playwright playwright = Playwright.create();
 
         return switch (browserTypeEnum) {
-            case CHROME -> {
-                BrowserType browserType = playwright.chromium();
-                yield launchBrowser(browserType);
-            }
-            case FIREFOX -> {
-                BrowserType browserType = playwright.firefox();
-                yield launchBrowser(browserType);
-            }
-            case WEBKIT -> {
-                BrowserType browserType = playwright.webkit();
-                yield launchBrowser(browserType);
-            }
-            case EDGE -> {
-                boolean headless = Boolean.parseBoolean(headlessMode);
-
-                logger.info("Launching Microsoft Edge with headless mode: {}", headless);
-
-                yield playwright.chromium().launch(new BrowserType.LaunchOptions()
-                        .setChannel("msedge")
-                        .setHeadless(headless));
-            }
+            case CHROME -> launchChromium(playwright.chromium(), "CHROME", null);
+            case FIREFOX -> launchBrowser(playwright.firefox());
+            case WEBKIT -> launchBrowser(playwright.webkit());
+            case EDGE -> launchChromium(playwright.chromium(), "EDGE", "msedge");
         };
     }
 
     /**
-     * Launches the specified Playwright browser type with framework-level launch options.
+     * Launches Firefox/WebKit browser types.
      *
      * @param browserType Playwright BrowserType instance.
      * @return launched Playwright Browser instance.
      */
     private static Browser launchBrowser(BrowserType browserType) {
-        boolean headless = Boolean.parseBoolean(headlessMode);
+        boolean headless = getHeadlessMode();
 
-        logger.info("Launching browser: {} with headless mode: {}",
+        logger.info(
+                "Launching browser: {} with headless mode: {}",
                 browserType.name().toUpperCase(),
-                headless);
+                headless
+        );
 
         return browserType.launch(new BrowserType.LaunchOptions()
                 .setHeadless(headless));
+    }
+
+    /**
+     * Launches Chromium-based browsers with enterprise-friendly SSL flags.
+     *
+     * <p>
+     * BrowserContext.setIgnoreHTTPSErrors(true) is the main SSL bypass setting.
+     * The Chromium launch args below are added as a defensive enterprise safeguard
+     * for some internal QA/UAT environments where Chromium still shows certificate
+     * interstitials due to local/corporate certificate handling.
+     * </p>
+     *
+     * @param browserType Playwright Chromium browser type.
+     * @param browserName browser display name.
+     * @param channel optional browser channel, such as msedge.
+     * @return launched Browser instance.
+     */
+    private static Browser launchChromium(BrowserType browserType, String browserName, String channel) {
+        boolean headless = getHeadlessMode();
+        boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
+
+        BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions()
+                .setHeadless(headless);
+
+        if (channel != null && !channel.trim().isEmpty()) {
+            launchOptions.setChannel(channel);
+        }
+
+        if (shouldIgnoreHTTPSErrors) {
+            launchOptions.setArgs(Arrays.asList(
+                    "--ignore-certificate-errors",
+                    "--allow-insecure-localhost",
+                    "--disable-web-security"
+            ));
+
+            logger.info(
+                    "Launching {} with SSL bypass launch arguments enabled because ignoreHTTPSErrors=true.",
+                    browserName
+            );
+        }
+
+        logger.info(
+                "Launching {} with headless mode: {}, ignoreHTTPSErrors: {}",
+                browserName,
+                headless,
+                shouldIgnoreHTTPSErrors
+        );
+
+        return browserType.launch(launchOptions);
     }
 
     /**
@@ -167,13 +184,13 @@ public class BrowserFactory {
      * @return configured BrowserContext instance.
      */
     public static BrowserContext createContextWithVideo(Browser browser) {
-        boolean recordVideo = Boolean.parseBoolean(videoCapture);
-        boolean shouldIgnoreHTTPSErrors = Boolean.parseBoolean(ignoreHTTPSErrors);
+        boolean recordVideo = getVideoCapture();
+        boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
 
         Browser.NewContextOptions contextOptions = new Browser.NewContextOptions()
                 .setIgnoreHTTPSErrors(shouldIgnoreHTTPSErrors);
 
-        logger.info("UI ignoreHTTPSErrors value from config.yml: {}", shouldIgnoreHTTPSErrors);
+        logger.info("Creating UI BrowserContext. ignoreHTTPSErrors={}", shouldIgnoreHTTPSErrors);
 
         if (recordVideo) {
             logger.info("Video capture enabled. Videos will be stored under: {}", VIDEO_DIR);
@@ -184,6 +201,50 @@ public class BrowserFactory {
             logger.info("Video capture disabled.");
         }
 
-        return browser.newContext(contextOptions);
+        BrowserContext context = browser.newContext(contextOptions);
+
+        logger.info(
+                "UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}",
+                shouldIgnoreHTTPSErrors,
+                recordVideo
+        );
+
+        return context;
+    }
+
+    /**
+     * Reads headless mode dynamically from config.yml.
+     *
+     * @return true when headless is true.
+     */
+    private static boolean getHeadlessMode() {
+        String value = ConfigurationProperties.getHeadlessMode();
+        return Boolean.parseBoolean(value);
+    }
+
+    /**
+     * Reads video capture dynamically from config.yml.
+     *
+     * @return true when videoCapture is true.
+     */
+    private static boolean getVideoCapture() {
+        String value = ConfigurationProperties.getVideoCapture();
+        return Boolean.parseBoolean(value);
+    }
+
+    /**
+     * Reads SSL bypass dynamically from config.yml.
+     *
+     * @return true when ignoreHTTPSErrors is true.
+     */
+    private static boolean getIgnoreHTTPSErrors() {
+        String value = ConfigurationProperties.getIgnoreHTTPSErrors();
+
+        if (value == null || value.trim().isEmpty()) {
+            logger.warn("ignoreHTTPSErrors is missing or blank. Defaulting to false.");
+            return false;
+        }
+
+        return Boolean.parseBoolean(value.trim());
     }
 }
