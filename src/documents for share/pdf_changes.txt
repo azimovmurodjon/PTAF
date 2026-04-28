@@ -1,82 +1,7 @@
-facing following error C:\Users\azimovm\Java\jdk-21.0.10\bin\java.exe -javaagent:C:\Users\azimovm\AppData\Local\JetBrains\IntelliJIdea2025.3\captureAgent\debugger-agent.jar=file:///C:/Users/azimovm/AppData/Local/Temp/capture8127341574873021952.props -ea -Dcucumber.plugin=json:target/cucumber-reports/cucumber.json,junit:cucumber.xml -DnodeNamesHandler=org.jetbrains.plugins.cucumber.java.run.CucumberTestTreeNodeManager -Didea.test.cyclic.buffer.size=1048576 "-javaagent:C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\lib\idea_rt.jar=56359" -Dkotlinx.coroutines.debug.enable.creation.stack.trace=false -Ddebugger.agent.enable.coroutines=true -Dkotlinx.coroutines.debug.enable.flows.stack.trace=true -Dkotlinx.coroutines.debug.enable.mutable.state.flows.stack.trace=true -Ddebugger.async.stack.trace.for.all.threads=true -Dfile.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 -classpath "C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\lib\idea_rt.jar;C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\plugins\junit\lib\junit6-rt.jar;C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\plugins\junit\lib\junit5-rt.jar;C:\Program Files\JetBrains\IntelliJ IDEA 2025.3.2\plugins\junit\lib\junit-rt.jar;C:\Users\azimovm\IdeaProjects\ARGO_Connects_PTAF\target\test-classes;C:\Users\azimovm\.m2\repository\ch\qos\logback\logback-classic\1.4.14\logback-classic-1.4.14.jar;C:\Users\azimovm\.m2\repository\ch\qos\logback\logback-core\1.4.14\logback-core-1.4.14.jar;C:\Users\azimovm\.m2\repository\org\slf4j\slf4j-api\2.0.7\slf4j-api-2.0.7.jar;C:\Users\azimovm\.m2\repository\org\testng\testng\7.7.1\testng-7.7.1.jar;C:\Users\azimovm\.m2\repository\com\beust\jcommander\1.82\jcommander-1.82.jar;C:\Users\azimovm\.m2\repository\org\webjars\jquery\3.6.1\jquery-3.6.1.jar;C:\Users\azimovm\.m2\repository\io\cucumber\cucumber-testng\7.20.0\cucumber-testng-7.20.0.jar;C:\Users\azimovm\.m2\repository\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;C:\Users\azimovm\.m2\repository\io\cucumber\cucumber-core\7.20.0\cucumber-core-7.20.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\cucumber-gherkin\7.20.0\cucumber-gherkin-7.20.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\cucumber-gherkin-messages\7.20.0\cucumber-gherkin-messages-7.20.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\gherkin\28.0.0\gherkin-28.0.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\messages\24.1.0\messages-24.1.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\testng-xml-formatter\0.2.0\testng-xml-formatter-0.2.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\query\12.2.0\query-12.2.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\tag-expressions\6.1.0\tag-expressions-6.1.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\cucumber-expressions\17.1.0\cucumber-expressions-17.1.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\datatable\7.20.0\datatable-7.20.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\cucumber-plugin\7.20.0\cucumber-plugin-7.20.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\docstring\7.20.0\docstring-7.20.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\html-formatter\21.7.0\html-formatter-21.7.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\junit-xml-formatter\0.5.0\junit-xml-formatter-0.5.0.jar;C:\Users\azimovm\.m2\repository\io\cucumber\ci-environment\10.0.1\ci-environment-10.0.1.jar;C:\Users\azimovm\.m2\repository\tech\grasshopper\extentreports-cucumber7-adapter\1.14.0\extentreports-cucumber7-adapter-1.14.0.jar;C:\Users\azimovm\.m2\repository\com\aventstack\extentreports\5.1.0\extentreports-5.1.0.jar;C:\Users\azimovm\.m2\repository\io\reactivex\rxjava3\rxjava\3.1.6\rxjava-3.1.6.jar;C:\Users\azimovm\.m2\repository\org\reactivestreams\reactive-streams\1.0.4\reactive-streams-1.0.4.jar;C:\Users\azimovm\.m2\repository\org\freemarker\freemarker\2.3.32\freemarker-2.3.32.jar;C:\Users\azimovm\.m2\repository\org\projectlombok\lombok\1.18.26\lombok-1.18.26.jar;C:\Users\azimovm\.m2\repository\com\google\code\gson\gson\2.10.1\gson-2.10.1.jar;C:\Users\azimovm\.m2\repository\tech\grasshopper\extent-pdf-report\2.12.0\extent-pdf-report-2.12.0.jar;C:\Users\azimovm\.m2\repository\tech\grasshopper\cucumber-pdf-report\2.14.0\cucumber-pdf-report-2.14.0.jar;C:\Users\azimovm\.m2\repository\org\apache\pdfbox\pdfbox\2.0.26\pdfbox-2.0.26.jar;C:\Users\azimovm\.m2\repository\org\apache\pdfbox\fontbox\2.0.26\fontbox-2.0.26.jar;C:\Users\azimovm\.m2\repository\org\knowm\xchart\xchart\3.8.0\xchart-3.8.0.jar;C:\Users\azimovm\.m2\repository\de\erichseifert\vectorgraphics2d\VectorGraphics2D\0.13\VectorGraphics2D-0.13.jar;C:\Users\azimovm\.m2\repository\de\rototor\pdfbox\graphics2d\0.30\graphics2d-0.30.jar;C:\Users\azimovm\.m2\repository\com\madgag\animated-gif-lib\1.4\animated-gif-lib-1.4.jar;C:\Users\azimovm\.m2\repository\org\yaml\snakeyaml\2.0\snakeyaml-2.0.jar;C:\Users\azimovm\.m2\repository\tech\grasshopper\table-layout\1.5.1\table-layout-1.5.1.jar;C:\Users\azimovm\.m2\repository\tech\grasshopper\rest-assured-cucumber-pdf-report\1.5.0\rest-assured-cucumber-pdf-report-1.5.0.jar;C:\Users\azimovm\.m2\repository\org\jsoup\jsoup\1.15.3\jsoup-1.15.3.jar;C:\Users\azimovm\.m2\repository\com\aventstack\klov-reporter\5.1.0\klov-reporter-5.1.0.jar;C:\Users\azimovm\.m2\repository\org\mongodb\mongodb-driver\3.6.4\mongodb-driver-3.6.4.jar;C:\Users\azimovm\.m2\repository\org\mongodb\mongodb-driver-core\3.6.4\mongodb-driver-core-3.6.4.jar;C:\Users\azimovm\.m2\repository\org\mongodb\bson\3.6.4\bson-3.6.4.jar;C:\Users\azimovm\.m2\repository\org\apache\httpcomponents\httpclient\4.5.13\httpclient-4.5.13.jar;C:\Users\azimovm\.m2\repository\org\apache\httpcomponents\httpcore\4.4.13\httpcore-4.4.13.jar;C:\Users\azimovm\.m2\repository\commons-logging\commons-logging\1.2\commons-logging-1.2.jar;C:\Users\azimovm\.m2\repository\commons-codec\commons-codec\1.11\commons-codec-1.11.jar;C:\Users\azimovm\.m2\repository\org\apache\httpcomponents\httpmime\4.5.13\httpmime-4.5.13.jar;C:\Users\azimovm\.m2\repository\tech\grasshopper\htmlextentreporter\1.1.0\htmlextentreporter-1.1.0.jar;C:\Users\azimovm\.m2\repository\tech\grasshopper\extent-excel-report\1.4.0\extent-excel-report-1.4.0.jar;C:\Users\azimovm\.m2\repository\org\apache\poi\poi\5.2.3\poi-5.2.3.jar;C:\Users\azimovm\.m2\repository\org\apache\commons\commons-collections4\4.4\commons-collections4-4.4.jar;C:\Users\azimovm\.m2\repository\org\apache\commons\commons-math3\3.6.1\commons-math3-3.6.1.jar;C:\Users\azimovm\.m2\repository\commons-io\commons-io\2.11.0\commons-io-2.11.0.jar;C:\Users\azimovm\.m2\repository\com\zaxxer\SparseBitSet\1.2\SparseBitSet-1.2.jar;C:\Users\azimovm\.m2\repository\org\apache\logging\log4j\log4j-api\2.18.0\log4j-api-2.18.0.jar;C:\Users\azimovm\.m2\repository\org\apache\poi\poi-ooxml\5.2.3\poi-ooxml-5.2.3.jar;C:\Users\azimovm\.m2\repository\org\apache\poi\poi-ooxml-lite\5.2.3\poi-ooxml-lite-5.2.3.jar;C:\Users\azimovm\.m2\repository\org\apache\xmlbeans\xmlbeans\5.1.1\xmlbeans-5.1.1.jar;C:\Users\azimovm\.m2\repository\org\apache\commons\commons-compress\1.21\commons-compress-1.21.jar;C:\Users\azimovm\.m2\repository\com\github\virtuald\curvesapi\1.07\curvesapi-1.07.jar;C:\Users\azimovm\.m2\repository\io\cucumber\cucumber-java\7.2.3\cucumber-java-7.2.3.jar;C:\Users\azimovm\.m2\repository\com\fnb_ptaf\fnb_ptaf\1.0.0-7324\fnb_ptaf-1.0.0-7324.jar;C:\Users\azimovm\AppData\Roaming\JetBrains\IntelliJIdea2025.3\plugins\cucumber-java\lib\cucumber-jvmFormatter.jar" com.intellij.rt.junit.JUnitStarter -ideVersion5 -junit4 com.ptaf.runners.MJ_Test_Runner
-
-io.cucumber.core.exception.CucumberException: java.lang.NoClassDefFoundError: Could not initialize class org.apache.logging.log4j.core.LoggerContext
-
-	at io.cucumber.core.plugin.PluginFactory.newInstance(PluginFactory.java:120)
-	at io.cucumber.core.plugin.PluginFactory.instantiate(PluginFactory.java:99)
-	at io.cucumber.core.plugin.PluginFactory.create(PluginFactory.java:63)
-	at io.cucumber.core.plugin.Plugins.createPlugins(Plugins.java:32)
-	at io.cucumber.core.plugin.Plugins.<init>(Plugins.java:25)
-	at io.cucumber.junit.Cucumber.<init>(Cucumber.java:163)
-	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
-	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:502)
-	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:486)
-	at org.junit.internal.builders.AnnotatedBuilder.buildRunner(AnnotatedBuilder.java:104)
-	at org.junit.internal.builders.AnnotatedBuilder.runnerForClass(AnnotatedBuilder.java:86)
-	at org.junit.runners.model.RunnerBuilder.safeRunnerForClass(RunnerBuilder.java:70)
-	at org.junit.internal.builders.AllDefaultPossibilitiesBuilder.runnerForClass(AllDefaultPossibilitiesBuilder.java:37)
-	at org.junit.runners.model.RunnerBuilder.safeRunnerForClass(RunnerBuilder.java:70)
-	at org.junit.internal.requests.ClassRequest.createRunner(ClassRequest.java:28)
-	at org.junit.internal.requests.MemoizingRequest.getRunner(MemoizingRequest.java:19)
-	at com.intellij.junit4.JUnit4IdeaTestRunner.startRunnerWithArgs(JUnit4IdeaTestRunner.java:50)
-	at com.intellij.rt.junit.IdeaTestRunner$Repeater$1.execute(IdeaTestRunner.java:38)
-	at com.intellij.rt.execution.junit.TestsRepeater.repeat(TestsRepeater.java:11)
-	at com.intellij.rt.junit.IdeaTestRunner$Repeater.startRunnerWithArgs(IdeaTestRunner.java:35)
-	at com.intellij.rt.junit.JUnitStarter.prepareStreamsAndStart(JUnitStarter.java:237)
-	at com.intellij.rt.junit.JUnitStarter.main(JUnitStarter.java:58)
-Caused by: java.lang.NoClassDefFoundError: Could not initialize class org.apache.logging.log4j.core.LoggerContext
-	at org.apache.logging.log4j.core.selector.ClassLoaderContextSelector.createContext(ClassLoaderContextSelector.java:265)
-	at org.apache.logging.log4j.core.selector.ClassLoaderContextSelector.locateContext(ClassLoaderContextSelector.java:224)
-	at org.apache.logging.log4j.core.selector.ClassLoaderContextSelector.getContext(ClassLoaderContextSelector.java:146)
-	at org.apache.logging.log4j.core.selector.ClassLoaderContextSelector.getContext(ClassLoaderContextSelector.java:125)
-	at org.apache.logging.log4j.core.selector.ClassLoaderContextSelector.getContext(ClassLoaderContextSelector.java:119)
-	at org.apache.logging.log4j.core.impl.Log4jContextFactory.getContext(Log4jContextFactory.java:155)
-	at org.apache.logging.log4j.core.impl.Log4jContextFactory.getContext(Log4jContextFactory.java:48)
-	at org.apache.logging.log4j.LogManager.getContext(LogManager.java:309)
-	at org.apache.log4j.Hierarchy$PrivateLogManager.getContext(Hierarchy.java:87)
-	at org.apache.log4j.Hierarchy.getContext(Hierarchy.java:103)
-	at org.apache.log4j.Category.<init>(Category.java:184)
-	at org.apache.log4j.Logger.<init>(Logger.java:57)
-	at org.apache.log4j.spi.RootLogger.<init>(RootLogger.java:38)
-	at org.apache.log4j.LogManager.<clinit>(LogManager.java:70)
-	at org.apache.log4j.Logger.getLogger(Logger.java:40)
-	at freemarker.log._Log4jLoggerFactory.getLogger(_Log4jLoggerFactory.java:31)
-	at freemarker.log.Logger.getLogger(Logger.java:362)
-	at freemarker.template.Configuration.<clinit>(Configuration.java:155)
-	at com.aventstack.extentreports.reporter.AbstractFileReporter.loadTemplateModel(AbstractFileReporter.java:54)
-	at com.aventstack.extentreports.reporter.ExtentSparkReporter.start(ExtentSparkReporter.java:136)
-	at com.aventstack.extentreports.reporter.ExtentSparkReporter$1.onSubscribe(ExtentSparkReporter.java:116)
-	at io.reactivex.rxjava3.subjects.PublishSubject.subscribeActual(PublishSubject.java:133)
-	at io.reactivex.rxjava3.core.Observable.subscribe(Observable.java:13262)
-	at com.aventstack.extentreports.ReactiveSubject.attachReporter(ReactiveSubject.java:38)
-	at com.aventstack.extentreports.ExtentReports.attachReporter(ExtentReports.java:66)
-	at com.aventstack.extentreports.service.ExtentService$ExtentReportsLoader.attach(ExtentService.java:436)
-	at com.aventstack.extentreports.service.ExtentService$ExtentReportsLoader.initSpark(ExtentService.java:363)
-	at com.aventstack.extentreports.service.ExtentService$ExtentReportsLoader.createViaProperties(ExtentService.java:207)
-	at com.aventstack.extentreports.service.ExtentService$ExtentReportsLoader.<clinit>(ExtentService.java:183)
-	at com.aventstack.extentreports.service.ExtentService.getInstance(ExtentService.java:42)
-	at com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter.<init>(ExtentCucumberAdapter.java:142)
-	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
-	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:502)
-	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:486)
-	at io.cucumber.core.plugin.PluginFactory.newInstance(PluginFactory.java:116)
-	... 21 more
-Caused by: java.lang.ExceptionInInitializerError: Exception java.lang.NoSuchMethodError: 'java.lang.Object org.apache.logging.log4j.util.LoaderUtil.newCheckedInstanceOfProperty(java.lang.String, java.lang.Class, java.util.function.Supplier)' [in thread "main"]
-	at org.apache.logging.log4j.core.LoggerContext.createInstanceFromFactoryProperty(LoggerContext.java:116)
-	at org.apache.logging.log4j.core.LoggerContext.<clinit>(LoggerContext.java:94)
-	at java.base/java.lang.Class.forName0(Native Method)
-	at java.base/java.lang.Class.forName(Class.java:423)
-	at java.base/java.lang.Class.forName(Class.java:414)
-	at org.apache.log4j.LogManager.checkLog4jCore(LogManager.java:76)
-	at org.apache.log4j.LogManager.<clinit>(LogManager.java:68)
-	... 42 more
-
-
-Process finished with exit code -1
- in following pom.xml file <?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
@@ -86,187 +11,310 @@ Process finished with exit code -1
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Java -->
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>21</maven.compiler.release>
+
+        <!-- Dependency Versions -->
+        <cucumber.version>7.20.0</cucumber.version>
+        <testng.version>7.10.2</testng.version>
+        <junit4.version>4.13.2</junit4.version>
+        <junit5.version>5.10.2</junit5.version>
+        <playwright.version>1.45.0</playwright.version>
+        <log4j.version>2.25.3</log4j.version>
+        <slf4j.version>2.0.16</slf4j.version>
+        <lombok.version>1.18.34</lombok.version>
+        <poi.version>5.2.5</poi.version>
+        <pdfbox.version>2.0.30</pdfbox.version>
+        <commons-io.version>2.15.1</commons-io.version>
+        <snakeyaml.version>2.2</snakeyaml.version>
+        <json-path.version>3.0.0</json-path.version>
+        <postgresql.version>42.7.3</postgresql.version>
+        <mssql.version>13.4.0.jre11</mssql.version>
+        <jmeter.dsl.version>1.29.1</jmeter.dsl.version>
     </properties>
+
+    <!-- Force all Log4j modules to use the same version -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-bom</artifactId>
+                <version>${log4j.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
+
+        <!-- JSON Path -->
         <dependency>
             <groupId>com.jayway.jsonpath</groupId>
             <artifactId>json-path</artifactId>
-            <version>3.0.0</version>
+            <version>${json-path.version}</version>
         </dependency>
+
+        <!-- Databases -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.3</version>
+            <version>${postgresql.version}</version>
         </dependency>
+
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
-            <version>13.4.0.jre11</version>
-            <!--  A recent, stable version  -->
+            <version>${mssql.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.10.2</version>
-        </dependency>
+
+        <!-- JUnit 5 -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
-            <version>5.10.2</version>
+            <version>${junit5.version}</version>
+            <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${junit5.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit 4 - Needed if your Cucumber runner uses @RunWith(Cucumber.class) -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>${junit4.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- TestNG -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>7.7.1</version>
+            <version>${testng.version}</version>
+            <scope>test</scope>
         </dependency>
+
+        <!-- Cucumber -->
         <dependency>
             <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-testng</artifactId>
-            <version>7.20.0</version>
-        </dependency>
-        <dependency>
-            <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-picocontainer</artifactId>
-            <version>7.20.0</version>
+            <artifactId>cucumber-java</artifactId>
+            <version>${cucumber.version}</version>
         </dependency>
 
         <dependency>
             <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-java</artifactId>
-            <version>7.20.0</version>
+            <artifactId>cucumber-testng</artifactId>
+            <version>${cucumber.version}</version>
         </dependency>
+
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-junit</artifactId>
-            <version>7.20.0</version>
+            <version>${cucumber.version}</version>
+            <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-picocontainer</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
+
+        <!-- Playwright -->
         <dependency>
             <groupId>com.microsoft.playwright</groupId>
             <artifactId>playwright</artifactId>
-            <version>1.45.0</version>
+            <version>${playwright.version}</version>
         </dependency>
+
+        <!-- YAML -->
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
-            <version>2.2</version>
+            <version>${snakeyaml.version}</version>
         </dependency>
+
+        <!-- SLF4J API -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>2.0.16</version>
+            <version>${slf4j.version}</version>
         </dependency>
+
+        <!-- Log4j 2 - Versions controlled by Log4j BOM -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
-            <version>2.25.3</version>
         </dependency>
+
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
-            <version>2.25.3</version>
         </dependency>
+
+        <!-- Bridge old Log4j 1.x calls to Log4j 2 -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-1.2-api</artifactId>
-            <version>2.25.3</version>
         </dependency>
+
+        <!-- Route SLF4J 2 logs to Log4j 2 -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j2-impl</artifactId>
-            <version>2.25.3</version>
         </dependency>
+
+        <!-- Extent Reports Cucumber 7 Adapter -->
+        <!-- Do NOT add direct com.aventstack:extentreports separately unless required -->
         <dependency>
             <groupId>tech.grasshopper</groupId>
             <artifactId>extentreports-cucumber7-adapter</artifactId>
             <version>1.14.0</version>
         </dependency>
-        <dependency>
-            <groupId>com.aventstack</groupId>
-            <artifactId>extentreports</artifactId>
-            <version>5.0.9</version>
-        </dependency>
+
+        <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.24</version>
+            <version>${lombok.version}</version>
+            <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.13.2</version>
-        </dependency>
+
+        <!-- PDF -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
-            <version>2.0.30</version>
+            <version>${pdfbox.version}</version>
         </dependency>
+
+        <!-- Commons IO -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.15.1</version>
+            <version>${commons-io.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.testng</groupId>
-            <artifactId>testng</artifactId>
-            <version>7.10.2</version>
-            <scope>test</scope>
-        </dependency>
+
+        <!-- Apache POI Excel -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi</artifactId>
-            <version>5.2.5</version>
+            <version>${poi.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.2.5</version>
+            <version>${poi.version}</version>
         </dependency>
+
+        <!-- JMeter Java DSL -->
         <dependency>
             <groupId>us.abstracta.jmeter</groupId>
             <artifactId>jmeter-java-dsl</artifactId>
-            <version>1.29.1</version>
+            <version>${jmeter.dsl.version}</version>
         </dependency>
+
         <dependency>
             <groupId>us.abstracta.jmeter</groupId>
             <artifactId>jmeter-java-dsl-dashboard</artifactId>
-            <version>1.29.1</version>
+            <version>${jmeter.dsl.version}</version>
         </dependency>
 
+        <!-- 
+        IMPORTANT:
+        If you need to use internal PTAF jar, add it like this and exclude old conflicting dependencies.
+        Uncomment only if required.
+
+        <dependency>
+            <groupId>com.fnb_ptaf</groupId>
+            <artifactId>fnb_ptaf</artifactId>
+            <version>1.0.0-7324</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-api</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-1.2-api</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.cucumber</groupId>
+                    <artifactId>cucumber-java</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.cucumber</groupId>
+                    <artifactId>cucumber-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.yaml</groupId>
+                    <artifactId>snakeyaml</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        -->
+
     </dependencies>
+
     <build>
         <plugins>
+
+            <!-- Java Compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>3.13.0</version>
                 <configuration>
-                    <source>21</source>
-                    <target>21</target>
+                    <release>21</release>
                     <compilerArgs>
                         <arg>--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>
+
+            <!-- Maven Surefire -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
+                <version>3.2.5</version>
                 <configuration>
+
+                    <!-- Use this if you run TestNG XML -->
                     <suiteXmlFiles>
                         <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
                     </suiteXmlFiles>
+
                     <parallel>methods</parallel>
                     <threadCount>4</threadCount>
                     <useUnlimitedThreads>false</useUnlimitedThreads>
+
                     <systemPropertyVariables>
-                        <cucumber.plugin>json:target/cucumber-reports/cucumber.json,junit:cucumber.xml</cucumber.plugin>
+                        <cucumber.plugin>
+                            json:target/cucumber-reports/cucumber.json,
+                            junit:target/cucumber-reports/cucumber.xml,
+                            pretty
+                        </cucumber.plugin>
                     </systemPropertyVariables>
+
                     <reportsDirectory>target/surefire-reports</reportsDirectory>
-                    <useFile>true</useFile>  <!-- Ensures XML TestNG reports are generated -->
+                    <useFile>true</useFile>
+
                 </configuration>
             </plugin>
+
+            <!-- Shade Plugin - keep only if you package this framework as a reusable jar -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -278,10 +326,10 @@ Process finished with exit code -1
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <createDependencyReducedPom>true</createDependencyReducedPom>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
                             <shadedClassifierName>shaded</shadedClassifierName>
-                            <!-- Exclude signature files -->
+
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
@@ -289,28 +337,30 @@ Process finished with exit code -1
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
-                                        <!-- Merge META-INF/services and set Main-Class -->
                                     </excludes>
                                 </filter>
                             </filters>
+
                             <relocations>
                                 <relocation>
                                     <pattern>com.myfnb</pattern>
                                     <shadedPattern>hidden.internal</shadedPattern>
                                 </relocation>
                             </relocations>
+
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.example.MainApp</mainClass>
                                 </transformer>
                             </transformers>
+
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+
         </plugins>
     </build>
 
 </project>
- can you help me to fix it?
