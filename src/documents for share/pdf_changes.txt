@@ -47,7 +47,7 @@
     <dependencyManagement>
         <dependencies>
 
-            <!-- Force all Log4j jars to same version -->
+            <!-- Force all Log4j artifacts to the same version -->
             <dependency>
                 <groupId>org.apache.logging.log4j</groupId>
                 <artifactId>log4j-bom</artifactId>
@@ -56,7 +56,7 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Force all Cucumber jars to same version -->
+            <!-- Force all Cucumber artifacts to the same version -->
             <dependency>
                 <groupId>io.cucumber</groupId>
                 <artifactId>cucumber-bom</artifactId>
@@ -91,9 +91,7 @@
             <version>${mssql.version}</version>
         </dependency>
 
-        <!-- JUnit 5 API
-             No test scope because some PTAF framework classes may use org.junit.jupiter.api under src/main/java.
-        -->
+        <!-- JUnit 5 API -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
@@ -107,40 +105,39 @@
             <version>${junit5.version}</version>
         </dependency>
 
-        <!-- JUnit 4
-             No test scope because some framework/helper classes may use org.junit.Assert.
-        -->
+        <!-- JUnit 4 -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>${junit4.version}</version>
         </dependency>
 
-        <!-- TestNG
-             No test scope because some runner/framework classes may extend/use TestNG classes directly.
-        -->
+        <!-- TestNG -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
             <version>${testng.version}</version>
         </dependency>
 
-        <!-- Cucumber -->
+        <!-- Cucumber TestNG -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-testng</artifactId>
         </dependency>
 
+        <!-- Cucumber PicoContainer -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-picocontainer</artifactId>
         </dependency>
 
+        <!-- Cucumber Java -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-java</artifactId>
         </dependency>
 
+        <!-- Cucumber JUnit -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-junit</artifactId>
@@ -167,7 +164,13 @@
             <version>${slf4j.version}</version>
         </dependency>
 
-        <!-- Logback - kept because it appeared in your runtime classpath -->
+        <!--
+            IMPORTANT:
+            Do not use Logback together with log4j-slf4j2-impl.
+            If you keep Logback, SLF4J may detect multiple logging providers.
+
+            Uncomment only if you decide to use Logback instead of Log4j2 SLF4J binding.
+
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
@@ -179,13 +182,15 @@
             <artifactId>logback-core</artifactId>
             <version>${logback.version}</version>
         </dependency>
+        -->
 
-        <!-- Log4j 2 - versions controlled by Log4j BOM -->
+        <!-- Log4j API - version controlled by Log4j BOM -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
         </dependency>
 
+        <!-- Log4j Core - version controlled by Log4j BOM -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
@@ -197,7 +202,7 @@
             <artifactId>log4j-1.2-api</artifactId>
         </dependency>
 
-        <!-- Routes SLF4J 2 logs into Log4j 2 -->
+        <!-- Correct SLF4J 2.x bridge to Log4j 2 -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j2-impl</artifactId>
@@ -210,7 +215,7 @@
             <version>${extent.adapter.version}</version>
         </dependency>
 
-        <!-- Extent Reports - kept because your framework uses Extent directly -->
+        <!-- Extent Reports -->
         <dependency>
             <groupId>com.aventstack</groupId>
             <artifactId>extentreports</artifactId>
@@ -259,6 +264,7 @@
             <version>${jmeter.dsl.version}</version>
         </dependency>
 
+        <!-- JMeter Java DSL Dashboard -->
         <dependency>
             <groupId>us.abstracta.jmeter</groupId>
             <artifactId>jmeter-java-dsl-dashboard</artifactId>
@@ -266,17 +272,15 @@
         </dependency>
 
         <!--
-            IMPORTANT:
-            Your runtime classpath previously showed this internal jar:
+            Optional internal PTAF jar.
 
+            Your runtime classpath previously showed:
             C:\Users\azimovm\.m2\repository\com\fnb_ptaf\fnb_ptaf\1.0.0-7324\fnb_ptaf-1.0.0-7324.jar
 
-            If your current project needs that jar, uncomment this dependency.
-            The exclusions below prevent old Log4j/Cucumber/SnakeYAML versions from overriding this POM.
-
-            If IntelliJ manually added this jar under:
+            If this jar is required, uncomment this dependency and remove any manually added jar from IntelliJ:
             File -> Project Structure -> Modules -> Dependencies
-            remove the manual jar entry and use Maven dependency instead.
+
+            The exclusions prevent old Log4j/Cucumber/SnakeYAML versions from overriding this POM.
         -->
 
         <!--
@@ -390,7 +394,6 @@
                         </goals>
                         <configuration>
 
-                            <!-- Safer for framework projects; avoids changing your effective dependency tree -->
                             <createDependencyReducedPom>false</createDependencyReducedPom>
 
                             <shadedArtifactAttached>true</shadedArtifactAttached>
