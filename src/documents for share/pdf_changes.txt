@@ -12,10 +12,12 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+        <!-- Java -->
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <maven.compiler.release>21</maven.compiler.release>
 
+        <!-- Versions -->
         <cucumber.version>7.20.0</cucumber.version>
         <testng.version>7.10.2</testng.version>
         <junit4.version>4.13.2</junit4.version>
@@ -27,27 +29,25 @@
         <logback.version>1.4.14</logback.version>
 
         <extent.adapter.version>1.14.0</extent.adapter.version>
-        <extentreports.version>5.0.9</extentreports.version>
+        <extentreports.version>5.1.0</extentreports.version>
 
-        <lombok.version>1.18.26</lombok.version>
+        <lombok.version>1.18.34</lombok.version>
         <poi.version>5.2.5</poi.version>
         <pdfbox.version>2.0.30</pdfbox.version>
         <commons-io.version>2.15.1</commons-io.version>
         <snakeyaml.version>2.2</snakeyaml.version>
+
         <json-path.version>3.0.0</json-path.version>
         <postgresql.version>42.7.3</postgresql.version>
         <mssql.version>13.4.0.jre11</mssql.version>
+
         <jmeter.dsl.version>1.29.1</jmeter.dsl.version>
     </properties>
 
-    <!--
-        Important:
-        This forces all Log4j modules to use the same version.
-        This is the main fix for:
-        NoSuchMethodError: LoaderUtil.newCheckedInstanceOfProperty(...)
-    -->
     <dependencyManagement>
         <dependencies>
+
+            <!-- Force all Log4j jars to same version -->
             <dependency>
                 <groupId>org.apache.logging.log4j</groupId>
                 <artifactId>log4j-bom</artifactId>
@@ -56,7 +56,7 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Force Cucumber versions to stay aligned -->
+            <!-- Force all Cucumber jars to same version -->
             <dependency>
                 <groupId>io.cucumber</groupId>
                 <artifactId>cucumber-bom</artifactId>
@@ -64,168 +64,160 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+
         </dependencies>
     </dependencyManagement>
 
     <dependencies>
 
-        <!-- Existing dependency: JSON Path -->
+        <!-- JSON Path -->
         <dependency>
             <groupId>com.jayway.jsonpath</groupId>
             <artifactId>json-path</artifactId>
             <version>${json-path.version}</version>
         </dependency>
 
-        <!-- Existing dependency: PostgreSQL -->
+        <!-- PostgreSQL -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>${postgresql.version}</version>
         </dependency>
 
-        <!-- Existing dependency: Microsoft SQL Server -->
+        <!-- Microsoft SQL Server -->
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
             <version>${mssql.version}</version>
         </dependency>
 
-        <!-- Existing dependency: JUnit 5 API -->
+        <!-- JUnit 5 API
+             No test scope because some PTAF framework classes may use org.junit.jupiter.api under src/main/java.
+        -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
             <version>${junit5.version}</version>
-            <scope>test</scope>
         </dependency>
 
-        <!-- Existing dependency: JUnit 5 Engine -->
+        <!-- JUnit 5 Engine -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
             <version>${junit5.version}</version>
-            <scope>test</scope>
         </dependency>
 
-        <!-- Existing dependency: JUnit 4 -->
+        <!-- JUnit 4
+             No test scope because some framework/helper classes may use org.junit.Assert.
+        -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>${junit4.version}</version>
-            <scope>test</scope>
         </dependency>
 
-        <!-- Existing dependency: TestNG
-             NOTE: Your original POM had TestNG twice: 7.7.1 and 7.10.2.
-             Keeping one version avoids Maven conflict.
+        <!-- TestNG
+             No test scope because some runner/framework classes may extend/use TestNG classes directly.
         -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
             <version>${testng.version}</version>
-            <scope>test</scope>
         </dependency>
 
-        <!-- Existing dependency: Cucumber TestNG -->
+        <!-- Cucumber -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-testng</artifactId>
         </dependency>
 
-        <!-- Existing dependency: Cucumber PicoContainer -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-picocontainer</artifactId>
         </dependency>
 
-        <!-- Existing dependency: Cucumber Java -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-java</artifactId>
         </dependency>
 
-        <!-- Existing dependency: Cucumber JUnit -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-junit</artifactId>
-            <scope>test</scope>
         </dependency>
 
-        <!-- Existing dependency: Playwright -->
+        <!-- Playwright -->
         <dependency>
             <groupId>com.microsoft.playwright</groupId>
             <artifactId>playwright</artifactId>
             <version>${playwright.version}</version>
         </dependency>
 
-        <!-- Existing dependency: SnakeYAML -->
+        <!-- YAML -->
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
             <version>${snakeyaml.version}</version>
         </dependency>
 
-        <!-- Existing dependency: SLF4J API -->
+        <!-- SLF4J API -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j.version}</version>
         </dependency>
 
-        <!-- Existing dependency from your runtime classpath: Logback Classic -->
+        <!-- Logback - kept because it appeared in your runtime classpath -->
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>${logback.version}</version>
         </dependency>
 
-        <!-- Existing dependency from your runtime classpath: Logback Core -->
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-core</artifactId>
             <version>${logback.version}</version>
         </dependency>
 
-        <!-- Existing dependency: Log4j API. Version controlled by Log4j BOM. -->
+        <!-- Log4j 2 - versions controlled by Log4j BOM -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
         </dependency>
 
-        <!-- Existing dependency: Log4j Core. Version controlled by Log4j BOM. -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
         </dependency>
 
-        <!-- Existing dependency: supports old org.apache.log4j.Logger usage -->
+        <!-- Supports old org.apache.log4j.Logger calls -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-1.2-api</artifactId>
         </dependency>
 
-        <!-- Existing dependency: routes SLF4J 2 logs to Log4j 2 -->
+        <!-- Routes SLF4J 2 logs into Log4j 2 -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j2-impl</artifactId>
         </dependency>
 
-        <!-- Existing dependency: Extent Reports Cucumber 7 Adapter -->
+        <!-- Extent Reports Cucumber 7 Adapter -->
         <dependency>
             <groupId>tech.grasshopper</groupId>
             <artifactId>extentreports-cucumber7-adapter</artifactId>
             <version>${extent.adapter.version}</version>
         </dependency>
 
-        <!-- Existing dependency: Extent Reports
-             Kept because you asked not to remove existing dependencies.
-        -->
+        <!-- Extent Reports - kept because your framework uses Extent directly -->
         <dependency>
             <groupId>com.aventstack</groupId>
             <artifactId>extentreports</artifactId>
             <version>${extentreports.version}</version>
         </dependency>
 
-        <!-- Existing dependency: Lombok -->
+        <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -233,42 +225,40 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Existing dependency: PDFBox -->
+        <!-- PDFBox -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>${pdfbox.version}</version>
         </dependency>
 
-        <!-- Existing dependency: Commons IO -->
+        <!-- Commons IO -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>${commons-io.version}</version>
         </dependency>
 
-        <!-- Existing dependency: Apache POI -->
+        <!-- Apache POI Excel -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi</artifactId>
             <version>${poi.version}</version>
         </dependency>
 
-        <!-- Existing dependency: Apache POI OOXML -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>${poi.version}</version>
         </dependency>
 
-        <!-- Existing dependency: JMeter Java DSL -->
+        <!-- JMeter Java DSL -->
         <dependency>
             <groupId>us.abstracta.jmeter</groupId>
             <artifactId>jmeter-java-dsl</artifactId>
             <version>${jmeter.dsl.version}</version>
         </dependency>
 
-        <!-- Existing dependency: JMeter Java DSL Dashboard -->
         <dependency>
             <groupId>us.abstracta.jmeter</groupId>
             <artifactId>jmeter-java-dsl-dashboard</artifactId>
@@ -276,15 +266,20 @@
         </dependency>
 
         <!--
-            Optional internal PTAF jar.
-            Your runtime classpath showed:
-            com.fnb_ptaf:fnb_ptaf:1.0.0-7324
+            IMPORTANT:
+            Your runtime classpath previously showed this internal jar:
 
-            If this jar is manually added in IntelliJ, Maven cannot control its dependencies.
-            Best practice: add it here and exclude old conflicting versions.
+            C:\Users\azimovm\.m2\repository\com\fnb_ptaf\fnb_ptaf\1.0.0-7324\fnb_ptaf-1.0.0-7324.jar
 
-            Uncomment ONLY if your project really needs this dependency from Maven repo.
+            If your current project needs that jar, uncomment this dependency.
+            The exclusions below prevent old Log4j/Cucumber/SnakeYAML versions from overriding this POM.
 
+            If IntelliJ manually added this jar under:
+            File -> Project Structure -> Modules -> Dependencies
+            remove the manual jar entry and use Maven dependency instead.
+        -->
+
+        <!--
         <dependency>
             <groupId>com.fnb_ptaf</groupId>
             <artifactId>fnb_ptaf</artifactId>
@@ -315,6 +310,14 @@
                     <artifactId>cucumber-core</artifactId>
                 </exclusion>
                 <exclusion>
+                    <groupId>io.cucumber</groupId>
+                    <artifactId>cucumber-junit</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.cucumber</groupId>
+                    <artifactId>cucumber-testng</artifactId>
+                </exclusion>
+                <exclusion>
                     <groupId>org.yaml</groupId>
                     <artifactId>snakeyaml</artifactId>
                 </exclusion>
@@ -327,7 +330,7 @@
     <build>
         <plugins>
 
-            <!-- Existing compiler plugin, upgraded for Java 21 compatibility -->
+            <!-- Java Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -340,12 +343,14 @@
                 </configuration>
             </plugin>
 
-            <!-- Existing Surefire plugin, upgraded for Java 21/TestNG compatibility -->
+            <!-- Maven Surefire Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>
+
+                    <!-- Your existing TestNG XML runner -->
                     <suiteXmlFiles>
                         <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
                     </suiteXmlFiles>
@@ -355,19 +360,24 @@
                     <useUnlimitedThreads>false</useUnlimitedThreads>
 
                     <systemPropertyVariables>
-                        <cucumber.plugin>
-                            json:target/cucumber-reports/cucumber.json,
-                            junit:target/cucumber-reports/cucumber.xml,
-                            pretty
-                        </cucumber.plugin>
+                        <cucumber.plugin>json:target/cucumber-reports/cucumber.json,junit:target/cucumber-reports/cucumber.xml,pretty</cucumber.plugin>
                     </systemPropertyVariables>
 
                     <reportsDirectory>target/surefire-reports</reportsDirectory>
                     <useFile>true</useFile>
+
+                    <!-- Helps Java 21 reflection access issues in some test frameworks -->
+                    <argLine>
+                        --add-opens java.base/java.lang=ALL-UNNAMED
+                        --add-opens java.base/java.lang.reflect=ALL-UNNAMED
+                        --add-opens java.base/java.util=ALL-UNNAMED
+                        --add-opens java.base/java.io=ALL-UNNAMED
+                    </argLine>
+
                 </configuration>
             </plugin>
 
-            <!-- Existing Shade Plugin -->
+            <!-- Maven Shade Plugin - kept from your existing POM -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -379,7 +389,8 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <!-- Safer: do not generate dependency-reduced POM unless intentionally publishing shaded artifact -->
+
+                            <!-- Safer for framework projects; avoids changing your effective dependency tree -->
                             <createDependencyReducedPom>false</createDependencyReducedPom>
 
                             <shadedArtifactAttached>true</shadedArtifactAttached>
