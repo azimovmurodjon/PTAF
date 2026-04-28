@@ -1,23 +1,137 @@
-@db @database_health_check
-Scenario: Validate SQL Server database connection        # src/test/resources/features/db/database_connection_health_check.feature:9
-SLF4J(W): No SLF4J providers were found.
-SLF4J(W): Defaulting to no-operation (NOP) logger implementation
-SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
-SLF4J(W): Class path contains SLF4J bindings targeting slf4j-api versions 1.7.x or earlier.
-SLF4J(W): Ignoring binding found at [jar:file:/C:/Users/ShankarS/.m2/repository/org/apache/logging/log4j/log4j-slf4j-impl/2.17.2/log4j-slf4j-impl-2.17.2.jar!/org/slf4j/impl/StaticLoggerBinder.class]
-SLF4J(W): See https://www.slf4j.org/codes.html#ignoredBindings for an explanation.
-  Given I validate the database connection is successful # com.ptaf.db.stepdefinitions.DatabaseSteps.i_validate_the_database_connection_is_successful()
-      java.lang.AssertionError: Database connection validation failed. Review SQL Server configuration in config.yml and framework logs for details.
-	at com.ptaf.db.validators.DatabaseConnectionValidator.assertDatabaseConnectionSuccessful(DatabaseConnectionValidator.java:114)
-	at com.ptaf.db.stepdefinitions.DatabaseSteps.i_validate_the_database_connection_is_successful(DatabaseSteps.java:69)
-	at ✽.I validate the database connection is successful(file:///C:/Users/ShankarS/intellij_projects/FNB-Corp%20PTAF/src/test/resources/features/db/database_connection_health_check.feature:10)
- 
- 
-java.lang.AssertionError: Database connection validation failed. Review SQL Server configuration in config.yml and framework logs for details.
- 
-	at com.ptaf.db.validators.DatabaseConnectionValidator.assertDatabaseConnectionSuccessful(DatabaseConnectionValidator.java:114)
-	at com.ptaf.db.stepdefinitions.DatabaseSteps.i_validate_the_database_connection_is_successful(DatabaseSteps.java:69)
-	at ✽.I validate the database connection is successful(file:///C:/Users/ShankarS/intellij_projects/FNB-Corp%20PTAF/src/test/resources/features/db/database_connection_health_check.feature:10)
- 
- 
-Process finished with exit code -1
+# ==================================
+# UI CONFIGURATION
+# ==================================
+
+# Browser configuration for test execution.
+# Supported values depend on BrowserFactory enum: chrome, firefox, webkit, edge.
+browser: "edge"
+
+# Headless mode setting.
+# Set to "true" to run the browser without a UI.
+# Set to "false" to run the browser with UI.
+headless: "false"
+
+# HTTPS / SSL Certificate Error Handling.
+# Set to "true" to bypass SSL/HTTPS certificate errors for QA, DEV, SIT, UAT environments.
+# Set to "false" to enforce certificate validation.
+ignoreHTTPSErrors: "true"
+
+# Time to wait in seconds.
+# The recommended minimum value is 1.
+time_to_wait_in_seconds: "60"
+
+# Hooks runtime wait setting.
+runtimeWait: 30
+
+# Video capture setting.
+# Set to "true" to enable Playwright video recording.
+# Set to "false" to disable video recording.
+videoCapture: "false"
+
+# Excel document location in the framework.
+excelDocumentLocation: "src/test/resources/testdata.xlsx"
+
+# Download the document location in the framework.
+downloadDocument: "src/test/downloads/"
+
+# Environment URLs for different test environments
+doc_center_rnd_url: "https://pdscawebdev01.myfnb.us/Account/Login?ReturnUrl=%2F"
+doc_center_qa_url: "https://qa.fnbonline.fnb-online.com/documentcenter/Account/Login"
+eStore_QA: "https://qa.fnbonline.fnb-online.com"
+Argo_Teller_qaEnvUrl: "https://fnbbrargoqa03w.myfnb.us:8443/"
+connectsQa1Url: "https://vsargwebqa01.myfnb.us:5048/"
+nav_url:        "https://navwebtst.myfnb.us/nav_nav1151/Nav1151.aspx"
+fnb_online_url: "https://qa.fnbonline.fnb-online.com/"
+HARNESS_PREPROD_QA: "https://test.fnb.avoka-transact.com/workspaces-preprod/servlet/SmartForm.html?formCode=testharness2"
+HARNESS_PREPROD_STAGE: "https://staging.fnb.avoka-transact.com/workspaces-preprod/servlet/SmartForm.html?formCode=testharness2"
+estore_report_url: "https://vsdiswebqa01.myfnb.us/"
+
+# ==================================
+# NAVIGATOR CREDENTIALS
+# ==================================
+
+username: "AzimovM"
+password: "202010#Damir%"
+
+# ==================================
+# DATABASE CONFIGURATION
+# ==================================
+
+database:
+  # Database type used by the framework.
+  # Current supported enterprise setup: sqlserver.
+  db_type: "sqlserver"
+
+  # Server type from SQL Server Management Studio.
+  # This value is mainly for documentation/readability.
+  server_type: "Database Engine"
+
+  # SQL Server name from SQL Server Management Studio.
+  # Example from your company setup: VSDISSQLQA01
+  server_name: "VSDISSQLQA01"
+
+  # SQL Server port.
+  # The default SQL Server port is 1433.
+  # Leave as 1433 unless your DBA/team provides a different port.
+  port: "1433"
+
+  # Target database name.
+  # IMPORTANT: Replace YOUR_DATABASE_NAME with the real database name from SSMS.
+  database_name: "YOUR_DATABASE_NAME"
+
+  # Authentication mode.
+  # windows = Windows Integrated Authentication; no username/password required.
+  # sqlserver = SQL Server username/password authentication.
+  authentication: "windows"
+
+  # SQL Server encryption setting.
+  # Many enterprise SQL Server environments require encrypt=true.
+  encrypt: "true"
+
+  # SQL Server certificate trust setting.
+  # true is commonly needed for internal QA/SIT/UAT SQL Server certificates.
+  trust_server_certificate: "true"
+
+  # Optional connection timeout in seconds.
+  login_timeout_seconds: "30"
+
+  # Optional query execution timeout in seconds.
+  # Prevents long-running SQL statements from hanging automation execution.
+  query_timeout_seconds: "60"
+
+  # Optional JDBC fetch size.
+  # Controls how many rows the JDBC driver fetches in batches.
+  fetch_size: "500"
+
+  # Optional application name visible in SQL Server monitoring/session tools.
+  application_name: "PTAF Automation Framework"
+
+  # Only used when authentication is set to "sqlserver".
+  # For Windows Authentication, keep these values empty.
+  username: ""
+  password_env_variable: ""
+
+
+# ==================================
+# API SERVICES CONFIGURATION
+# ==================================
+
+api_services:
+  # Example for a public test API like JSONPlaceholder.
+  jsonplaceholder:
+    base_url: "https://jsonplaceholder.typicode.com"
+
+    # This service requires no authentication, so leave it blank.
+    auth_token_env: ""
+
+  # Example for an internal service that requires authentication.
+  internal_crm:
+    base_url: "https://api.internal-crm.com/v2"
+
+    # IMPORTANT:
+    # Store the NAME of the environment variable, not the token itself.
+    # The framework will read the actual token from the system environment.
+    auth_token_env: "CRM_API_TOKEN"
+
+  reports_dashboard:
+    base_url: "https://vsdiswebqa01.myfnb.us"
