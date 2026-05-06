@@ -88,17 +88,32 @@ public class Hooks {
         scenarioThreadLocal.set(scenario);
 
         String featureKey = getFeatureKey(scenario);
+
+        if (featureKey == null || featureKey.trim().isEmpty()) {
+            featureKey = buildFallbackFeatureKey(scenario);
+            logger.warn(
+                    "Unable to resolve feature key for scenario [{}]. Using fallback feature key [{}].",
+                    scenario != null ? scenario.getName() : "UNKNOWN",
+                    featureKey
+            );
+        }
+
         activeFeatureThreadLocal.set(featureKey);
 
         if (isPerformanceScenario(scenario)) {
             performanceScenarioThreadLocal.set(Boolean.TRUE);
-            logger.info("Performance scenario detected [{}]. Skipping Playwright browser initialization.", scenario.getName());
+            logger.info(
+                    "Performance scenario detected [{}]. Skipping Playwright browser initialization.",
+                    scenario != null ? scenario.getName() : "UNKNOWN"
+            );
             return;
         }
 
         performanceScenarioThreadLocal.set(Boolean.FALSE);
 
-        boolean isLastScenarioTaggedFeature = scenario.getSourceTagNames().contains("@LastScenario");
+        boolean isLastScenarioTaggedFeature =
+                scenario != null && scenario.getSourceTagNames().contains("@LastScenario");
+
         lastScenarioFeatureMap.putIfAbsent(featureKey, isLastScenarioTaggedFeature);
 
         if (isLastScenarioTaggedFeature) {
@@ -126,7 +141,7 @@ public class Hooks {
             if (featureAlreadyFailed) {
                 logger.error(
                         "Skipping scenario [{}] because @LastScenario feature [{}] is already marked as failed.",
-                        scenario.getName(),
+                        scenario != null ? scenario.getName() : "UNKNOWN",
                         featureKey
                 );
                 throw new RuntimeException(
@@ -139,7 +154,7 @@ public class Hooks {
                 logger.info(
                         "Initial shared browser created for @LastScenario feature [{}], scenario [{}]",
                         featureKey,
-                        scenario.getName()
+                        scenario != null ? scenario.getName() : "UNKNOWN"
                 );
                 return;
             }
@@ -149,7 +164,7 @@ public class Hooks {
                     logger.info(
                             "Reusing shared browser for @LastScenario feature [{}], scenario [{}]",
                             featureKey,
-                            scenario.getName()
+                            scenario != null ? scenario.getName() : "UNKNOWN"
                     );
                     return;
                 } else {
@@ -158,7 +173,7 @@ public class Hooks {
                             "Shared browser/session is no longer available for @LastScenario feature [{}] before scenario [{}]. " +
                                     "Failing remaining scenarios and not reopening browser.",
                             featureKey,
-                            scenario.getName()
+                            scenario != null ? scenario.getName() : "UNKNOWN"
                     );
                     throw new RuntimeException(
                             "Shared browser was closed or lost during @LastScenario execution. Remaining scenarios are failed intentionally."
@@ -172,7 +187,7 @@ public class Hooks {
 
     @After
     public void tearDown(Scenario scenario) {
-        String featureKey = activeFeatureThreadLocal.get();
+        String featureKey = getSafeFeatureKeyForTearDown(scenario);
 
         try {
             if (!Boolean.TRUE.equals(performanceScenarioThreadLocal.get()) && scenario.getStatus() == Status.PASSED) {
@@ -190,7 +205,8 @@ public class Hooks {
                 return;
             }
 
-            boolean isLastScenarioFeature = Boolean.TRUE.equals(lastScenarioFeatureMap.get(featureKey));
+            boolean isLastScenarioFeature =
+                    featureKey != null && Boolean.TRUE.equals(lastScenarioFeatureMap.get(featureKey));
 
             if (isLastScenarioFeature) {
                 Browser browser = browserThreadLocal.get();
@@ -236,6 +252,14 @@ public class Hooks {
                     logger.info("Keeping browser state unchanged for next scenario in @LastScenario feature [{}].", featureKey);
                 }
             } else {
+                if (featureKey == null) {
+                    logger.warn(
+                            "Feature key was not available during teardown for scenario [{}]. " +
+                                    "Proceeding with normal browser cleanup to avoid NullPointerException.",
+                            scenario != null ? scenario.getName() : "UNKNOWN"
+                    );
+                }
+
                 closeBrowserResources();
             }
         }
@@ -282,12 +306,16 @@ public class Hooks {
 
             logger.info(
                     "Browser setup completed for scenario: {} with runtime timeout: {} ms",
-                    scenario.getName(),
+                    scenario != null ? scenario.getName() : "UNKNOWN",
                     runtimeTimeoutMillis
             );
 
         } catch (Exception e) {
-            logger.error("Error setting up the browser for scenario: {}", scenario.getName(), e);
+            logger.error(
+                    "Error setting up the browser for scenario: {}",
+                    scenario != null ? scenario.getName() : "UNKNOWN",
+                    e
+            );
             throw new RuntimeException("Browser setup failed", e);
         }
     }
@@ -421,6 +449,11 @@ public class Hooks {
     }
 
     private static void clearFeatureTracking(String featureKey) {
+        if (featureKey == null || featureKey.trim().isEmpty()) {
+            logger.warn("Skipping feature tracking cleanup because feature key is null or empty.");
+            return;
+        }
+
         lastScenarioFeatureMap.remove(featureKey);
         featureScenarioTotalMap.remove(featureKey);
         featureScenarioExecutedMap.remove(featureKey);
@@ -452,18 +485,70 @@ public class Hooks {
         return featureKey != null && featureKey.toLowerCase().contains("performance");
     }
 
+    private String getSafeFeatureKeyForTearDown(Scenario scenario) {
+        String featureKey = activeFeatureThreadLocal.get();
+
+        if (featureKey != null && !featureKey.trim().isEmpty()) {
+            return featureKey;
+        }
+
+        try {
+            featureKey = getFeatureKey(scenario);
+
+            if (featureKey != null && !featureKey.trim().isEmpty()) {
+                activeFeatureThreadLocal.set(featureKey);
+                logger.warn(
+                        "Feature key was missing from ThreadLocal during teardown. Recovered feature key [{}] from scenario [{}].",
+                        featureKey,
+                        scenario != null ? scenario.getName() : "UNKNOWN"
+                );
+                return featureKey;
+            }
+        } catch (Exception e) {
+            logger.warn(
+                    "Unable to recover feature key during teardown for scenario [{}]. Reason: {}",
+                    scenario != null ? scenario.getName() : "UNKNOWN",
+                    e.getMessage()
+            );
+        }
+
+        return null;
+    }
+
     private String getFeatureKey(Scenario scenario) {
+        if (scenario == null) {
+            return null;
+        }
+
         try {
             URI uri = scenario.getUri();
-            if (uri != null) {
+            if (uri != null && uri.toString() != null && !uri.toString().trim().isEmpty()) {
                 return uri.toString();
             }
         } catch (Exception ignored) {
         }
 
-        String id = scenario.getId();
-        int colonIndex = id.lastIndexOf(':');
-        return colonIndex > 0 ? id.substring(0, colonIndex) : id;
+        try {
+            String id = scenario.getId();
+
+            if (id == null || id.trim().isEmpty()) {
+                return null;
+            }
+
+            int colonIndex = id.lastIndexOf(':');
+            return colonIndex > 0 ? id.substring(0, colonIndex) : id;
+        } catch (Exception ignored) {
+        }
+
+        return null;
+    }
+
+    private String buildFallbackFeatureKey(Scenario scenario) {
+        String scenarioName = scenario != null && scenario.getName() != null
+                ? scenario.getName().replaceAll("[^a-zA-Z0-9_-]", "_")
+                : "UNKNOWN_SCENARIO";
+
+        return "UNKNOWN_FEATURE_" + Thread.currentThread().getId() + "_" + scenarioName;
     }
 
     private int countScenariosInFeatureFile(Scenario scenario) {

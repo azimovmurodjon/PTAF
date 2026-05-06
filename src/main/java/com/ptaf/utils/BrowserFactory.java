@@ -4,10 +4,13 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.options.HttpCredentials;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 
 /**
@@ -33,19 +36,33 @@ import java.util.Arrays;
  * </p>
  *
  * <p>
+ * HTTP Authentication:
+ * If the JVM system properties service.username and service.password are provided,
+ * they are applied to the BrowserContext using Playwright HttpCredentials.
+ * This keeps the main branch authentication behavior intact.
+ * </p>
+ *
+ * <p>
  * Important:
  * The ignoreHTTPSErrors setting must be applied at the BrowserContext level.
  * This is the correct Playwright configuration point for UI automation.
  * </p>
  */
-public class BrowserFactory {
+public final class BrowserFactory {
 
     private static final Logger logger = LoggerFactory.getLogger(BrowserFactory.class);
 
     /**
+     * Timestamp used to keep each execution's video recordings separated.
+     * This preserves the main branch behavior where videos are stored by run timestamp.
+     */
+    private static final String TIMESTAMP =
+            LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+
+    /**
      * Centralized directory where Playwright video recordings are stored.
      */
-    private static final String VIDEO_DIR = "test-output/captured-videos";
+    private static final String VIDEO_DIR = "test-output/captured-videos/" + TIMESTAMP;
 
     /**
      * BrowserFactory is a utility class and should not be instantiated.
@@ -69,8 +86,8 @@ public class BrowserFactory {
      *
      * <p>
      * Browser represents the browser process. Test-level configuration such as
-     * SSL handling, video recording, viewport, storage state, and tracing should
-     * be applied on BrowserContext.
+     * SSL handling, video recording, viewport, storage state, HTTP credentials,
+     * and tracing should be applied on BrowserContext.
      * </p>
      *
      * @param browserTypeEnum Browser type requested by framework configuration or runner.
@@ -165,6 +182,7 @@ public class BrowserFactory {
      * <ul>
      *     <li>Optional video recording based on framework configuration.</li>
      *     <li>Configurable HTTPS / SSL certificate handling using ignoreHTTPSErrors.</li>
+     *     <li>Optional HTTP authentication using service.username and service.password.</li>
      * </ul>
      *
      * <p>
@@ -172,6 +190,13 @@ public class BrowserFactory {
      * Many QA, DEV, SIT, UAT, and internal enterprise environments use certificates
      * that may not be trusted by the local machine. Enabling ignoreHTTPSErrors allows
      * UI tests to continue without certificate warning pages blocking automation.
+     * </p>
+     *
+     * <p>
+     * HTTP Authentication Purpose:
+     * Some internal environments require basic HTTP authentication before the
+     * application page loads. If service.username and service.password are passed
+     * as JVM system properties, they are applied here at the BrowserContext level.
      * </p>
      *
      * <p>
@@ -192,6 +217,8 @@ public class BrowserFactory {
 
         logger.info("Creating UI BrowserContext. ignoreHTTPSErrors={}", shouldIgnoreHTTPSErrors);
 
+        applyHttpCredentialsIfAvailable(contextOptions);
+
         if (recordVideo) {
             logger.info("Video capture enabled. Videos will be stored under: {}", VIDEO_DIR);
 
@@ -210,6 +237,33 @@ public class BrowserFactory {
         );
 
         return context;
+    }
+
+    /**
+     * Applies HTTP basic authentication credentials to BrowserContext options
+     * when service.username and service.password are available as JVM system properties.
+     *
+     * <p>
+     * This method restores the main branch logic:
+     * </p>
+     *
+     * <pre>
+     * -Dservice.username=yourUsername
+     * -Dservice.password=yourPassword
+     * </pre>
+     *
+     * @param contextOptions Browser context options that will receive credentials.
+     */
+    private static void applyHttpCredentialsIfAvailable(Browser.NewContextOptions contextOptions) {
+        String username = System.getProperty("service.username");
+        String password = System.getProperty("service.password");
+
+        if (isNotBlank(username) && isNotBlank(password)) {
+            contextOptions.setHttpCredentials(new HttpCredentials(username, password));
+            logger.info("HTTP authentication credentials applied.");
+        } else {
+            logger.info("No HTTP credentials found. Proceeding without authentication.");
+        }
     }
 
     /**
@@ -246,5 +300,15 @@ public class BrowserFactory {
         }
 
         return Boolean.parseBoolean(value.trim());
+    }
+
+    /**
+     * Checks whether a string has real text.
+     *
+     * @param value input string.
+     * @return true when value is not null and not blank.
+     */
+    private static boolean isNotBlank(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }
