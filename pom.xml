@@ -39,28 +39,13 @@
         <json-path.version>3.0.0</json-path.version>
         <postgresql.version>42.7.3</postgresql.version>
         <mssql.version>13.4.0.jre11</mssql.version>
-        <appium.version>9.0.0</appium.version>
-        <selenium.version>4.21.0</selenium.version>
+        <appium.version>9.4.0</appium.version>
 
         <jmeter.dsl.version>1.29.1</jmeter.dsl.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- Appium Java Client -->
-            <dependency>
-                <groupId>io.appium</groupId>
-                <artifactId>java-client</artifactId>
-                <version>${appium.version}</version>
-            </dependency>
-
-            <!-- Selenium (used by Appium) -->
-            <dependency>
-                <groupId>org.seleniumhq.selenium</groupId>
-                <artifactId>selenium-java</artifactId>
-                <version>${selenium.version}</version>
-            </dependency>
-
 
             <!-- Force all Log4j artifacts to the same version -->
             <dependency>
@@ -71,12 +56,6 @@
                 <scope>import</scope>
             </dependency>
 
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-text</artifactId>
-                <version>1.10.0</version>
-            </dependency>
-
             <!-- Force all Cucumber artifacts to the same version -->
             <dependency>
                 <groupId>io.cucumber</groupId>
@@ -84,6 +63,13 @@
                 <version>${cucumber.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Commons Text managed version -->
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-text</artifactId>
+                <version>1.10.0</version>
             </dependency>
 
         </dependencies>
@@ -169,6 +155,13 @@
             <groupId>com.microsoft.playwright</groupId>
             <artifactId>playwright</artifactId>
             <version>${playwright.version}</version>
+        </dependency>
+
+        <!-- Appium Java Client for mobile native, hybrid, and mobile web automation -->
+        <dependency>
+            <groupId>io.appium</groupId>
+            <artifactId>java-client</artifactId>
+            <version>${appium.version}</version>
         </dependency>
 
         <!-- YAML -->
@@ -280,6 +273,13 @@
             <groupId>us.abstracta.jmeter</groupId>
             <artifactId>jmeter-java-dsl</artifactId>
             <version>${jmeter.dsl.version}</version>
+            <exclusions>
+                <!-- Prevent duplicate SLF4J binding conflict with log4j-slf4j2-impl -->
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-slf4j-impl</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- JMeter Java DSL Dashboard -->
@@ -287,6 +287,13 @@
             <groupId>us.abstracta.jmeter</groupId>
             <artifactId>jmeter-java-dsl-dashboard</artifactId>
             <version>${jmeter.dsl.version}</version>
+            <exclusions>
+                <!-- Prevent duplicate SLF4J binding conflict with log4j-slf4j2-impl -->
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-slf4j-impl</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!--
@@ -397,7 +404,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Maven Shade Plugin - kept from your existing POM -->
+            <!-- Maven Shade Plugin - kept and safely updated for Java 21 + Appium/Selenium/JMeter dependency set -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -419,9 +426,27 @@
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
+                                        <!-- Signature files are invalid after shading multiple jars together -->
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
+
+                                        <!-- Safe for non-modular enterprise framework jar; reduces module-info warnings -->
+                                        <exclude>module-info.class</exclude>
+                                        <exclude>META-INF/versions/*/module-info.class</exclude>
+
+                                        <!-- Prevent Shade failure from Java 24 multi-release classes while project runs on Java 21 -->
+                                        <exclude>META-INF/versions/24/**</exclude>
+
+                                        <!-- Duplicate Maven metadata is not required at runtime -->
+                                        <exclude>META-INF/maven/**</exclude>
+
+                                        <!-- Duplicate license/notice/dependency metadata creates warnings only -->
+                                        <exclude>META-INF/LICENSE</exclude>
+                                        <exclude>META-INF/LICENSE.txt</exclude>
+                                        <exclude>META-INF/NOTICE</exclude>
+                                        <exclude>META-INF/NOTICE.txt</exclude>
+                                        <exclude>META-INF/DEPENDENCIES</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
