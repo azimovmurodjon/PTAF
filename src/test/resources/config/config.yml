@@ -3,7 +3,24 @@
 # ==================================
 
 # Browser configuration for test execution.
-# Supported values depend on BrowserFactory enum: chrome, firefox, webkit, edge.
+#
+# Desktop browser values supported by the original PTAF UI framework:
+#   chrome, firefox, webkit, edge
+#
+# Mobile browser emulation values are also supported through Playwright profiles.
+# These profiles reuse the same feature files, step definitions, web element YAML files,
+# screenshots, videos, and ExtentReports. They simulate browser viewport/resolution,
+# touch capability, scale factor, and user-agent; they do not boot native iOS/Android simulators.
+#
+# Examples:
+#   browser: "iPhone 17 Pro Max Safari"
+#   browser: "iPhone 17 Pro Max Chrome"
+#   browser: "Galaxy S25 Ultra Chrome"
+#   browser: "iPad Pro 13 Safari"
+#   browser: "Galaxy Tab S10 Ultra Chrome"
+#
+# Full list of 20 ready-to-use profiles:
+#   src/test/resources/mobile_browser/config/mobile-browser-profiles.yml
 browser: "chrome"
 
 # Headless mode setting.

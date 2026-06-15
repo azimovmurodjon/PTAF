@@ -1,0 +1,13 @@
+mobile_elements:
+  theapp:
+    echoBoxMenu: "ACCESSIBILITY_ID_Echo Box"
+    loginMenu: "ACCESSIBILITY_ID_Login Screen"
+    clipboardDemoMenu: "ACCESSIBILITY_ID_Clipboard Demo"
+    echoInput: "ACCESSIBILITY_ID_messageInput"
+    saveButton: "ACCESSIBILITY_ID_messageSaveBtn"
+    savedMessage:
+      android: "XPATH_//*[contains(@text,'PTAF cross-platform native mobile test') or contains(@content-desc,'PTAF cross-platform native mobile test') or contains(@resource-id,'savedMessage')]"
+      ios: "ACCESSIBILITY_ID_savedMessage"
+    username: "ACCESSIBILITY_ID_username"
+    password: "ACCESSIBILITY_ID_password"
+    loginButton: "ACCESSIBILITY_ID_loginBtn"

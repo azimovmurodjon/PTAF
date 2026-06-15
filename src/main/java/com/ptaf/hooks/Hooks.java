@@ -4,6 +4,7 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.LoadState;
+import com.ptaf.ui.mobilebrowser.MobileBrowserEvidenceManager;
 import com.ptaf.ui.pages.PageCommonMethods;
 import com.ptaf.utils.BrowserFactory;
 import com.ptaf.utils.BrowserFactory.BrowserTypeEnum;
@@ -37,6 +38,7 @@ public class Hooks {
     private static final ThreadLocal<PageCommonMethods> pageCommonMethodsThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<String> activeFeatureThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> performanceScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private static final ThreadLocal<Boolean> mobileScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     /**
      * Feature has @LastScenario tag.
@@ -80,6 +82,9 @@ public class Hooks {
             "@performance_expected_failure"
     );
 
+    /** Mobile-related tags that should never initialize the Playwright browser stack. */
+    private static final Set<String> MOBILE_TAGS = Set.of("@mobile", "@android", "@ios");
+
     public Hooks() {
     }
 
@@ -102,6 +107,7 @@ public class Hooks {
 
         if (isPerformanceScenario(scenario)) {
             performanceScenarioThreadLocal.set(Boolean.TRUE);
+            mobileScenarioThreadLocal.set(Boolean.FALSE);
             logger.info(
                     "Performance scenario detected [{}]. Skipping Playwright browser initialization.",
                     scenario != null ? scenario.getName() : "UNKNOWN"
@@ -109,7 +115,18 @@ public class Hooks {
             return;
         }
 
+        if (isMobileScenario(scenario)) {
+            mobileScenarioThreadLocal.set(Boolean.TRUE);
+            performanceScenarioThreadLocal.set(Boolean.FALSE);
+            logger.info(
+                    "Mobile scenario detected [{}]. Skipping Playwright browser initialization.",
+                    scenario != null ? scenario.getName() : "UNKNOWN"
+            );
+            return;
+        }
+
         performanceScenarioThreadLocal.set(Boolean.FALSE);
+        mobileScenarioThreadLocal.set(Boolean.FALSE);
 
         boolean isLastScenarioTaggedFeature =
                 scenario != null && scenario.getSourceTagNames().contains("@LastScenario");
@@ -190,7 +207,7 @@ public class Hooks {
         String featureKey = getSafeFeatureKeyForTearDown(scenario);
 
         try {
-            if (!Boolean.TRUE.equals(performanceScenarioThreadLocal.get()) && scenario.getStatus() == Status.PASSED) {
+            if (!Boolean.TRUE.equals(performanceScenarioThreadLocal.get()) && !Boolean.TRUE.equals(mobileScenarioThreadLocal.get()) && scenario.getStatus() == Status.PASSED) {
                 PageCommonMethods pageCommonMethods = pageCommonMethodsThreadLocal.get();
                 if (pageCommonMethods != null) {
                     pageCommonMethods.finalizeScenario();
@@ -202,6 +219,12 @@ public class Hooks {
             if (Boolean.TRUE.equals(performanceScenarioThreadLocal.get())) {
                 clearPerformanceScenarioStateOnly();
                 logger.info("Performance scenario teardown completed without UI browser cleanup requirement.");
+                return;
+            }
+
+            if (Boolean.TRUE.equals(mobileScenarioThreadLocal.get())) {
+                clearMobileScenarioStateOnly();
+                logger.info("Mobile scenario teardown completed without Playwright browser cleanup requirement.");
                 return;
             }
 
@@ -260,34 +283,43 @@ public class Hooks {
                     );
                 }
 
+                captureMobileBrowserEvidenceIfConfigured(scenario);
                 closeBrowserResources();
             }
+        }
+    }
+
+    private void captureMobileBrowserEvidenceIfConfigured(Scenario scenario) {
+        try {
+            Page page = pageThreadLocal.get();
+            String browserName = ConfigurationProperties.getBrowser();
+            MobileBrowserEvidenceManager.captureScenarioScreenshotIfConfigured(page, scenario, browserName);
+        } catch (Exception e) {
+            logger.warn("Unable to capture mobile-browser evidence during teardown: {}", e.getMessage());
         }
     }
 
     private void createBrowserStack(Scenario scenario) {
         try {
             String browserName = ConfigurationProperties.getBrowser();
-            BrowserTypeEnum browserTypeEnum;
+            Browser browser;
 
-            switch (browserName.toUpperCase()) {
-                case "CHROME":
-                    browserTypeEnum = BrowserTypeEnum.CHROME;
-                    break;
-                case "FIREFOX":
-                    browserTypeEnum = BrowserTypeEnum.FIREFOX;
-                    break;
-                case "WEBKIT":
-                    browserTypeEnum = BrowserTypeEnum.WEBKIT;
-                    break;
-                case "EDGE":
-                    browserTypeEnum = BrowserTypeEnum.EDGE;
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported browser type: " + browserName);
+            if (BrowserFactory.isMobileBrowserProfile(browserName)) {
+                logger.info("Mobile browser profile [{}] selected from config.yml browser key.", browserName);
+                browser = BrowserFactory.createBrowser(browserName);
+            } else {
+                BrowserTypeEnum browserTypeEnum;
+
+                switch (browserName.toUpperCase()) {
+                    case "CHROME": browserTypeEnum = BrowserTypeEnum.CHROME; break;
+                    case "FIREFOX": browserTypeEnum = BrowserTypeEnum.FIREFOX; break;
+                    case "WEBKIT": browserTypeEnum = BrowserTypeEnum.WEBKIT; break;
+                    case "EDGE": browserTypeEnum = BrowserTypeEnum.EDGE; break;
+                    default: throw new IllegalArgumentException("Unsupported browser type or mobile browser profile: " + browserName);
+                }
+
+                browser = BrowserFactory.createBrowser(browserTypeEnum);
             }
-
-            Browser browser = BrowserFactory.createBrowser(browserTypeEnum);
             browserThreadLocal.set(browser);
 
             BrowserContext context = BrowserFactory.createContextWithVideo(browser);
@@ -464,6 +496,14 @@ public class Hooks {
         scenarioThreadLocal.remove();
         activeFeatureThreadLocal.remove();
         performanceScenarioThreadLocal.remove();
+        mobileScenarioThreadLocal.remove();
+    }
+
+    private void clearMobileScenarioStateOnly() {
+        scenarioThreadLocal.remove();
+        activeFeatureThreadLocal.remove();
+        performanceScenarioThreadLocal.remove();
+        mobileScenarioThreadLocal.remove();
     }
 
     private boolean isPerformanceScenario(Scenario scenario) {
@@ -483,6 +523,19 @@ public class Hooks {
 
         String featureKey = getFeatureKey(scenario);
         return featureKey != null && featureKey.toLowerCase().contains("performance");
+    }
+
+    private boolean isMobileScenario(Scenario scenario) {
+        if (scenario == null) {
+            return false;
+        }
+        for (String tag : scenario.getSourceTagNames()) {
+            if (MOBILE_TAGS.contains(tag)) {
+                return true;
+            }
+        }
+        String featureKey = getFeatureKey(scenario);
+        return featureKey != null && featureKey.toLowerCase().contains("mobile");
     }
 
     private String getSafeFeatureKeyForTearDown(Scenario scenario) {

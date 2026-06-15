@@ -40,12 +40,21 @@
         <postgresql.version>42.7.3</postgresql.version>
         <mssql.version>13.4.0.jre11</mssql.version>
         <appium.version>9.4.0</appium.version>
+        <selenium.version>4.26.0</selenium.version>
 
         <jmeter.dsl.version>1.29.1</jmeter.dsl.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- Force all Selenium artifacts to the same version -->
+            <dependency>
+                <groupId>org.seleniumhq.selenium</groupId>
+                <artifactId>selenium-bom</artifactId>
+                <version>${selenium.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
 
             <!-- Force all Log4j artifacts to the same version -->
             <dependency>
@@ -472,5 +481,4 @@
 
         </plugins>
     </build>
-
 </project>

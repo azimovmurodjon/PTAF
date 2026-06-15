@@ -1,0 +1,95 @@
+Microsoft Teams Post
+Subject: PTAF Mobile Automation Upgrade: Native Appium, Mobile Browser Profiles, Visual Testing, and Reporting Evidence
+Hello Team,
+We have completed a major PTAF framework enhancement focused on enterprise-level mobile automation. This update adds support for both Native Mobile App Automation and Mobile Browser Resolution Automation, while keeping the existing PTAF concept of feature files, step definitions, YAML configuration, reusable framework actions, and centralized reporting.
+The new native mobile capability uses Appium for Android and iOS application automation. The new mobile browser capability uses Playwright to run existing UI tests against mobile and tablet browser profiles. These are separate execution modes: Appium is used for installed native apps, while Playwright mobile browser profiles are used for responsive web testing.
+Area
+What Changed
+Native Mobile App Automation
+Added Android and iOS Appium support with YAML-driven configuration.
+Cross-Platform Mobile Features
+Added support for one shared feature file that can run on Android or iOS based on mobile.default_platform.
+Platform Selection
+Platform resolution now supports command-line override, platform tag, and YAML default.
+Mobile Locators
+Added platform-aware locator support using nested android and ios values under the same locator key.
+Mobile Actions
+Added expanded actions such as tap, long press, double tap, swipe, scroll, drag/drop, keyboard handling, app lifecycle actions, deep links, clipboard, file push/pull, permissions, and context switching.
+Mobile Evidence
+Added configurable screenshots, videos, failure evidence, and report attachments.
+Mobile Browser Testing
+Added 20 selectable mobile/tablet browser profiles for responsive web testing.
+Visual Testing
+Added mobile browser visual baseline comparison with baseline, actual, and diff artifacts.
+Reporting
+Connected mobile screenshots, native evidence, videos, and visual artifacts into the existing Cucumber/Extent reporting flow.
+Documentation
+Added detailed usage guidance for native mobile, mobile browser, visual testing, evidence, and troubleshooting.
+For native mobile testing, teams should configure:
+text
+src/test/resources/mobile/config/mobile-config.yml
+src/test/resources/mobile/elements
+src/test/resources/features/mobile
+For mobile browser testing, teams should configure:
+text
+src/test/resources/config/config.yml
+src/test/resources/mobile_browser/config/mobile-browser-profiles.yml
+src/test/resources/mobile_browser/config/mobile-browser-execution.yml
+src/test/resources/baselines/mobile_browser
+For one shared native mobile feature that can run on both Android and iOS, use a platform-neutral tag such as:
+gherkin
+@mobile @cross_platform @theapp_sample
+Then select the platform from mobile-config.yml:
+YAML
+mobile:
+  default_platform: "ios"
+or:
+YAML
+mobile:
+  default_platform: "android"
+The same feature can also be overridden from the command line:
+Bash
+mvn test -Dtest=MobileTestRunner -Dcucumber.filter.tags="@cross_platform" -Dmobile.platform=ios
+Bash
+mvn test -Dtest=MobileTestRunner -Dcucumber.filter.tags="@cross_platform" -Dmobile.platform=android
+Recommended team validation sequence:
+Step
+Action
+1
+Pull the latest PTAF branch.
+2
+Run mvn clean test-compile.
+3
+Validate existing UI/API/DB/PDF/performance dry-runs or smoke tests.
+4
+Start Appium and confirm curl http://127.0.0.1:4723/status works.
+5
+Start Android Emulator or iOS Simulator depending on the selected platform.
+6
+Run the shared mobile feature using @cross_platform.
+7
+Review Cucumber/Extent reports for screenshots, logs, and evidence.
+8
+For mobile browser testing, select a mobile browser profile in config.yml and run existing UI tests.
+9
+For visual testing, create approved baselines and review actual/diff artifacts.
+Important usage notes:
+Topic
+Guidance
+Native Android
+Requires Appium, UiAutomator2 driver, and an Android emulator/device.
+Native iOS Simulator
+Use simulator-built .app files. Most device .ipa files do not run on simulators.
+Native iOS Real Device
+Signed .ipa files can be used with proper provisioning, device UDID, and XCUITest configuration.
+Mobile Browser
+Does not require Appium. It uses Playwright mobile browser emulation.
+Cross-Platform Features
+Do not use @android or @ios if platform should come from YAML.
+Screenshots
+Enable screenshot_on_failure and attach_screenshots_to_report in mobile-config.yml.
+Visual Baselines
+Commit only approved baselines after review.
+This update keeps the main PTAF architecture consistent and backward-compatible. Project-specific values should remain in feature files and YAML configuration, while shared framework code should stay reusable across teams.
+Thank you,
+Automation Framework Team
