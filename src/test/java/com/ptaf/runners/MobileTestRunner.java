@@ -16,7 +16,7 @@ import org.junit.runner.RunWith;
         },
         features = "src/test/resources/features/mobile",
         glue = {"com.ptaf.stepdefinitions", "com.ptaf.hooks"},
-        tags = "@cross_platform",
+        tags = "@fnb_smoke",
         dryRun = false,
         monochrome = true
 )

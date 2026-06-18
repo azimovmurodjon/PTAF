@@ -14,7 +14,7 @@
 mobile:
   enabled: true
   appium_server_url: "http://127.0.0.1:4723"
-  default_platform: "ios"
+  default_platform: "android"
   implicit_wait_seconds: 0
   explicit_wait_seconds: 30
   new_command_timeout_seconds: 120
@@ -35,9 +35,10 @@ mobile:
     device_name: "Android Emulator"
     platform_version: ""
     orientation: "portrait"
-    app: "src/test/resources/mobile/apps/TheApp.apk"
-    app_package: "com.appiumpro.the_app"
-    app_activity: ".MainActivity"
+    app: "src/test/resources/mobile/apps/PhoneXR-licensed-qa_5.29.230.apk"
+#    app_package: "com.appiumpro.the_app"
+    app_package: "com.FNBPA.mobilebanking"
+    appActivity: "nz.co.mcom.phone.shared.activities.MobilitiActivity"
     no_reset: false
     full_reset: false
 
