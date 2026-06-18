@@ -24,6 +24,7 @@ Feature: TheApp cross-platform native mobile workflow
 
     When I enter mobile value "PTAF cross-platform native mobile test" on page theapp locator echoInput
     When I hide mobile keyboard
+    And I capture mobile screenshot named "body"
     When I tap on mobile page theapp locator saveButton
 
     Then I verify mobile page theapp locator savedMessage is visible

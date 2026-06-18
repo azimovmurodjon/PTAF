@@ -14,7 +14,7 @@
 mobile:
   enabled: true
   appium_server_url: "http://127.0.0.1:4723"
-  default_platform: "android"
+  default_platform: "ios"
   implicit_wait_seconds: 0
   explicit_wait_seconds: 30
   new_command_timeout_seconds: 120
@@ -45,11 +45,14 @@ mobile:
     automation_name: "XCUITest"
     platform_name: "iOS"
     device_name: "iPhone 15"
+#    udid: "76FCF29E-7506-4AC8-9B04-B71DEAE8F3E3"
     platform_version: ""
     orientation: "portrait"
     app: "src/test/resources/mobile/apps/ios-unzipped/TheApp.app"
-    # Keep this blank when using the sample .app path. If you need an explicit value,
-    # run: /usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" src/test/resources/mobile/apps/ios-unzipped/TheApp.app/Info.plist
+#    app: "src/test/resources/mobile/apps/fnb/FIPhoneXR.app"
     bundle_id: ""
+#    bundle_id: "com.fiserv.pspush"
     no_reset: false
     full_reset: false
+
+

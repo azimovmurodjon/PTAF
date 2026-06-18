@@ -12,19 +12,31 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Isolated YAML reader for native mobile automation resources.
+ * Enterprise-safe YAML reader for PTAF native mobile automation resources.
  *
- * <p>Mobile resources are stored under src/test/resources/mobile so existing PTAF
- * web/API/database/performance YAML loading behavior remains unchanged.</p>
+ * <p>This reader intentionally loads only framework-owned YAML files from:</p>
+ * <ul>
+ *     <li>{@code src/test/resources/mobile/config}</li>
+ *     <li>{@code src/test/resources/mobile/elements}</li>
+ * </ul>
+ *
+ * <p>It must not recursively load all files under {@code mobile}, because real mobile
+ * app artifacts such as {@code .app} bundles, SDK bundles, camera SDKs, Kofax bundles,
+ * or vendor resources may also contain internal {@code .yml/.yaml} files that are not
+ * PTAF configuration files. Parsing those files can break framework startup before
+ * Appium even creates a session.</p>
  */
 public final class MobileYamlReader {
     private static final Map<String, Object> DATA = new HashMap<>();
 
     static {
-        loadFolder("mobile");
+        loadFolder("mobile/config");
+        loadFolder("mobile/elements");
     }
 
-    private MobileYamlReader() { throw new IllegalStateException("Utility class"); }
+    private MobileYamlReader() {
+        throw new IllegalStateException("Utility class");
+    }
 
     private static void loadFolder(String folderPath) {
         try {
@@ -32,10 +44,11 @@ public final class MobileYamlReader {
             if (resourceUrl == null) {
                 return;
             }
+
             Yaml yaml = new Yaml();
             try (Stream<Path> paths = Files.walk(Paths.get(resourceUrl.toURI()))) {
                 paths.filter(Files::isRegularFile)
-                        .filter(path -> path.toString().endsWith(".yml") || path.toString().endsWith(".yaml"))
+                        .filter(MobileYamlReader::isFrameworkYamlFile)
                         .forEach(path -> loadFile(yaml, path));
             }
         } catch (Exception e) {
@@ -43,12 +56,23 @@ public final class MobileYamlReader {
         }
     }
 
+    private static boolean isFrameworkYamlFile(Path path) {
+        String normalized = path.toString().replace('\\', '/');
+        return (normalized.endsWith(".yml") || normalized.endsWith(".yaml"))
+                && (normalized.contains("/mobile/config/") || normalized.contains("/mobile/elements/"));
+    }
+
+    @SuppressWarnings("unchecked")
     private static void loadFile(Yaml yaml, Path path) {
         try (InputStream inputStream = Files.newInputStream(path)) {
-            Map<String, Object> data = yaml.load(inputStream);
-            if (data != null) {
-                merge(DATA, data);
+            Object loaded = yaml.load(inputStream);
+            if (loaded == null) {
+                return;
             }
+            if (!(loaded instanceof Map)) {
+                throw new IllegalStateException("Mobile YAML file must contain a map/object at root: " + path);
+            }
+            merge(DATA, (Map<String, Object>) loaded);
         } catch (Exception e) {
             throw new IllegalStateException("Unable to load mobile YAML file: " + path, e);
         }

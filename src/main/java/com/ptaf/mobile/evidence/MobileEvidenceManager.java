@@ -83,7 +83,7 @@ public final class MobileEvidenceManager {
         try {
             byte[] screenshot = driver.getScreenshotAs(OutputType.BYTES);
             String safeScenarioName = safeName(scenario.getName() + "_" + type);
-            Path output = outputDir("screenshots").resolve(safeScenarioName + ".png");
+            Path output = outputDir("target-output/screenshots").resolve(safeScenarioName + ".png");
             Files.write(output, screenshot);
             logger.info("Native mobile screenshot saved to [{}]", output.toAbsolutePath());
             scenario.log("Native mobile screenshot: " + output.toAbsolutePath());
@@ -94,6 +94,33 @@ public final class MobileEvidenceManager {
             logger.warn("Unable to capture native mobile screenshot: {}", e.getMessage());
         }
     }
+
+    /** Captures an explicitly requested screenshot and attaches it to the active Cucumber report. */
+    public static void captureNamedScreenshot(AppiumDriver driver, String screenshotName) {
+        Scenario scenario = getCurrentScenario();
+        if (driver == null) return;
+
+        try {
+            String baseName = screenshotName == null || screenshotName.trim().isEmpty()
+                    ? "mobile_screenshot"
+                    : screenshotName;
+            String safeName = baseName.trim().replaceAll("[^A-Za-z0-9._-]", "_");
+
+            byte[] screenshot = driver.getScreenshotAs(OutputType.BYTES);
+            Path output = outputDir("target-output/screenshots").resolve(safeName + ".png");
+            Files.write(output, screenshot);
+
+            if (scenario != null) {
+                scenario.log("Native mobile screenshot: " + output.toAbsolutePath());
+                if (MobileConfigurationProperties.attachScreenshotsToReport()) {
+                    scenario.attach(screenshot, "image/png", "mobile-screenshot-" + safeName);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Unable to capture explicit native mobile screenshot: {}", e.getMessage());
+        }
+    }
+
 
     public static void stopVideoIfEnabled(AppiumDriver driver, Scenario scenario) {
         if (!MobileConfigurationProperties.videoRecordingEnabled()) return;

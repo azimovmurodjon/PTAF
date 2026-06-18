@@ -3,6 +3,7 @@ package com.ptaf.stepdefinitions;
 import com.ptaf.mobile.assertions.MobileAssert;
 import com.ptaf.mobile.config.MobilePlatform;
 import com.ptaf.mobile.drivers.MobileDriverManager;
+import com.ptaf.mobile.evidence.MobileEvidenceManager;
 import com.ptaf.mobile.implementation.MobileActionImpl;
 import com.ptaf.mobile.interfaces.MobileAction;
 import io.cucumber.java.en.Given;
@@ -77,6 +78,10 @@ public class MobileSteps {
     public void iVerifyMobilePageLocatorIsVisible(String page, String locator) { MobileAssert.assertVisible(page, locator); }
     @Then("I verify mobile page {word} locator {word} text contains {string}")
     public void iVerifyMobilePageLocatorTextContains(String page, String locator, String expected) { MobileAssert.assertTextContains(page, locator, expected); }
+    @When("I capture mobile screenshot named {string}")
+    public void iCaptureMobileScreenshotNamed(String screenshotName) {
+        MobileEvidenceManager.captureNamedScreenshot(MobileDriverManager.getDriver(), screenshotName);
+    }
     @Then("I verify mobile clipboard text contains {string}")
     public void iVerifyMobileClipboardTextContains(String expected) {
         String actual = mobileAction.getClipboard();
