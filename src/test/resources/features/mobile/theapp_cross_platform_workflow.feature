@@ -1,4 +1,4 @@
-@mobile @cross_platform @theapp_sample @evidence @smoke
+@mobile @cross_platform @theapp_smoke @evidence @smoke
 Feature: TheApp cross-platform native mobile workflow
 
   # Purpose:

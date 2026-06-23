@@ -14,6 +14,9 @@ public class MobileActionImpl implements MobileAction {
     public void clear(String page, String locator) { methods().clear(page, locator); }
     public String getText(String page, String locator) { return methods().getText(page, locator); }
     public void waitForVisible(String page, String locator) { methods().waitForVisible(page, locator); }
+    public void waitForVisible(String page, String locator, int timeoutSeconds) { methods().waitForVisible(page, locator, timeoutSeconds); }
+    public void waitForNotVisible(String page, String locator, int timeoutSeconds) { methods().waitForNotVisible(page, locator, timeoutSeconds); }
+    public void pause(int seconds) { methods().pause(seconds); }
     public boolean isVisible(String page, String locator) { return methods().isVisible(page, locator); }
     public boolean isEnabled(String page, String locator) { return methods().isEnabled(page, locator); }
     public boolean isSelected(String page, String locator) { return methods().isSelected(page, locator); }
@@ -45,4 +48,9 @@ public class MobileActionImpl implements MobileAction {
     public void switchToNativeContext() { methods().switchToNativeContext(); }
     public void grantPermission(String appId, String permission) { methods().grantPermission(appId, permission); }
     public void revokePermission(String appId, String permission) { methods().revokePermission(appId, permission); }
+    public void openUrl(String url) { methods().openUrl(url); }
+    public void pressEnter(String page, String locator) { methods().pressEnter(page, locator); }
+    public String getCurrentUrl() { return methods().getCurrentUrl(); }
+    public String getTitle() { return methods().getTitle(); }
+    public void savePageSource(String outputPath) { methods().savePageSource(outputPath); }
 }

@@ -8,6 +8,9 @@ public interface MobileAction {
     void clear(String page, String locator);
     String getText(String page, String locator);
     void waitForVisible(String page, String locator);
+    void waitForVisible(String page, String locator, int timeoutSeconds);
+    void waitForNotVisible(String page, String locator, int timeoutSeconds);
+    void pause(int seconds);
     boolean isVisible(String page, String locator);
     boolean isEnabled(String page, String locator);
     boolean isSelected(String page, String locator);
@@ -39,4 +42,9 @@ public interface MobileAction {
     void switchToNativeContext();
     void grantPermission(String appId, String permission);
     void revokePermission(String appId, String permission);
+    void openUrl(String url);
+    void pressEnter(String page, String locator);
+    String getCurrentUrl();
+    String getTitle();
+    void savePageSource(String outputPath);
 }

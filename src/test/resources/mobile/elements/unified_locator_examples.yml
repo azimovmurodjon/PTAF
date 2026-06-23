@@ -1,0 +1,33 @@
+# ==========================================================
+# PTAF Unified Locator Examples for Appium Mobile
+# ==========================================================
+# Purpose:
+# - Demonstrates that Appium native mobile and Appium real mobile browser tests
+#   can now understand both existing mobile locator prefixes and UI-style locator
+#   values used by the Playwright UI framework.
+# - This file is documentation/sample data. Project teams may copy patterns into
+#   their own page-specific YAML files.
+
+mobile_elements:
+  unifiedExamples:
+    # Existing native mobile style remains the preferred strategy for stable native app automation.
+    nativeLoginButton:
+      android: "ACCESSIBILITY_ID_loginButton"
+      ios: "ACCESSIBILITY_ID_loginButton"
+      default: "Button_Login"
+
+    # UI-style aliases are now supported by Appium mobile resolver as additive compatibility.
+    browserSearchBox:
+      mobileBrowser: "TEXTBOX_Search"
+      android: "XPATH_//*[@name='q' or @aria-label='Search']"
+      ios: "XPATH_//*[@name='q' or @aria-label='Search']"
+      default: "TEXTBOX_Search"
+
+    # Direct technical locators also remain supported.
+    cssSearchBox:
+      mobileBrowser: "CSS_input[name='q']"
+      default: "CSS_input[name='q']"
+
+    xpathResultText:
+      mobileBrowser: "XPATH_//*[contains(.,'PTAF') or contains(.,'automation')]"
+      default: "TEXT_PTAF"

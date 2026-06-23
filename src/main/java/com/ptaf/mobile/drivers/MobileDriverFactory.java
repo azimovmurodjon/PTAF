@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Creates Appium sessions for native Android and iOS applications.
@@ -31,6 +33,7 @@ public final class MobileDriverFactory {
         MobilePlatform targetPlatform = platform == null ? MobileConfigurationProperties.getDefaultPlatform() : platform;
         try {
             URL serverUrl = new URL(MobileConfigurationProperties.getAppiumServerUrl());
+            logNativeSessionPlan(targetPlatform);
             AppiumDriver driver = targetPlatform.isAndroid() ? createAndroidDriver(serverUrl) : createIosDriver(serverUrl);
             int implicitWait = MobileConfigurationProperties.getImplicitWaitSeconds();
             if (implicitWait > 0) {
@@ -57,7 +60,7 @@ public final class MobileDriverFactory {
         setIfPresent(options::setPlatformVersion, MobileConfigurationProperties.getCapability(platform, "platform_version", ""));
         setIfPresent(options::setApp, MobileConfigurationProperties.getCapability(platform, "app", ""));
         setIfPresent(options::setAppPackage, MobileConfigurationProperties.getCapability(platform, "app_package", ""));
-        setIfPresent(options::setAppActivity, MobileConfigurationProperties.getCapability(platform, "app_activity", ""));
+        setIfPresent(options::setAppActivity, firstNonBlank(MobileConfigurationProperties.getCapability(platform, "app_activity", ""), MobileConfigurationProperties.getCapability(platform, "appActivity", "")));
         setCapabilityIfPresent(options, "udid", MobileConfigurationProperties.getCapability(platform, "udid", ""));
         setCapabilityIfPresent(options, "systemPort", MobileConfigurationProperties.getCapability(platform, "system_port", ""));
         setCapabilityIfPresent(options, "adbExecTimeout", MobileConfigurationProperties.getCapability(platform, "adb_exec_timeout", ""));
@@ -112,6 +115,161 @@ public final class MobileDriverFactory {
         return new IOSDriver(serverUrl, options);
     }
 
+
+    /**
+     * Creates an Appium browser session on a real emulator/simulator browser.
+     *
+     * <p>This is intentionally separate from native app creation. Native app sessions use
+     * {@code app/appPackage/appActivity/bundleId}; browser sessions use {@code browserName}.
+     * Keeping these paths separate prevents app-focused capabilities from accidentally
+     * breaking Chrome/Safari browser automation.</p>
+     */
+    public static AppiumDriver createBrowserDriver(MobilePlatform platform) {
+        MobilePlatform targetPlatform = platform == null ? MobileConfigurationProperties.getDefaultPlatform() : platform;
+        try {
+            URL serverUrl = new URL(MobileConfigurationProperties.getAppiumServerUrl());
+            logBrowserSessionPlan(targetPlatform);
+            AppiumDriver driver = targetPlatform.isAndroid() ? createAndroidBrowserDriver(serverUrl) : createIosBrowserDriver(serverUrl);
+            int implicitWait = MobileConfigurationProperties.getImplicitWaitSeconds();
+            if (implicitWait > 0) {
+                driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(implicitWait));
+            }
+            prepareCleanBrowserStartIfConfigured(driver, targetPlatform);
+            openInitialBrowserUrlIfConfigured(driver, targetPlatform);
+            logger.info("Started Appium {} browser session with id [{}]", targetPlatform, driver.getSessionId());
+            return driver;
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Invalid Appium server URL: " + MobileConfigurationProperties.getAppiumServerUrl(), e);
+        }
+    }
+
+    private static AndroidDriver createAndroidBrowserDriver(URL serverUrl) {
+        MobilePlatform platform = MobilePlatform.ANDROID;
+        UiAutomator2Options options = new UiAutomator2Options()
+                .setPlatformName(MobileConfigurationProperties.getBrowserCapability(platform, "platform_name", "Android"))
+                .setAutomationName(MobileConfigurationProperties.getBrowserCapability(platform, "automation_name", "UiAutomator2"))
+                .setDeviceName(MobileConfigurationProperties.getBrowserCapability(platform, "device_name", "Android Emulator"))
+                .setNewCommandTimeout(Duration.ofSeconds(MobileConfigurationProperties.getNewCommandTimeoutSeconds()));
+        options.setCapability("browserName", MobileConfigurationProperties.getBrowserCapability(platform, "browser_name", "Chrome"));
+        options.setCapability("noReset", MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "no_reset", false));
+        options.setCapability("fullReset", MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "full_reset", false));
+        setIfPresent(options::setPlatformVersion, MobileConfigurationProperties.getBrowserCapability(platform, "platform_version", ""));
+        setCapabilityIfPresent(options, "udid", MobileConfigurationProperties.getBrowserCapability(platform, "udid", ""));
+        setCapabilityIfPresent(options, "chromedriverExecutable", MobileConfigurationProperties.getBrowserCapability(platform, "chromedriver_executable", ""));
+        setCapabilityIfPresent(options, "chromedriverChromeMappingFile", MobileConfigurationProperties.getBrowserCapability(platform, "chromedriver_mapping_file", ""));
+        setBooleanBrowserCapabilityIfPresent(options, "chromedriverAutodownload", platform, "chromedriver_autodownload");
+        setBooleanBrowserCapabilityIfPresent(options, "autoGrantPermissions", platform, "auto_grant_permissions");
+        setOrientationCapability(options, MobileConfigurationProperties.getBrowserCapability(platform, "orientation", MobileConfigurationProperties.getOrientation(platform)));
+        return new AndroidDriver(serverUrl, options);
+    }
+
+    private static IOSDriver createIosBrowserDriver(URL serverUrl) {
+        MobilePlatform platform = MobilePlatform.IOS;
+        XCUITestOptions options = new XCUITestOptions()
+                .setPlatformName(MobileConfigurationProperties.getBrowserCapability(platform, "platform_name", "iOS"))
+                .setAutomationName(MobileConfigurationProperties.getBrowserCapability(platform, "automation_name", "XCUITest"))
+                .setDeviceName(MobileConfigurationProperties.getBrowserCapability(platform, "device_name", "iPhone Simulator"))
+                .setNewCommandTimeout(Duration.ofSeconds(MobileConfigurationProperties.getNewCommandTimeoutSeconds()));
+        options.setCapability("browserName", MobileConfigurationProperties.getBrowserCapability(platform, "browser_name", "Safari"));
+        options.setCapability("noReset", MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "no_reset", false));
+        options.setCapability("fullReset", MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "full_reset", false));
+        setIfPresent(options::setPlatformVersion, MobileConfigurationProperties.getBrowserCapability(platform, "platform_version", ""));
+        setCapabilityIfPresent(options, "udid", MobileConfigurationProperties.getBrowserCapability(platform, "udid", ""));
+        setCapabilityIfPresent(options, "safariInitialUrl", MobileConfigurationProperties.getBrowserCapability(platform, "initial_url", ""));
+        setBooleanBrowserCapabilityIfPresent(options, "autoAcceptAlerts", platform, "auto_accept_alerts");
+        setBooleanBrowserCapabilityIfPresent(options, "autoDismissAlerts", platform, "auto_dismiss_alerts");
+        setBooleanBrowserCapabilityIfPresent(options, "includeSafariInWebviews", platform, "include_safari_in_webviews");
+        setBooleanBrowserCapabilityIfPresent(options, "connectHardwareKeyboard", platform, "connect_hardware_keyboard");
+        setBooleanBrowserCapabilityIfPresent(options, "safariAllowPopups", platform, "safari_allow_popups");
+        setBooleanBrowserCapabilityIfPresent(options, "safariIgnoreFraudWarning", platform, "safari_ignore_fraud_warning");
+        setOrientationCapability(options, MobileConfigurationProperties.getBrowserCapability(platform, "orientation", MobileConfigurationProperties.getOrientation(platform)));
+        return new IOSDriver(serverUrl, options);
+    }
+
+    /**
+     * Best-effort clean-start preparation for Appium real mobile browser sessions.
+     *
+     * <p>This method is intentionally used only by createBrowserDriver. Native app automation
+     * is not affected. Browser cleanup is best-effort because iOS Safari and Android Chrome
+     * expose different reset controls through Appium. The framework always logs what was
+     * attempted and never hides cleanup failures that may explain later browser instability.</p>
+     */
+    private static void prepareCleanBrowserStartIfConfigured(AppiumDriver driver, MobilePlatform platform) {
+        if (!MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "clean_start_enabled", true)) {
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | disabled by mobile-browser-config.yml");
+            return;
+        }
+
+        logger.info("PTAF APPIUM REAL BROWSER CLEAN START | platform={} | clearCookies={} | resetAppData={} | closeTabs={}",
+                platform,
+                MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "clear_cookies", true),
+                MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "reset_app_data", false),
+                MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "close_existing_tabs", true));
+
+        terminateBrowserAppIfConfigured(driver, platform);
+        clearBrowserCookiesIfConfigured(driver, platform);
+        clearAndroidBrowserAppDataIfConfigured(driver, platform);
+        activateBrowserAppIfConfigured(driver, platform);
+    }
+
+    private static void clearBrowserCookiesIfConfigured(AppiumDriver driver, MobilePlatform platform) {
+        if (!MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "clear_cookies", true)) return;
+        try {
+            driver.manage().deleteAllCookies();
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Selenium cookies cleared for {}.", platform);
+        } catch (Exception e) {
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Cookie cleanup was not available yet for {}. Details: {}", platform, e.getMessage());
+        }
+    }
+
+    private static void terminateBrowserAppIfConfigured(AppiumDriver driver, MobilePlatform platform) {
+        if (!MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "terminate_before_start", true)) return;
+        String bundleOrPackage = platform.isAndroid()
+                ? MobileConfigurationProperties.getBrowserCapability(platform, "browser_package", "com.android.chrome")
+                : MobileConfigurationProperties.getBrowserCapability(platform, "browser_bundle_id", "com.apple.mobilesafari");
+        try {
+            driver.executeScript("mobile: terminateApp", Map.of(platform.isAndroid() ? "appId" : "bundleId", bundleOrPackage));
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Terminated browser app [{}].", bundleOrPackage);
+        } catch (Exception e) {
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Browser termination was skipped/not supported for [{}]. Details: {}", bundleOrPackage, e.getMessage());
+        }
+    }
+
+    private static void activateBrowserAppIfConfigured(AppiumDriver driver, MobilePlatform platform) {
+        if (!MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "activate_after_cleanup", true)) return;
+        String bundleOrPackage = platform.isAndroid()
+                ? MobileConfigurationProperties.getBrowserCapability(platform, "browser_package", "com.android.chrome")
+                : MobileConfigurationProperties.getBrowserCapability(platform, "browser_bundle_id", "com.apple.mobilesafari");
+        try {
+            driver.executeScript("mobile: activateApp", Map.of(platform.isAndroid() ? "appId" : "bundleId", bundleOrPackage));
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Activated browser app [{}].", bundleOrPackage);
+        } catch (Exception e) {
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Browser activation was skipped/not supported for [{}]. Details: {}", bundleOrPackage, e.getMessage());
+        }
+    }
+
+    private static void clearAndroidBrowserAppDataIfConfigured(AppiumDriver driver, MobilePlatform platform) {
+        if (!platform.isAndroid()) return;
+        if (!MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "reset_app_data", false)) return;
+        String browserPackage = MobileConfigurationProperties.getBrowserCapability(platform, "browser_package", "com.android.chrome");
+        try {
+            Map<String, Object> args = new HashMap<>();
+            args.put("command", "pm");
+            args.put("args", java.util.List.of("clear", browserPackage));
+            driver.executeScript("mobile: shell", args);
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Cleared Android browser app data for [{}].", browserPackage);
+        } catch (Exception e) {
+            logger.warn("PTAF APPIUM REAL BROWSER CLEAN START | Could not clear Android browser app data for [{}]. Start Appium with --relaxed-security or set reset_app_data=false. Details: {}", browserPackage, e.getMessage());
+        }
+    }
+
+    private static void setBooleanBrowserCapabilityIfPresent(MutableCapabilities options, String capabilityName, MobilePlatform platform, String yamlKey) {
+        String raw = MobileConfigurationProperties.getBrowserCapability(platform, yamlKey, "");
+        if (raw != null && !raw.trim().isEmpty()) {
+            options.setCapability(capabilityName, Boolean.parseBoolean(raw.trim()));
+        }
+    }
+
     private static void setOrientationCapability(MutableCapabilities options, String orientation) {
         if (isSupportedOrientation(orientation)) {
             options.setCapability("orientation", orientation.toUpperCase());
@@ -151,6 +309,55 @@ public final class MobileDriverFactory {
         String raw = MobileConfigurationProperties.getCapability(platform, yamlKey, "");
         if (raw != null && !raw.trim().isEmpty()) {
             options.setCapability(capabilityName, Boolean.parseBoolean(raw.trim()));
+        }
+    }
+
+
+    private static String firstNonBlank(String primary, String fallback) {
+        return primary != null && !primary.trim().isEmpty() ? primary : fallback;
+    }
+
+    private static void logNativeSessionPlan(MobilePlatform platform) {
+        if (platform.isAndroid()) {
+            logger.info("PTAF MOBILE NATIVE SESSION | platform=ANDROID | device={} | app={} | appPackage={} | appActivity={} | server={}",
+                    MobileConfigurationProperties.getCapability(platform, "device_name", "Android Emulator"),
+                    MobileConfigurationProperties.getCapability(platform, "app", ""),
+                    MobileConfigurationProperties.getCapability(platform, "app_package", ""),
+                    firstNonBlank(MobileConfigurationProperties.getCapability(platform, "app_activity", ""), MobileConfigurationProperties.getCapability(platform, "appActivity", "")),
+                    MobileConfigurationProperties.getAppiumServerUrl());
+        } else {
+            logger.info("PTAF MOBILE NATIVE SESSION | platform=IOS | device={} | udid={} | app={} | bundleId={} | autoAcceptAlerts={} | autoDismissAlerts={} | server={}",
+                    MobileConfigurationProperties.getCapability(platform, "device_name", "iPhone Simulator"),
+                    MobileConfigurationProperties.getCapability(platform, "udid", ""),
+                    MobileConfigurationProperties.getCapability(platform, "app", ""),
+                    MobileConfigurationProperties.getCapability(platform, "bundle_id", ""),
+                    MobileConfigurationProperties.getCapability(platform, "auto_accept_alerts", ""),
+                    MobileConfigurationProperties.getCapability(platform, "auto_dismiss_alerts", ""),
+                    MobileConfigurationProperties.getAppiumServerUrl());
+        }
+    }
+
+    private static void logBrowserSessionPlan(MobilePlatform platform) {
+        logger.info("PTAF APPIUM REAL BROWSER SESSION | platform={} | browserName={} | device={} | udid={} | initialUrl={} | server={}",
+                platform,
+                MobileConfigurationProperties.getBrowserCapability(platform, "browser_name", platform.isAndroid() ? "Chrome" : "Safari"),
+                MobileConfigurationProperties.getBrowserCapability(platform, "device_name", platform.isAndroid() ? "Android Emulator" : "iPhone Simulator"),
+                MobileConfigurationProperties.getBrowserCapability(platform, "udid", ""),
+                MobileConfigurationProperties.getBrowserCapability(platform, "initial_url", ""),
+                MobileConfigurationProperties.getAppiumServerUrl());
+        if (platform.isAndroid()) {
+            logger.info("PTAF APPIUM REAL BROWSER DIAGNOSTIC | Android Chrome requires a compatible ChromeDriver. If session creation fails, start Appium with --relaxed-security or set chromedriver_executable in mobile-browser-config.yml.");
+        }
+    }
+
+    private static void openInitialBrowserUrlIfConfigured(AppiumDriver driver, MobilePlatform platform) {
+        String initialUrl = MobileConfigurationProperties.getBrowserCapability(platform, "initial_url", "");
+        if (initialUrl == null || initialUrl.trim().isEmpty()) return;
+        try {
+            logger.info("PTAF APPIUM REAL BROWSER NAVIGATION | Opening initial URL [{}]", initialUrl.trim());
+            driver.get(initialUrl.trim());
+        } catch (Exception e) {
+            logger.warn("PTAF APPIUM REAL BROWSER NAVIGATION WARNING | Unable to open initial URL [{}]. The feature step can retry navigation. Root cause: {}", initialUrl, e.getMessage());
         }
     }
 

@@ -1,0 +1,19 @@
+# ==========================================================
+# PTAF Native Mobile Permission/System Dialog Locator Guide
+# ==========================================================
+# These locators document common OS permission dialog patterns for Android and iOS.
+# The Java permission handler contains built-in safe locators, so tests do not need
+# to reference these directly. Project teams may copy these keys into app-specific
+# pages if they need stricter validation of a specific permission screen.
+
+mobile_elements:
+  permissions:
+    allowButton:
+      ios: "XPATH_//*[contains(@name,'Allow') or contains(@label,'Allow') or contains(@name,'OK') or contains(@label,'OK')]"
+      android: "XPATH_//*[contains(@resource-id,'permission_allow') or contains(@text,'Allow') or contains(@text,'ALLOW') or contains(@content-desc,'Allow')]"
+    allowWhileUsingButton:
+      ios: "XPATH_//*[contains(@name,'Allow While Using') or contains(@label,'Allow While Using')]"
+      android: "XPATH_//*[contains(@text,'While using') or contains(@text,'only while using')]"
+    denyButton:
+      ios: "XPATH_//*[contains(@name,'Don') or contains(@label,'Don') or contains(@name,'Deny') or contains(@label,'Deny') or contains(@name,'Not Now') or contains(@label,'Not Now')]"
+      android: "XPATH_//*[contains(@resource-id,'permission_deny') or contains(@text,'Deny') or contains(@text,'DENY')]"

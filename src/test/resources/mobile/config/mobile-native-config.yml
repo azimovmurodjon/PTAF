@@ -1,0 +1,100 @@
+# ==========================================================
+# PTAF Native Mobile Appium Capability Configuration
+# ==========================================================
+# Purpose:
+# - This file is dedicated to native Android/iOS application automation.
+# - It intentionally contains ONLY native app capabilities under mobile.android
+#   and mobile.ios.
+# - Shared framework settings live in mobile-config.yml.
+# - Appium real browser settings live in mobile-browser-config.yml.
+#
+# Native app artifact rules:
+# - Android emulator/device: use .apk
+# - iOS Simulator: use simulator-built .app
+# - Real iPhone/iPad: use signed .ipa with ios.udid and signing/WDA settings
+
+mobile:
+#  android:
+#    automation_name: "UiAutomator2"
+#    platform_name: "Android"
+#    device_name: "Android Emulator"
+#    platform_version: ""
+#    udid: ""
+#    orientation: "portrait"
+#
+#    # Android native app artifact and launch details.
+#    # Confirm package/activity with:
+#    # $ANDROID_HOME/build-tools/<version>/aapt dump badging YourApp.apk | grep -E "package|launchable-activity"
+#    app: "src/test/resources/mobile/apps/PhoneXR-licensed-qa_5.29.230.apk"
+#    app_package: "com.FNBPA.mobilebanking"
+#    app_activity: "nz.co.mcom.phone.shared.activities.MobilitiActivity"
+#
+#    # Enterprise Android stability options. Leave blank unless needed by your project/device farm.
+#    app_wait_package: ""
+#    app_wait_activity: ""
+#    system_port: ""
+#    adb_exec_timeout: ""
+#    auto_grant_permissions: "true"
+#
+#    no_reset: false
+#    full_reset: false
+
+  android:
+    automation_name: "UiAutomator2"
+    platform_name: "Android"
+    device_name: "Android Emulator"
+    platform_version: ""
+    udid: ""
+    orientation: "portrait"
+
+    app: "src/test/resources/mobile/apps/TheApp.apk"
+    app_package: ""
+    app_activity: ""
+
+    app_wait_package: ""
+    app_wait_activity: ""
+    system_port: ""
+    adb_exec_timeout: ""
+    auto_grant_permissions: "true"
+
+    no_reset: false
+    full_reset: false
+
+  ios:
+    automation_name: "XCUITest"
+    platform_name: "iOS"
+    device_name: "iPhone 15"
+    udid: ""
+    platform_version: ""
+    orientation: "portrait"
+
+    # iOS native app artifact and launch details.
+    # Leave bundle_id blank when launching a simulator .app path and Appium can detect it.
+    # Use bundle_id for installed-app launches or real-device IPA flows when required.
+#    app: "src/test/resources/mobile/apps/Payload/FIPhoneXR.app"
+    app: "src/test/resources/mobile/apps/ios-unzipped/TheApp.app"
+    bundle_id: ""
+
+    # Native iOS app alert handling. Keep false for controlled consent testing.
+    auto_accept_alerts: "false"
+    auto_dismiss_alerts: "false"
+
+    # Optional iOS/WebDriverAgent capabilities for real devices or unstable simulators.
+    include_safari_in_webviews: "false"
+    connect_hardware_keyboard: "false"
+    xcode_org_id: ""
+    xcode_signing_id: ""
+    updated_wda_bundle_id: ""
+    wda_local_port: ""
+    wda_startup_retries: ""
+    wda_startup_retry_interval: ""
+    wda_launch_timeout: ""
+    wda_connection_timeout: ""
+    wait_for_idle_timeout: ""
+    app_launch_state_timeout_sec: ""
+    use_new_wda: ""
+    show_xcode_log: ""
+    enforce_app_install: ""
+
+    no_reset: false
+    full_reset: false

@@ -19,14 +19,15 @@ Feature: FNB Direct cross-platform native mobile launch and evidence workflow
 
   Scenario: Validate FNB app launches and capture evidence on configured platform
     Then I verify mobile page fnb locator appRoot is visible
-    When I capture mobile screenshot named "01-fnb-app-launched"
+    When I allow all mobile permission popups if displayed
+#    When I capture mobile screenshot named "01-fnb-app-launched"
 
     Then I verify mobile page fnb locator anyVisibleElement is visible
-    When I capture mobile screenshot named "02-fnb-first-visible-screen"
+#    When I capture mobile screenshot named "02-fnb-first-visible-screen"
 
   Scenario: Capture FNB startup screen and inspect possible login controls
     Then I verify mobile page fnb locator appRoot is visible
-    When I capture mobile screenshot named "03-fnb-startup-screen"
+#    When I capture mobile screenshot named "03-fnb-startup-screen"
 
     # The following locator is intentionally broad and platform-aware. If your app displays
     # a login/sign-in/continue button on first launch, this validates it and captures evidence.

@@ -5,6 +5,7 @@ import com.ptaf.mobile.config.MobilePlatform;
 import com.ptaf.mobile.drivers.MobileDriverManager;
 import com.ptaf.mobile.evidence.MobileEvidenceManager;
 import com.ptaf.mobile.implementation.MobileActionImpl;
+import com.ptaf.mobile.permissions.MobilePermissionHandler;
 import com.ptaf.mobile.interfaces.MobileAction;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -16,9 +17,49 @@ import io.cucumber.java.en.When;
 public class MobileSteps {
     private final MobileAction mobileAction = new MobileActionImpl();
 
+    private MobilePermissionHandler permissions() {
+        return new MobilePermissionHandler(MobileDriverManager.getDriver());
+    }
+
     @Given("I start mobile application using platform {string}")
     public void iStartMobileApplicationUsingPlatform(String platform) {
         MobileDriverManager.startDriver(MobilePlatform.from(platform));
+    }
+
+    @Given("I start mobile browser using platform {string}")
+    public void iStartMobileBrowserUsingPlatform(String platform) {
+        MobileDriverManager.startBrowserDriver(MobilePlatform.from(platform));
+    }
+
+    @When("I open mobile browser url {string}")
+    public void iOpenMobileBrowserUrl(String url) {
+        mobileAction.openUrl(url);
+    }
+
+    @When("I press Enter on mobile page {word} locator {word}")
+    public void iPressEnterOnMobilePageLocator(String page, String locator) {
+        mobileAction.pressEnter(page, locator);
+    }
+
+    @When("I save mobile browser page source to {string}")
+    public void iSaveMobileBrowserPageSourceTo(String outputPath) {
+        mobileAction.savePageSource(outputPath);
+    }
+
+    @Then("mobile browser current url should contain {string}")
+    public void mobileBrowserCurrentUrlShouldContain(String expected) {
+        String actual = mobileAction.getCurrentUrl();
+        if (actual == null || !actual.contains(expected)) {
+            throw new AssertionError("Expected mobile browser URL to contain [" + expected + "] but was [" + actual + "]");
+        }
+    }
+
+    @Then("mobile browser title should contain {string}")
+    public void mobileBrowserTitleShouldContain(String expected) {
+        String actual = mobileAction.getTitle();
+        if (actual == null || !actual.toLowerCase().contains(expected.toLowerCase())) {
+            throw new AssertionError("Expected mobile browser title to contain [" + expected + "] but was [" + actual + "]");
+        }
     }
 
     @When("I tap on mobile page {word} locator {word}")
@@ -164,6 +205,51 @@ public class MobileSteps {
     @When("I revoke mobile permission {string} for app {string}")
     public void iRevokeMobilePermissionForApp(String permission, String appId) {
         mobileAction.revokePermission(appId, permission);
+    }
+
+    @When("I wait up to {int} seconds for mobile page {word} locator {word} to be visible")
+    public void iWaitUpToSecondsForMobilePageLocatorToBeVisible(int seconds, String page, String locator) {
+        mobileAction.waitForVisible(page, locator, seconds);
+    }
+
+    @When("I wait up to {int} seconds for mobile page {word} locator {word} to disappear")
+    public void iWaitUpToSecondsForMobilePageLocatorToDisappear(int seconds, String page, String locator) {
+        mobileAction.waitForNotVisible(page, locator, seconds);
+    }
+
+    @When("I pause mobile execution for {int} seconds")
+    public void iPauseMobileExecutionForSeconds(int seconds) {
+        mobileAction.pause(seconds);
+    }
+
+    @When("I allow mobile permission popup if displayed")
+    public void iAllowMobilePermissionPopupIfDisplayed() {
+        permissions().allowIfDisplayed();
+    }
+
+    @When("I deny mobile permission popup if displayed")
+    public void iDenyMobilePermissionPopupIfDisplayed() {
+        permissions().denyIfDisplayed();
+    }
+
+    @When("I allow mobile permission popup with text {string} if displayed")
+    public void iAllowMobilePermissionPopupWithTextIfDisplayed(String buttonText) {
+        permissions().allowWithTextIfDisplayed(buttonText);
+    }
+
+    @When("I allow all mobile permission popups if displayed")
+    public void iAllowAllMobilePermissionPopupsIfDisplayed() {
+        permissions().allowAllIfDisplayed();
+    }
+
+    @When("I deny all mobile permission popups if displayed")
+    public void iDenyAllMobilePermissionPopupsIfDisplayed() {
+        permissions().denyAllIfDisplayed();
+    }
+
+    @When("I handle mobile permission popup using action {string} if displayed")
+    public void iHandleMobilePermissionPopupUsingActionIfDisplayed(String action) {
+        permissions().handleIfDisplayed(action, null, com.ptaf.mobile.config.MobileConfigurationProperties.getPermissionPopupTimeoutSeconds());
     }
 
     @Then("I verify mobile page {word} locator {word} is visible")

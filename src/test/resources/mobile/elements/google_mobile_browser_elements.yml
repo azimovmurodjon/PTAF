@@ -1,0 +1,18 @@
+# ==========================================================
+# PTAF Appium Real Mobile Browser Google Locators
+# ==========================================================
+# These locators are used only by Appium browser sessions running real Chrome
+# on Android emulator/device or real Safari on iOS simulator/device. They are
+# intentionally web-style XPath locators because browser sessions expose page
+# DOM elements through Appium/Selenium.
+
+mobile_elements:
+  googleBrowser:
+    searchBox:
+      android: "XPATH_//*[@name='q' or @aria-label='Search' or contains(@title,'Search')]"
+      ios: "XPATH_//*[@name='q' or @aria-label='Search' or contains(@title,'Search')]"
+      common: "XPATH_//*[@name='q' or @aria-label='Search' or contains(@title,'Search')]"
+    results:
+      android: "XPATH_//*[contains(.,'PTAF') or contains(.,'automation')]"
+      ios: "XPATH_//*[contains(.,'PTAF') or contains(.,'automation')]"
+      common: "XPATH_//*[contains(.,'PTAF') or contains(.,'automation')]"

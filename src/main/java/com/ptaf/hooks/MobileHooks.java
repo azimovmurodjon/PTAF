@@ -32,15 +32,16 @@ import java.util.Set;
  */
 public class MobileHooks {
     private static final Logger logger = LoggerFactory.getLogger(MobileHooks.class);
-    private static final Set<String> MOBILE_TAGS = Set.of("@mobile", "@android", "@ios", "@cross_platform");
+    private static final Set<String> MOBILE_TAGS = Set.of("@mobile", "@android", "@ios", "@cross_platform", "@appium_browser", "@mobile_browser_real");
 
     @Before
     public void setUpMobile(Scenario scenario) {
         if (!isMobileScenario(scenario)) return;
         MobileEvidenceManager.setCurrentScenario(scenario);
         MobilePlatform platform = resolvePlatform(scenario);
-        logger.info("Starting mobile scenario [{}] on platform [{}]", scenario.getName(), platform);
-        AppiumDriver driver = MobileDriverManager.startDriver(platform);
+        boolean browserScenario = isAppiumBrowserScenario(scenario);
+        logger.info("Starting mobile scenario [{}] on platform [{}] using [{}] mode", scenario.getName(), platform, browserScenario ? "Appium browser" : "native app");
+        AppiumDriver driver = browserScenario ? MobileDriverManager.startBrowserDriver(platform) : MobileDriverManager.startDriver(platform);
         MobileEvidenceManager.startVideoIfEnabled(driver);
     }
 
@@ -61,6 +62,12 @@ public class MobileHooks {
 
     private boolean isMobileScenario(Scenario scenario) {
         return scenario != null && scenario.getSourceTagNames().stream().anyMatch(MOBILE_TAGS::contains);
+    }
+
+    private boolean isAppiumBrowserScenario(Scenario scenario) {
+        if (scenario == null) return false;
+        if (scenario.getSourceTagNames().contains("@appium_browser") || scenario.getSourceTagNames().contains("@mobile_browser_real")) return true;
+        return MobileConfigurationProperties.isBrowserModeEnabled() && scenario.getSourceTagNames().contains("@mobile_browser_real");
     }
 
     private MobilePlatform resolvePlatform(Scenario scenario) {

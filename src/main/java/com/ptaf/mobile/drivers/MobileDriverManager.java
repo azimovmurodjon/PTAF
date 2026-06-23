@@ -13,6 +13,7 @@ public final class MobileDriverManager {
     private static final Logger logger = LoggerFactory.getLogger(MobileDriverManager.class);
     private static final ThreadLocal<AppiumDriver> DRIVER = new ThreadLocal<>();
     private static final ThreadLocal<MobilePlatform> PLATFORM = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> BROWSER_SESSION = ThreadLocal.withInitial(() -> false);
 
     private MobileDriverManager() { throw new IllegalStateException("Utility class"); }
 
@@ -27,6 +28,21 @@ public final class MobileDriverManager {
         PLATFORM.set(resolvedPlatform);
         return driver;
     }
+
+    public static AppiumDriver startBrowserDriver(MobilePlatform platform) {
+        if (!MobileConfigurationProperties.isEnabled()) {
+            throw new IllegalStateException("Mobile automation is disabled in mobile-config.yml");
+        }
+        closeDriver();
+        MobilePlatform resolvedPlatform = platform == null ? MobileConfigurationProperties.getDefaultPlatform() : platform;
+        AppiumDriver driver = MobileDriverFactory.createBrowserDriver(resolvedPlatform);
+        DRIVER.set(driver);
+        PLATFORM.set(resolvedPlatform);
+        BROWSER_SESSION.set(true);
+        return driver;
+    }
+
+    public static boolean isBrowserSession() { return Boolean.TRUE.equals(BROWSER_SESSION.get()); }
 
     public static AppiumDriver getDriver() {
         AppiumDriver driver = DRIVER.get();
@@ -51,5 +67,6 @@ public final class MobileDriverManager {
         }
         DRIVER.remove();
         PLATFORM.remove();
+        BROWSER_SESSION.remove();
     }
 }

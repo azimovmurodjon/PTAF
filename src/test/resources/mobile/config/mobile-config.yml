@@ -1,23 +1,41 @@
 # ==========================================================
-# PTAF Native Mobile Appium Configuration
+# PTAF Shared Mobile Framework Configuration
 # ==========================================================
-# This file controls native Android/iOS application automation only.
-# Mobile browser/resolution testing is configured separately under mobile_browser/config.
+# Purpose:
+# - This file contains settings shared by all Appium-based mobile execution.
+# - Do NOT place native app capabilities here.
+# - Do NOT place Appium real browser capabilities here.
 #
-# Enterprise usage notes:
-# - Keep app paths relative to the project root so every tester can run the same config.
-# - Leave iOS bundle_id blank when launching by .app path; Appium can detect the bundle id.
-# - Set orientation to portrait or landscape. This is applied as a session capability and
-#   also attempted after session creation for devices/simulators that support runtime rotation.
-# - Screen recording is optional because it can slow down local emulators/simulators.
+# Capability files:
+# - Native app automation:       mobile-native-config.yml
+# - Real Chrome/Safari browser:  mobile-browser-config.yml
+# - Playwright responsive mode:  src/test/resources/mobile_browser/config/*
+#
+# Why this split exists:
+# Keeping shared framework settings separate from platform capabilities prevents
+# accidental overrides when teams switch between Android, iOS, native app, and
+# real mobile browser execution.
 
 mobile:
   enabled: true
   appium_server_url: "http://127.0.0.1:4723"
+
+  # Default platform used only when neither -Dmobile.platform nor @android/@ios is provided.
+  # Example override: -Dmobile.platform=ios or -Dmobile.platform=android
   default_platform: "android"
+
+  # Framework-level waits. Keep implicit wait at 0 and prefer explicit waits.
   implicit_wait_seconds: 0
   explicit_wait_seconds: 30
   new_command_timeout_seconds: 120
+
+  permissions:
+    # Timeout for optional OS/system permission popups. Keep short because no popup is valid.
+    popup_timeout_seconds: 3
+    # Maximum number of permission popups to handle in one step. Prevents infinite loops.
+    max_popups_to_handle: 5
+    # Capture before/after screenshots for explicit permission handling steps.
+    capture_evidence: true
 
   evidence:
     output_directory: "test-output/mobile-evidence"
@@ -28,32 +46,3 @@ mobile:
     video_recording_enabled: false
     video_on_failure_only: false
     attach_video_to_report: false
-
-  android:
-    automation_name: "UiAutomator2"
-    platform_name: "Android"
-    device_name: "Android Emulator"
-    platform_version: ""
-    orientation: "portrait"
-    app: "src/test/resources/mobile/apps/PhoneXR-licensed-qa_5.29.230.apk"
-#    app_package: "com.appiumpro.the_app"
-    app_package: "com.FNBPA.mobilebanking"
-    appActivity: "nz.co.mcom.phone.shared.activities.MobilitiActivity"
-    no_reset: false
-    full_reset: false
-
-  ios:
-    automation_name: "XCUITest"
-    platform_name: "iOS"
-    device_name: "iPhone 15"
-#    udid: "76FCF29E-7506-4AC8-9B04-B71DEAE8F3E3"
-    platform_version: ""
-    orientation: "portrait"
-    app: "src/test/resources/mobile/apps/ios-unzipped/TheApp.app"
-#    app: "src/test/resources/mobile/apps/fnb/FIPhoneXR.app"
-    bundle_id: ""
-#    bundle_id: "com.fiserv.pspush"
-    no_reset: false
-    full_reset: false
-
-

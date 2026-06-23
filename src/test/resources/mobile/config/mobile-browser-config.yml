@@ -1,0 +1,83 @@
+# ==========================================================
+# PTAF Appium Real Mobile Browser Capability Configuration
+# ==========================================================
+# Purpose:
+# - This file controls Appium sessions that open the real browser on a device,
+#   emulator, or simulator: Chrome on Android and Safari on iOS.
+# - This is NOT native app automation.
+# - This is NOT Playwright mobile browser/resolution emulation.
+#
+# Use feature tags:
+# - @appium_browser
+# - @mobile_browser_real
+# - @google_mobile_browser for the included Google sample flow
+
+mobile_browser_appium:
+  enabled: true
+
+  android:
+    automation_name: "UiAutomator2"
+    platform_name: "Android"
+    device_name: "Android Emulator"
+    platform_version: ""
+    udid: ""
+    orientation: "portrait"
+    browser_name: "Chrome"
+    initial_url: "https://www.google.com"
+
+    # Android Chrome browser sessions should not terminate/reactivate Chrome
+    # after session creation because that can invalidate the active WebDriver session.
+    clean_start_enabled: "true"
+    clear_cookies: "true"
+    close_existing_tabs: "false"
+    terminate_before_start: "false"
+    activate_after_cleanup: "false"
+    reset_app_data: "false"
+    no_reset: false
+    full_reset: false
+    browser_package: "com.android.chrome"
+
+    chromedriver_autodownload: "true"
+    chromedriver_executable: ""
+    chromedriver_mapping_file: ""
+    auto_grant_permissions: "true"
+
+  ios:
+    automation_name: "XCUITest"
+    platform_name: "iOS"
+    device_name: "iPhone 17 Pro Max"
+    platform_version: ""
+    udid: ""
+    orientation: "portrait"
+    browser_name: "Safari"
+    initial_url: "https://www.google.com"
+
+    # Clean-start behavior for repeatable Safari automation.
+    # iOS Safari cache cannot always be fully erased through Appium, but the framework
+    # restarts Safari, clears Selenium cookies when a web context is available, and
+    # navigates deterministically through the native address-bar fallback when needed.
+    clean_start_enabled: "true"
+    clear_cookies: "true"
+    close_existing_tabs: "true"
+    terminate_before_start: "true"
+    activate_after_cleanup: "true"
+    reset_app_data: "false"
+    no_reset: false
+    full_reset: false
+    browser_bundle_id: "com.apple.mobilesafari"
+
+    # Safari/browser behavior. These belong here, not in native app configuration.
+    auto_accept_alerts: "false"
+    auto_dismiss_alerts: "false"
+    include_safari_in_webviews: "true"
+    connect_hardware_keyboard: "false"
+    safari_allow_popups: "true"
+    safari_ignore_fraud_warning: "true"
+    # iOS Safari may visually open before Appium exposes WEBVIEW/DOM access.
+    # The framework waits up to this many seconds for WEBVIEW context before DOM actions.
+    web_context_timeout_seconds: "25"
+
+    # If Safari stays on the native Start Page after driver.get(url), PTAF will
+    # switch to NATIVE_APP, tap Safari's address/search field, type the URL,
+    # press Return, then switch back to WEBVIEW before DOM validation.
+    safari_native_navigation_fallback_enabled: "true"
