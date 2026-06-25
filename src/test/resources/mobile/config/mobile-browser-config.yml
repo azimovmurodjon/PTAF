@@ -11,6 +11,10 @@
 # - @appium_browser
 # - @mobile_browser_real
 # - @google_mobile_browser for the included Google sample flow
+# - @safari_mobile_browser for the included Safari sample flow
+# - to run mobile browser test, make sure to run the following command:
+#  appium --relaxed-security
+#  it will allow to start Mobile Browser sessions
 
 mobile_browser_appium:
   enabled: true

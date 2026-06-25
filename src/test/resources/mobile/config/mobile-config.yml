@@ -44,5 +44,5 @@ mobile:
     screenshot_after_each_scenario: false
     attach_screenshots_to_report: true
     video_recording_enabled: false
-    video_on_failure_only: false
+    video_on_failure_only: true
     attach_video_to_report: false

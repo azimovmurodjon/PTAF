@@ -39,6 +39,7 @@ mobile:
 #    no_reset: false
 #    full_reset: false
 
+# THE_APP_TEST_CONFIG
   android:
     automation_name: "UiAutomator2"
     platform_name: "Android"

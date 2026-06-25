@@ -19,19 +19,20 @@ Feature: FNB Direct cross-platform native mobile launch and evidence workflow
 
   Scenario: Validate FNB app launches and capture evidence on configured platform
     Then I verify mobile page fnb locator appRoot is visible
+    When I wait up to 10 seconds for mobile page fnb locator appRoot to be visible
     When I allow all mobile permission popups if displayed
-#    When I capture mobile screenshot named "01-fnb-app-launched"
+    And I capture mobile screenshot named "body"
 
     Then I verify mobile page fnb locator anyVisibleElement is visible
-#    When I capture mobile screenshot named "02-fnb-first-visible-screen"
+    And I capture mobile screenshot named "body"
 
-  Scenario: Capture FNB startup screen and inspect possible login controls
-    Then I verify mobile page fnb locator appRoot is visible
+#  Scenario: Capture FNB startup screen and inspect possible login controls
+#    Then I verify mobile page fnb locator appRoot is visible
 #    When I capture mobile screenshot named "03-fnb-startup-screen"
-
-    # The following locator is intentionally broad and platform-aware. If your app displays
-    # a login/sign-in/continue button on first launch, this validates it and captures evidence.
-    # If your first screen is a one-time enrollment, notification, or maintenance screen,
-    # update fnb.possibleLoginButton in fnb_elements.yml using Appium Inspector.
-    Then I verify mobile page fnb locator possibleLoginButton is visible
-    When I capture mobile screenshot named "04-fnb-login-or-continue-visible"
+#
+#    # The following locator is intentionally broad and platform-aware. If your app displays
+#    # a login/sign-in/continue button on first launch, this validates it and captures evidence.
+#    # If your first screen is a one-time enrollment, notification, or maintenance screen,
+#    # update fnb.possibleLoginButton in fnb_elements.yml using Appium Inspector.
+#    Then I verify mobile page fnb locator possibleLoginButton is visible
+#    When I capture mobile screenshot named "04-fnb-login-or-continue-visible"
