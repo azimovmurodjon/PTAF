@@ -23,6 +23,12 @@
 #   src/test/resources/mobile_browser/config/mobile-browser-profiles.yml
 browser: "chrome"
 
+# Maximize mode setting.
+# Set to "true" to run the browser with maximized size of your screen.
+# Set to "false" to run the browser with maximized size of your screen.
+maximize_browser: true
+
+
 # Headless mode setting.
 # Set to "true" to run the browser without UI.
 # Set to "false" to run the browser with UI.
