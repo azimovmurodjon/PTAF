@@ -3,600 +3,128 @@
 // (powered by Fernflower decompiler)
 //
 
-package com.ptaf.hooks;
+package com.ptaf.utils;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
-import com.microsoft.playwright.Page;
-import com.microsoft.playwright.options.LoadState;
-import com.ptaf.ui.pages.PageCommonMethods;
-import com.ptaf.utils.BrowserFactory;
-import com.ptaf.utils.ConfigurationProperties;
-import com.ptaf.utils.BrowserFactory.BrowserTypeEnum;
-import io.cucumber.java.After;
-import io.cucumber.java.Before;
-import io.cucumber.java.Scenario;
-import io.cucumber.java.Status;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URI;
-import java.nio.file.Files;
+import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.options.HttpCredentials;
 import java.nio.file.Paths;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Hooks {
-    private static final Logger logger = LoggerFactory.getLogger(Hooks.class);
-    private static final ThreadLocal<Browser> browserThreadLocal = new ThreadLocal();
-    private static final ThreadLocal<BrowserContext> contextThreadLocal = new ThreadLocal();
-    private static final ThreadLocal<Page> pageThreadLocal = new ThreadLocal();
-    private static final ThreadLocal<Scenario> scenarioThreadLocal = new ThreadLocal();
-    private static final ThreadLocal<PageCommonMethods> pageCommonMethodsThreadLocal = new ThreadLocal();
-    private static final ThreadLocal<String> activeFeatureThreadLocal = new ThreadLocal();
-    private static final ThreadLocal<Boolean> performanceScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
-    private static final Map<String, Boolean> lastScenarioFeatureMap = new ConcurrentHashMap();
-    private static final Map<String, Integer> featureScenarioTotalMap = new ConcurrentHashMap();
-    private static final Map<String, AtomicInteger> featureScenarioExecutedMap = new ConcurrentHashMap();
-    private static final Map<String, Boolean> featureFailureMap = new ConcurrentHashMap();
-    private static final Set<String> PERFORMANCE_TAGS = Set.of("@performance_testing", "@performance_full_regression", "@performance_get", "@performance_post", "@performance_put", "@performance_delete", "@performance_profile", "@performance_inline_json", "@performance_yaml", "@performance_csv", "@performance_excel", "@performance_auth", "@performance_bearer", "@performance_basic_auth", "@performance_negative", "@performance_expected_failure");
+public final class BrowserFactory {
+    private static final Logger logger = LoggerFactory.getLogger(BrowserFactory.class);
+    private static final String TIMESTAMP = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+    private static final String VIDEO_DIR;
 
-    @Before
-    public void setUp(Scenario scenario) {
-        scenarioThreadLocal.set(scenario);
-        String featureKey = this.getFeatureKey(scenario);
-        if (featureKey == null || featureKey.trim().isEmpty()) {
-            featureKey = this.buildFallbackFeatureKey(scenario);
-            logger.warn("Unable to resolve feature key for scenario [{}]. Using fallback feature key [{}].", scenario != null ? scenario.getName() : "UNKNOWN", featureKey);
+    private BrowserFactory() {
+        throw new IllegalStateException("Utility class");
+    }
+
+    public static Browser createBrowser(BrowserTypeEnum browserTypeEnum) {
+        Playwright playwright = Playwright.create();
+        Browser var10000;
+        switch (browserTypeEnum.ordinal()) {
+            case 0 -> var10000 = launchChromium(playwright.chromium(), "CHROME", (String)null);
+            case 1 -> var10000 = launchBrowser(playwright.firefox());
+            case 2 -> var10000 = launchBrowser(playwright.webkit());
+            case 3 -> var10000 = launchChromium(playwright.chromium(), "EDGE", "msedge");
+            default -> throw new MatchException((String)null, (Throwable)null);
         }
 
-        activeFeatureThreadLocal.set(featureKey);
-        if (this.isPerformanceScenario(scenario)) {
-            performanceScenarioThreadLocal.set(Boolean.TRUE);
-            logger.info("Performance scenario detected [{}]. Skipping Playwright browser initialization.", scenario != null ? scenario.getName() : "UNKNOWN");
+        return var10000;
+    }
+
+    private static Browser launchBrowser(BrowserType browserType) {
+        boolean headless = getHeadlessMode();
+        logger.info("Launching browser: {} with headless mode: {}", browserType.name().toUpperCase(), headless);
+        return browserType.launch((new BrowserType.LaunchOptions()).setHeadless(headless));
+    }
+
+    private static Browser launchChromium(BrowserType browserType, String browserName, String channel) {
+        boolean headless = getHeadlessMode();
+        boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
+        BrowserType.LaunchOptions launchOptions = (new BrowserType.LaunchOptions()).setHeadless(headless);
+        if (channel != null && !channel.trim().isEmpty()) {
+            launchOptions.setChannel(channel);
+        }
+
+        if (shouldIgnoreHTTPSErrors) {
+            launchOptions.setArgs(Arrays.asList("--ignore-certificate-errors", "--allow-insecure-localhost", "--disable-web-security"));
+            logger.info("Launching {} with SSL bypass launch arguments enabled because ignoreHTTPSErrors=true.", browserName);
+        }
+
+        logger.info("Launching {} with headless mode: {}, ignoreHTTPSErrors: {}", new Object[]{browserName, headless, shouldIgnoreHTTPSErrors});
+        return browserType.launch(launchOptions);
+    }
+
+    public static BrowserContext createContextWithVideo(Browser browser) {
+        boolean recordVideo = getVideoCapture();
+        boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
+        Browser.NewContextOptions contextOptions = (new Browser.NewContextOptions()).setIgnoreHTTPSErrors(shouldIgnoreHTTPSErrors);
+        logger.info("Creating UI BrowserContext. ignoreHTTPSErrors={}", shouldIgnoreHTTPSErrors);
+        applyHttpCredentialsIfAvailable(contextOptions);
+        if (recordVideo) {
+            logger.info("Video capture enabled. Videos will be stored under: {}", VIDEO_DIR);
+            contextOptions.setRecordVideoDir(Paths.get(VIDEO_DIR)).setRecordVideoSize(1280, 720);
         } else {
-            performanceScenarioThreadLocal.set(Boolean.FALSE);
-            boolean isLastScenarioTaggedFeature = scenario != null && scenario.getSourceTagNames().contains("@LastScenario");
-            lastScenarioFeatureMap.putIfAbsent(featureKey, isLastScenarioTaggedFeature);
-            if (isLastScenarioTaggedFeature) {
-                featureScenarioTotalMap.computeIfAbsent(featureKey, (key) -> this.countScenariosInFeatureFile(scenario));
-                featureScenarioExecutedMap.computeIfAbsent(featureKey, (key) -> new AtomicInteger(0));
-                featureFailureMap.putIfAbsent(featureKey, false);
-            }
-
-            Browser existingBrowser = (Browser)browserThreadLocal.get();
-            BrowserContext existingContext = (BrowserContext)contextThreadLocal.get();
-            Page existingPage = (Page)pageThreadLocal.get();
-            boolean browserAlive = existingBrowser != null && existingContext != null && existingPage != null && !existingPage.isClosed();
-            if (isLastScenarioTaggedFeature) {
-                boolean featureAlreadyFailed = Boolean.TRUE.equals(featureFailureMap.get(featureKey));
-                int alreadyExecuted = featureScenarioExecutedMap.containsKey(featureKey) ? ((AtomicInteger)featureScenarioExecutedMap.get(featureKey)).get() : 0;
-                if (featureAlreadyFailed) {
-                    logger.error("Skipping scenario [{}] because @LastScenario feature [{}] is already marked as failed.", scenario != null ? scenario.getName() : "UNKNOWN", featureKey);
-                    throw new RuntimeException("Previous scenario failed in @LastScenario feature. Remaining scenarios are failed intentionally.");
-                }
-
-                if (alreadyExecuted == 0 && !browserAlive) {
-                    this.createBrowserStack(scenario);
-                    logger.info("Initial shared browser created for @LastScenario feature [{}], scenario [{}]", featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
-                    return;
-                }
-
-                if (alreadyExecuted > 0) {
-                    if (browserAlive) {
-                        logger.info("Reusing shared browser for @LastScenario feature [{}], scenario [{}]", featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
-                        return;
-                    }
-
-                    featureFailureMap.put(featureKey, true);
-                    logger.error("Shared browser/session is no longer available for @LastScenario feature [{}] before scenario [{}]. Failing remaining scenarios and not reopening browser.", featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
-                    throw new RuntimeException("Shared browser was closed or lost during @LastScenario execution. Remaining scenarios are failed intentionally.");
-                }
-            }
-
-            this.createBrowserStack(scenario);
+            logger.info("Video capture disabled.");
         }
+
+        BrowserContext context = browser.newContext(contextOptions);
+        logger.info("UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}", shouldIgnoreHTTPSErrors, recordVideo);
+        return context;
     }
 
-    @After
-    public void tearDown(Scenario scenario) {
-        String featureKey = this.getSafeFeatureKeyForTearDown(scenario);
-        boolean var22 = false;
-
-        label443: {
-            try {
-                var22 = true;
-                if (!Boolean.TRUE.equals(performanceScenarioThreadLocal.get())) {
-                    if (scenario.getStatus() == Status.PASSED) {
-                        PageCommonMethods pageCommonMethods = (PageCommonMethods)pageCommonMethodsThreadLocal.get();
-                        if (pageCommonMethods != null) {
-                            pageCommonMethods.finalizeScenario();
-                            var22 = false;
-                        } else {
-                            var22 = false;
-                        }
-                    } else {
-                        var22 = false;
-                    }
-                } else {
-                    var22 = false;
-                }
-                break label443;
-            } catch (Exception e) {
-                logger.error("Error during scenario teardown: {}", e.getMessage(), e);
-                var22 = false;
-            } finally {
-                if (var22) {
-                    if (Boolean.TRUE.equals(performanceScenarioThreadLocal.get())) {
-                        this.clearPerformanceScenarioStateOnly();
-                        logger.info("Performance scenario teardown completed without UI browser cleanup requirement.");
-                        return;
-                    }
-
-                    boolean isLastScenarioFeature = featureKey != null && Boolean.TRUE.equals(lastScenarioFeatureMap.get(featureKey));
-                    if (isLastScenarioFeature) {
-                        Browser browser = (Browser)browserThreadLocal.get();
-                        BrowserContext context = (BrowserContext)contextThreadLocal.get();
-                        Page page = (Page)pageThreadLocal.get();
-                        boolean browserAlive = browser != null && context != null && page != null && !page.isClosed();
-                        if (scenario.getStatus() == Status.FAILED) {
-                            featureFailureMap.put(featureKey, true);
-                            logger.error("Scenario [{}] failed in @LastScenario feature [{}]. Remaining scenarios will fail immediately.", scenario.getName(), featureKey);
-                        }
-
-                        if (!browserAlive) {
-                            featureFailureMap.put(featureKey, true);
-                            logger.error("Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. Remaining scenarios will fail immediately.", featureKey, scenario.getName());
-                        }
-
-                        AtomicInteger executedCounter = (AtomicInteger)featureScenarioExecutedMap.get(featureKey);
-                        int executed = executedCounter != null ? executedCounter.incrementAndGet() : 1;
-                        int total = (Integer)featureScenarioTotalMap.getOrDefault(featureKey, 1);
-                        logger.info("Feature [{}] progress: {}/{}", new Object[]{featureKey, executed, total});
-                        if (executed >= total) {
-                            logger.info("Last scenario reached for feature [{}]. Closing browser resources.", featureKey);
-                            closeBrowserResources();
-                            clearFeatureTracking(featureKey);
-                        } else {
-                            logger.info("Keeping browser state unchanged for next scenario in @LastScenario feature [{}].", featureKey);
-                        }
-                    } else {
-                        if (featureKey == null) {
-                            logger.warn("Feature key was not available during teardown for scenario [{}]. Proceeding with normal browser cleanup to avoid NullPointerException.", scenario != null ? scenario.getName() : "UNKNOWN");
-                        }
-
-                        closeBrowserResources();
-                    }
-
-                }
-            }
-
-            if (Boolean.TRUE.equals(performanceScenarioThreadLocal.get())) {
-                this.clearPerformanceScenarioStateOnly();
-                logger.info("Performance scenario teardown completed without UI browser cleanup requirement.");
-                return;
-            }
-
-            boolean isLastScenarioFeature = featureKey != null && Boolean.TRUE.equals(lastScenarioFeatureMap.get(featureKey));
-            if (isLastScenarioFeature) {
-                Browser browser = (Browser)browserThreadLocal.get();
-                BrowserContext context = (BrowserContext)contextThreadLocal.get();
-                Page page = (Page)pageThreadLocal.get();
-                boolean browserAlive = browser != null && context != null && page != null && !page.isClosed();
-                if (scenario.getStatus() == Status.FAILED) {
-                    featureFailureMap.put(featureKey, true);
-                    logger.error("Scenario [{}] failed in @LastScenario feature [{}]. Remaining scenarios will fail immediately.", scenario.getName(), featureKey);
-                }
-
-                if (!browserAlive) {
-                    featureFailureMap.put(featureKey, true);
-                    logger.error("Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. Remaining scenarios will fail immediately.", featureKey, scenario.getName());
-                }
-
-                AtomicInteger executedCounter = (AtomicInteger)featureScenarioExecutedMap.get(featureKey);
-                int executed = executedCounter != null ? executedCounter.incrementAndGet() : 1;
-                int total = (Integer)featureScenarioTotalMap.getOrDefault(featureKey, 1);
-                logger.info("Feature [{}] progress: {}/{}", new Object[]{featureKey, executed, total});
-                if (executed >= total) {
-                    logger.info("Last scenario reached for feature [{}]. Closing browser resources.", featureKey);
-                    closeBrowserResources();
-                    clearFeatureTracking(featureKey);
-                } else {
-                    logger.info("Keeping browser state unchanged for next scenario in @LastScenario feature [{}].", featureKey);
-                }
-
-                return;
-            } else {
-                if (featureKey == null) {
-                    logger.warn("Feature key was not available during teardown for scenario [{}]. Proceeding with normal browser cleanup to avoid NullPointerException.", scenario != null ? scenario.getName() : "UNKNOWN");
-                }
-
-                closeBrowserResources();
-                return;
-            }
-        }
-
-        if (Boolean.TRUE.equals(performanceScenarioThreadLocal.get())) {
-            this.clearPerformanceScenarioStateOnly();
-            logger.info("Performance scenario teardown completed without UI browser cleanup requirement.");
+    private static void applyHttpCredentialsIfAvailable(Browser.NewContextOptions contextOptions) {
+        String username = System.getProperty("service.username");
+        String password = System.getProperty("service.password");
+        if (isNotBlank(username) && isNotBlank(password)) {
+            contextOptions.setHttpCredentials(new HttpCredentials(username, password));
+            logger.info("HTTP authentication credentials applied.");
         } else {
-            boolean isLastScenarioFeature = featureKey != null && Boolean.TRUE.equals(lastScenarioFeatureMap.get(featureKey));
-            if (isLastScenarioFeature) {
-                Browser browser = (Browser)browserThreadLocal.get();
-                BrowserContext context = (BrowserContext)contextThreadLocal.get();
-                Page page = (Page)pageThreadLocal.get();
-                boolean browserAlive = browser != null && context != null && page != null && !page.isClosed();
-                if (scenario.getStatus() == Status.FAILED) {
-                    featureFailureMap.put(featureKey, true);
-                    logger.error("Scenario [{}] failed in @LastScenario feature [{}]. Remaining scenarios will fail immediately.", scenario.getName(), featureKey);
-                }
-
-                if (!browserAlive) {
-                    featureFailureMap.put(featureKey, true);
-                    logger.error("Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. Remaining scenarios will fail immediately.", featureKey, scenario.getName());
-                }
-
-                AtomicInteger executedCounter = (AtomicInteger)featureScenarioExecutedMap.get(featureKey);
-                int executed = executedCounter != null ? executedCounter.incrementAndGet() : 1;
-                int total = (Integer)featureScenarioTotalMap.getOrDefault(featureKey, 1);
-                logger.info("Feature [{}] progress: {}/{}", new Object[]{featureKey, executed, total});
-                if (executed >= total) {
-                    logger.info("Last scenario reached for feature [{}]. Closing browser resources.", featureKey);
-                    closeBrowserResources();
-                    clearFeatureTracking(featureKey);
-                } else {
-                    logger.info("Keeping browser state unchanged for next scenario in @LastScenario feature [{}].", featureKey);
-                }
-            } else {
-                if (featureKey == null) {
-                    logger.warn("Feature key was not available during teardown for scenario [{}]. Proceeding with normal browser cleanup to avoid NullPointerException.", scenario != null ? scenario.getName() : "UNKNOWN");
-                }
-
-                closeBrowserResources();
-            }
-
+            logger.info("No HTTP credentials found. Proceeding without authentication.");
         }
+
     }
 
-    private void createBrowserStack(Scenario scenario) {
-        try {
-            String browserName = ConfigurationProperties.getBrowser();
-            BrowserFactory.BrowserTypeEnum browserTypeEnum;
-            switch (browserName.toUpperCase()) {
-                case "CHROME" -> browserTypeEnum = BrowserTypeEnum.CHROME;
-                case "FIREFOX" -> browserTypeEnum = BrowserTypeEnum.FIREFOX;
-                case "WEBKIT" -> browserTypeEnum = BrowserTypeEnum.WEBKIT;
-                case "EDGE" -> browserTypeEnum = BrowserTypeEnum.EDGE;
-                default -> throw new IllegalArgumentException("Unsupported browser type: " + browserName);
-            }
-
-            Browser browser = BrowserFactory.createBrowser(browserTypeEnum);
-            browserThreadLocal.set(browser);
-            BrowserContext context = BrowserFactory.createContextWithVideo(browser);
-            contextThreadLocal.set(context);
-            Page page = context.newPage();
-            pageThreadLocal.set(page);
-            long runtimeTimeoutMillis = getConfiguredRuntimeTimeoutMillis();
-            page.setDefaultTimeout((double)runtimeTimeoutMillis);
-            page.setDefaultNavigationTimeout((double)runtimeTimeoutMillis);
-            PageCommonMethods pageCommonMethods = new PageCommonMethods(page);
-            pageCommonMethodsThreadLocal.set(pageCommonMethods);
-            logger.info("Browser setup completed for scenario: {} with runtime timeout: {} ms", scenario != null ? scenario.getName() : "UNKNOWN", runtimeTimeoutMillis);
-        } catch (Exception e) {
-            logger.error("Error setting up the browser for scenario: {}", scenario != null ? scenario.getName() : "UNKNOWN", e);
-            throw new RuntimeException("Browser setup failed", e);
-        }
+    private static boolean getHeadlessMode() {
+        String value = ConfigurationProperties.getHeadlessMode();
+        return Boolean.parseBoolean(value);
     }
 
-    private static long getConfiguredRuntimeTimeoutMillis() {
-        try {
-            String runtimeValue = ConfigurationProperties.getValue("runtimeWait");
-            if (runtimeValue != null && !runtimeValue.trim().isEmpty()) {
-                long seconds = Long.parseLong(runtimeValue.trim());
-                if (seconds <= 0L) {
-                    logger.warn("runtimeWait must be greater than 0. Defaulting to 30 seconds.");
-                    return 30000L;
-                } else {
-                    long timeoutMillis = seconds * 1000L;
-                    logger.info("Configured runtimeWait: {} second(s) = {} ms", seconds, timeoutMillis);
-                    return timeoutMillis;
-                }
-            } else {
-                logger.warn("runtimeWait is not configured. Defaulting to 30 seconds.");
-                return 30000L;
-            }
-        } catch (Exception e) {
-            logger.warn("Unable to parse runtimeWait from configuration. Defaulting to 30 seconds. Reason: {}", e.getMessage());
-            return 30000L;
-        }
+    private static boolean getVideoCapture() {
+        String value = ConfigurationProperties.getVideoCapture();
+        return Boolean.parseBoolean(value);
     }
 
-    public static void waitForCurrentPageToLoad() {
-        Page page = getPage();
-        long timeout = getConfiguredRuntimeTimeoutMillis();
-
-        try {
-            page.waitForLoadState(LoadState.DOMCONTENTLOADED, (new Page.WaitForLoadStateOptions()).setTimeout((double)timeout));
-            page.waitForLoadState(LoadState.LOAD, (new Page.WaitForLoadStateOptions()).setTimeout((double)timeout));
-            logger.info("Page reached load state successfully within {} ms", timeout);
-        } catch (Exception e) {
-            logger.error("Page did not load within configured timeout: {} ms", timeout, e);
-            throw new RuntimeException("Page did not load within configured timeout: " + timeout + " ms", e);
-        }
-    }
-
-    public static void setPage(Page page) {
-        if (page != null && !page.isClosed()) {
-            pageThreadLocal.set(page);
-
-            try {
-                long runtimeTimeoutMillis = getConfiguredRuntimeTimeoutMillis();
-                page.setDefaultTimeout((double)runtimeTimeoutMillis);
-                page.setDefaultNavigationTimeout((double)runtimeTimeoutMillis);
-            } catch (Exception e) {
-                logger.warn("Unable to apply timeout settings to switched page. Reason: {}", e.getMessage());
-            }
-
-            pageCommonMethodsThreadLocal.set(new PageCommonMethods(page));
-            logger.info("Active page has been switched successfully.");
+    private static boolean getIgnoreHTTPSErrors() {
+        String value = ConfigurationProperties.getIgnoreHTTPSErrors();
+        if (value != null && !value.trim().isEmpty()) {
+            return Boolean.parseBoolean(value.trim());
         } else {
-            throw new IllegalArgumentException("The page is null or closed.");
-        }
-    }
-
-    public static void closeBrowserResources() {
-        try {
-            BrowserContext context = (BrowserContext)contextThreadLocal.get();
-            if (context != null) {
-                for(Page page : context.pages()) {
-                    try {
-                        if (page != null && !page.isClosed()) {
-                            page.close();
-                        }
-                    } catch (Exception pageCloseEx) {
-                        logger.error("Error closing page: {}", pageCloseEx.getMessage(), pageCloseEx);
-                    }
-                }
-
-                context.close();
-            }
-        } catch (Exception ex) {
-            logger.error("Error closing the browser context: {}", ex.getMessage(), ex);
-        } finally {
-            pageThreadLocal.remove();
-            contextThreadLocal.remove();
-        }
-
-        try {
-            Browser browser = (Browser)browserThreadLocal.get();
-            if (browser != null) {
-                browser.close();
-                logger.info("Browser closed.");
-            }
-        } catch (Exception ex) {
-            logger.error("Error closing the browser: {}", ex.getMessage(), ex);
-        } finally {
-            browserThreadLocal.remove();
-        }
-
-        pageCommonMethodsThreadLocal.remove();
-        scenarioThreadLocal.remove();
-        activeFeatureThreadLocal.remove();
-        performanceScenarioThreadLocal.remove();
-    }
-
-    private static void clearFeatureTracking(String featureKey) {
-        if (featureKey != null && !featureKey.trim().isEmpty()) {
-            lastScenarioFeatureMap.remove(featureKey);
-            featureScenarioTotalMap.remove(featureKey);
-            featureScenarioExecutedMap.remove(featureKey);
-            featureFailureMap.remove(featureKey);
-        } else {
-            logger.warn("Skipping feature tracking cleanup because feature key is null or empty.");
-        }
-    }
-
-    private void clearPerformanceScenarioStateOnly() {
-        scenarioThreadLocal.remove();
-        activeFeatureThreadLocal.remove();
-        performanceScenarioThreadLocal.remove();
-    }
-
-    private boolean isPerformanceScenario(Scenario scenario) {
-        if (scenario == null) {
+            logger.warn("ignoreHTTPSErrors is missing or blank. Defaulting to false.");
             return false;
-        } else {
-            for(String tag : scenario.getSourceTagNames()) {
-                if (PERFORMANCE_TAGS.contains(tag)) {
-                    return true;
-                }
-
-                if (tag != null && tag.startsWith("@performance")) {
-                    return true;
-                }
-            }
-
-            String featureKey = this.getFeatureKey(scenario);
-            return featureKey != null && featureKey.toLowerCase().contains("performance");
         }
     }
 
-    private String getSafeFeatureKeyForTearDown(Scenario scenario) {
-        String featureKey = (String)activeFeatureThreadLocal.get();
-        if (featureKey != null && !featureKey.trim().isEmpty()) {
-            return featureKey;
-        } else {
-            try {
-                featureKey = this.getFeatureKey(scenario);
-                if (featureKey != null && !featureKey.trim().isEmpty()) {
-                    activeFeatureThreadLocal.set(featureKey);
-                    logger.warn("Feature key was missing from ThreadLocal during teardown. Recovered feature key [{}] from scenario [{}].", featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
-                    return featureKey;
-                }
-            } catch (Exception e) {
-                logger.warn("Unable to recover feature key during teardown for scenario [{}]. Reason: {}", scenario != null ? scenario.getName() : "UNKNOWN", e.getMessage());
-            }
-
-            return null;
-        }
+    private static boolean isNotBlank(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
-    private String getFeatureKey(Scenario scenario) {
-        if (scenario == null) {
-            return null;
-        } else {
-            try {
-                URI uri = scenario.getUri();
-                if (uri != null && uri.toString() != null && !uri.toString().trim().isEmpty()) {
-                    return uri.toString();
-                }
-            } catch (Exception var5) {
-            }
-
-            try {
-                String id = scenario.getId();
-                if (id != null && !id.trim().isEmpty()) {
-                    int colonIndex = id.lastIndexOf(58);
-                    return colonIndex > 0 ? id.substring(0, colonIndex) : id;
-                } else {
-                    return null;
-                }
-            } catch (Exception var4) {
-                return null;
-            }
-        }
+    static {
+        VIDEO_DIR = "test-output/captured-videos/" + TIMESTAMP;
     }
 
-    private String buildFallbackFeatureKey(Scenario scenario) {
-        String scenarioName = scenario != null && scenario.getName() != null ? scenario.getName().replaceAll("[^a-zA-Z0-9_-]", "_") : "UNKNOWN_SCENARIO";
-        long var10000 = Thread.currentThread().getId();
-        return "UNKNOWN_FEATURE_" + var10000 + "_" + scenarioName;
-    }
-
-    private int countScenariosInFeatureFile(Scenario scenario) {
-        try {
-            URI uri = scenario.getUri();
-            if (uri == null) {
-                logger.warn("Scenario URI is null. Defaulting scenario count to 1.");
-                return 1;
-            } else {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(this.openFeatureStream(uri)))) {
-                    int total = 0;
-                    boolean inScenarioOutline = false;
-                    boolean inExamples = false;
-                    boolean headerSkipped = false;
-                    int outlineExampleRows = 0;
-
-                    String line;
-                    while((line = reader.readLine()) != null) {
-                        String trimmed = line.trim();
-                        if (!trimmed.isEmpty() && !trimmed.startsWith("#") && !trimmed.startsWith("@")) {
-                            if (!trimmed.startsWith("Scenario Outline:") && !trimmed.startsWith("Scenario Template:")) {
-                                if (trimmed.startsWith("Scenario:")) {
-                                    if (inScenarioOutline) {
-                                        total += Math.max(outlineExampleRows, 1);
-                                        inScenarioOutline = false;
-                                        inExamples = false;
-                                        headerSkipped = false;
-                                        outlineExampleRows = 0;
-                                    }
-
-                                    ++total;
-                                } else if (inScenarioOutline && trimmed.startsWith("Examples:")) {
-                                    inExamples = true;
-                                    headerSkipped = false;
-                                } else if (inScenarioOutline && inExamples && trimmed.startsWith("|")) {
-                                    if (!headerSkipped) {
-                                        headerSkipped = true;
-                                    } else {
-                                        ++outlineExampleRows;
-                                    }
-                                }
-                            } else {
-                                if (inScenarioOutline) {
-                                    total += Math.max(outlineExampleRows, 1);
-                                }
-
-                                inScenarioOutline = true;
-                                inExamples = false;
-                                headerSkipped = false;
-                                outlineExampleRows = 0;
-                            }
-                        }
-                    }
-
-                    if (inScenarioOutline) {
-                        total += Math.max(outlineExampleRows, 1);
-                    }
-
-                    logger.info("Detected [{}] runnable scenarios in feature [{}]", total, uri);
-                    return total > 0 ? total : 1;
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("Unable to count scenarios in feature file. Defaulting scenario count to 1. Reason: {}", e.getMessage());
-            return 1;
-        }
-    }
-
-    private InputStream openFeatureStream(URI uri) throws Exception {
-        if ("file".equalsIgnoreCase(uri.getScheme())) {
-            return Files.newInputStream(Paths.get(uri));
-        } else {
-            String path = uri.toString();
-            if (path.startsWith("classpath:")) {
-                path = path.replace("classpath:", "");
-            }
-
-            if (path.startsWith("/")) {
-                path = path.substring(1);
-            }
-
-            InputStream inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
-            if (inputStream == null) {
-                throw new IllegalStateException("Unable to load feature file from URI: " + String.valueOf(uri));
-            } else {
-                return inputStream;
-            }
-        }
-    }
-
-    public static Page getPage() {
-        Page page = (Page)pageThreadLocal.get();
-        if (page != null && !page.isClosed()) {
-            return page;
-        } else {
-            throw new IllegalStateException("The page is closed or not initialized.");
-        }
-    }
-
-    public static Browser getBrowser() {
-        Browser browser = (Browser)browserThreadLocal.get();
-        if (browser == null) {
-            throw new IllegalStateException("The browser is not initialized.");
-        } else {
-            return browser;
-        }
-    }
-
-    public static Scenario getCurrentScenario() {
-        return (Scenario)scenarioThreadLocal.get();
-    }
-
-    public static void setCurrentScenario(Scenario scenario) {
-        scenarioThreadLocal.set(scenario);
-    }
-
-    public static BrowserContext getContext() {
-        BrowserContext context = (BrowserContext)contextThreadLocal.get();
-        if (context == null) {
-            throw new IllegalStateException("The browser context is not initialized.");
-        } else {
-            return context;
-        }
+    public static enum BrowserTypeEnum {
+        CHROME,
+        FIREFOX,
+        WEBKIT,
+        EDGE;
     }
 }
