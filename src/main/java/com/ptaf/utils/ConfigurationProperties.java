@@ -153,6 +153,30 @@ public class ConfigurationProperties {
      * @param value the YAML key or nested YAML path.
      * @return the configuration value as a String, or null if not found.
      */
+    /**
+     * Retrieves the runtime timeout in milliseconds from config.yml.
+     *
+     * <p>
+     * Example config.yml value:
+     * runtimeTimeoutMillis: 30000
+     * </p>
+     *
+     * @return the configured runtime timeout as a long, or a default value if not configured.
+     */
+    public static long getRuntimeTimeoutMillis() {
+        String value = getValue("runtimeTimeoutMillis");
+        if (value == null || value.trim().isEmpty()) {
+            logger.warn("Configuration key 'runtimeTimeoutMillis' was not found. Defaulting to 30000 ms.");
+            return 30000L; // Default to 30 seconds
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            logger.error("Invalid number format for runtimeTimeoutMillis: {}. Defaulting to 30000 ms.", value, e);
+            return 30000L;
+        }
+    }
+
     public static String getValue(String value) {
         Object rawValue = YamlReader.get(value);
         return rawValue == null ? null : String.valueOf(rawValue);

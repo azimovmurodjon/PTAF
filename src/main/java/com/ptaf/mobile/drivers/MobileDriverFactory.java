@@ -134,6 +134,9 @@ public final class MobileDriverFactory {
             if (implicitWait > 0) {
                 driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(implicitWait));
             }
+            // For Android browser sessions, clean-start operations like terminateApp/activateApp
+            // must be carefully managed to avoid invalidating the WebDriver session.
+            // The clean-start logic is now conditionally applied within the method.
             prepareCleanBrowserStartIfConfigured(driver, targetPlatform);
             openInitialBrowserUrlIfConfigured(driver, targetPlatform);
             logger.info("Started Appium {} browser session with id [{}]", targetPlatform, driver.getSessionId());
@@ -200,16 +203,29 @@ public final class MobileDriverFactory {
             return;
         }
 
+        // Safeguard: For mobile browsers (Android Chrome, iOS Safari), do not terminate/activate if it would invalidate the session.
+        boolean isAndroidChrome = platform.isAndroid() && MobileConfigurationProperties.getBrowserCapability(platform, "browser_name", "Chrome").equalsIgnoreCase("Chrome");
+        boolean isIosSafari = platform == com.ptaf.mobile.config.MobilePlatform.IOS && MobileConfigurationProperties.getBrowserCapability(platform, "browser_name", "Safari").equalsIgnoreCase("Safari");
+        boolean isNativeBrowser = isAndroidChrome || isIosSafari;
+
         logger.info("PTAF APPIUM REAL BROWSER CLEAN START | platform={} | clearCookies={} | resetAppData={} | closeTabs={}",
                 platform,
                 MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "clear_cookies", true),
                 MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "reset_app_data", false),
                 MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "close_existing_tabs", true));
 
-        terminateBrowserAppIfConfigured(driver, platform);
+        if (isNativeBrowser) {
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Native browser session detected ({}). Skipping app termination/activation to prevent session invalidation.", platform);
+        } else {
+            terminateBrowserAppIfConfigured(driver, platform);
+        }
+
         clearBrowserCookiesIfConfigured(driver, platform);
         clearAndroidBrowserAppDataIfConfigured(driver, platform);
-        activateBrowserAppIfConfigured(driver, platform);
+
+        if (!isNativeBrowser) {
+            activateBrowserAppIfConfigured(driver, platform);
+        }
     }
 
     private static void clearBrowserCookiesIfConfigured(AppiumDriver driver, MobilePlatform platform) {
@@ -223,6 +239,15 @@ public final class MobileDriverFactory {
     }
 
     private static void terminateBrowserAppIfConfigured(AppiumDriver driver, MobilePlatform platform) {
+        // Safeguard: Do not terminate native browsers if it would invalidate the session.
+        if (platform.isAndroid() && MobileConfigurationProperties.getBrowserCapability(platform, "browser_name", "").equalsIgnoreCase("Chrome")) {
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Skipping terminateBrowserApp for Android Chrome to prevent session invalidation.");
+            return;
+        }
+        if (platform == com.ptaf.mobile.config.MobilePlatform.IOS && MobileConfigurationProperties.getBrowserCapability(platform, "browser_name", "").equalsIgnoreCase("Safari")) {
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Skipping terminateBrowserApp for iOS Safari to prevent session invalidation.");
+            return;
+        }
         if (!MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "terminate_before_start", true)) return;
         String bundleOrPackage = platform.isAndroid()
                 ? MobileConfigurationProperties.getBrowserCapability(platform, "browser_package", "com.android.chrome")
@@ -236,6 +261,15 @@ public final class MobileDriverFactory {
     }
 
     private static void activateBrowserAppIfConfigured(AppiumDriver driver, MobilePlatform platform) {
+        // Safeguard: Do not activate native browsers if it would invalidate the session.
+        if (platform.isAndroid() && MobileConfigurationProperties.getBrowserCapability(platform, "browser_name", "").equalsIgnoreCase("Chrome")) {
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Skipping activateBrowserApp for Android Chrome to prevent session invalidation.");
+            return;
+        }
+        if (platform == com.ptaf.mobile.config.MobilePlatform.IOS && MobileConfigurationProperties.getBrowserCapability(platform, "browser_name", "").equalsIgnoreCase("Safari")) {
+            logger.info("PTAF APPIUM REAL BROWSER CLEAN START | Skipping activateBrowserApp for iOS Safari to prevent session invalidation.");
+            return;
+        }
         if (!MobileConfigurationProperties.getBrowserCapabilityBoolean(platform, "activate_after_cleanup", true)) return;
         String bundleOrPackage = platform.isAndroid()
                 ? MobileConfigurationProperties.getBrowserCapability(platform, "browser_package", "com.android.chrome")
