@@ -10,13 +10,16 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.HttpCredentials;
+import com.microsoft.playwright.options.ViewportSize;
 import com.ptaf.ui.mobilebrowser.MobileBrowserExecutionConfig;
 import com.ptaf.ui.mobilebrowser.MobileBrowserProfile;
 import com.ptaf.ui.mobilebrowser.MobileBrowserProfileRepository;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -170,7 +173,13 @@ public final class BrowserFactory {
     private static Browser launchBrowser(BrowserType browserType) {
         // Determine headless mode from configuration
         boolean headless = getHeadlessMode();
+        boolean maximizeBrowser = getMaximizeBrowser();
         logger.info("Launching browser: {} with headless mode: {}", browserType.name().toUpperCase(), headless);
+        // maximize_browser=true is only effective for headed Chromium/Chrome/Edge via --start-maximized.
+        // For Firefox/WebKit this flag has no effect; log a warning so testers are aware.
+        if (maximizeBrowser) {
+            logger.warn("maximize_browser=true is optimized for headed Chromium/Chrome/Edge. Browser [{}] does not support Selenium-style --start-maximized through this factory path. Existing behavior will be preserved.", browserType.name().toUpperCase());
+        }
         // Launch the browser with the resolved headless option
         return browserType.launch((new BrowserType.LaunchOptions()).setHeadless(headless));
     }
@@ -191,19 +200,34 @@ public final class BrowserFactory {
         // Resolve configuration-driven flags
         boolean headless = getHeadlessMode();
         boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
+        boolean maximizeBrowser = getMaximizeBrowser();
         BrowserType.LaunchOptions launchOptions = (new BrowserType.LaunchOptions()).setHeadless(headless);
         // If a channel is supplied, use it to launch a particular Chromium-based browser
         if (channel != null && !channel.trim().isEmpty()) {
             launchOptions.setChannel(channel);
         }
 
+        List<String> launchArgs = new ArrayList<>();
         // If ignoring HTTPS errors is requested, add Chromium flags to bypass certificate checks
         if (shouldIgnoreHTTPSErrors) {
-            launchOptions.setArgs(Arrays.asList("--ignore-certificate-errors", "--allow-insecure-localhost", "--disable-web-security"));
+            launchArgs.addAll(Arrays.asList("--ignore-certificate-errors", "--allow-insecure-localhost", "--disable-web-security"));
             logger.info("Launching {} with SSL bypass launch arguments enabled because ignoreHTTPSErrors=true.", browserName);
         }
 
-        logger.info("Launching {} with headless mode: {}, ignoreHTTPSErrors: {}", new Object[]{browserName, headless, shouldIgnoreHTTPSErrors});
+        // Apply Selenium-style maximize via --start-maximized only for headed desktop Chromium runs.
+        // This flag is skipped in headless mode (no visible window) and for mobile profiles (viewport must stay profile-controlled).
+        if (maximizeBrowser && !headless && !hasActiveMobileBrowserProfile()) {
+            launchArgs.add("--start-maximized");
+            logger.info("Launching {} with Selenium-style maximize enabled using --start-maximized.", browserName);
+        } else if (maximizeBrowser && headless) {
+            logger.warn("maximize_browser=true was requested, but headless=true. Playwright cannot maximize a real OS browser window in headless mode; existing headless behavior will be preserved.");
+        } else if (maximizeBrowser && hasActiveMobileBrowserProfile()) {
+            logger.info("maximize_browser=true ignored for mobile browser emulation profile because device viewport must remain profile-controlled.");
+        }
+
+        if (!launchArgs.isEmpty()) launchOptions.setArgs(launchArgs);
+
+        logger.info("Launching {} with headless mode: {}, ignoreHTTPSErrors: {}, maximize_browser: {}", browserName, headless, shouldIgnoreHTTPSErrors, maximizeBrowser);
         return browserType.launch(launchOptions);
     }
 
@@ -226,7 +250,12 @@ public final class BrowserFactory {
         boolean mobileBrowser = hasActiveMobileBrowserProfile();
         // For mobile, video capture may be controlled by the mobile-browser-execution.yml config
         boolean mobileBrowserVideo = mobileBrowser && MobileBrowserExecutionConfig.videoRecordingEnabled();
+        boolean maximizeBrowser = getMaximizeBrowser();
+        boolean headless = getHeadlessMode();
         Browser.NewContextOptions contextOptions = (new Browser.NewContextOptions()).setIgnoreHTTPSErrors(shouldIgnoreHTTPSErrors);
+        // For headed desktop Chromium runs with maximize_browser=true, set viewport to null so the
+        // OS window size controls the effective viewport (Selenium-style maximize behavior).
+        applySeleniumStyleMaximizeViewportIfConfigured(contextOptions, maximizeBrowser, headless, mobileBrowser);
         // Apply mobile profile settings (viewport, device scale, user agent, etc.) if available
         applyMobileBrowserProfileIfAvailable(contextOptions);
         logger.info("Creating UI BrowserContext. ignoreHTTPSErrors={}", shouldIgnoreHTTPSErrors);
@@ -248,12 +277,52 @@ public final class BrowserFactory {
         BrowserContext context = browser.newContext(contextOptions);
         // Log outcome with different messages when mobile profile is involved to include profile name
         if (mobileBrowser) {
-            logger.info("UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}, mobileBrowserProfile={}", shouldIgnoreHTTPSErrors, mobileBrowserVideo, ACTIVE_MOBILE_BROWSER_PROFILE.get().getName());
+            logger.info("UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}, mobileBrowserProfile={}, maximize_browser={}",
+                    shouldIgnoreHTTPSErrors, mobileBrowserVideo,
+                    ACTIVE_MOBILE_BROWSER_PROFILE.get().getName(), maximizeBrowser);
         } else {
-            logger.info("UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}", shouldIgnoreHTTPSErrors, recordVideo);
+            logger.info("UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}, maximize_browser={}",
+                    shouldIgnoreHTTPSErrors, recordVideo, maximizeBrowser);
         }
 
         return context;
+    }
+
+    /**
+     * Applies Selenium-style browser maximize behavior for headed desktop Playwright runs.
+     *
+     * <p>Playwright normally manages viewport size independently from the OS browser window.
+     * Setting viewport to {@code null} allows the context viewport to follow the actual
+     * maximized browser window size, which mirrors Selenium's
+     * {@code driver.manage().window().maximize()} behavior.</p>
+     *
+     * <p>This method is a no-op when:
+     * - maximize_browser is false (default)
+     * - headless mode is active (no visible window to maximize)
+     * - a mobile browser profile is active (profile viewport must remain profile-controlled)
+     * </p>
+     *
+     * @param contextOptions the context options to modify
+     * @param maximizeBrowser whether maximize_browser is enabled in configuration
+     * @param headless whether headless mode is active
+     * @param mobileBrowser whether a mobile browser profile is active
+     */
+    private static void applySeleniumStyleMaximizeViewportIfConfigured(Browser.NewContextOptions contextOptions,
+                                                                       boolean maximizeBrowser,
+                                                                       boolean headless,
+                                                                       boolean mobileBrowser) {
+        if (!maximizeBrowser) return;
+        if (headless) {
+            logger.warn("maximize_browser=true requested, but headless=true. No viewport override will be applied.");
+            return;
+        }
+        if (mobileBrowser) {
+            logger.info("maximize_browser=true ignored for mobile browser emulation context because profile viewport must remain profile-controlled.");
+            return;
+        }
+        // Setting viewport to null tells Playwright to use the actual OS window size
+        contextOptions.setViewportSize((ViewportSize) null);
+        logger.info("Playwright context viewport disabled so headed browser window can use Selenium-style maximized size.");
     }
 
     /**
@@ -363,6 +432,21 @@ public final class BrowserFactory {
      *
      * @return true if ignoreHTTPSErrors is enabled, false otherwise
      */
+    /**
+     * Retrieve the maximize_browser flag from ConfigurationProperties.
+     *
+     * <p>Supports both "maximize_browser" and "maximizeBrowser" config keys for flexibility.
+     * Defaults to false if neither key is present.
+     *
+     * @return true if browser maximize is enabled, false otherwise
+     */
+    private static boolean getMaximizeBrowser() {
+        String value = ConfigurationProperties.getValue("maximize_browser");
+        if (!isNotBlank(value)) value = ConfigurationProperties.getValue("maximizeBrowser");
+        if (!isNotBlank(value)) return false;
+        return Boolean.parseBoolean(value.trim());
+    }
+
     private static boolean getIgnoreHTTPSErrors() {
         String value = ConfigurationProperties.getIgnoreHTTPSErrors();
         if (value != null && !value.trim().isEmpty()) {
