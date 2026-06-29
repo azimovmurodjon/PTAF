@@ -36,32 +36,77 @@ import java.util.Set;
  * writing Java code in project teams.</p>
  */
 public class MobileCommonMethods {
+    // Underlying Appium driver used by all actions.
     private final AppiumDriver driver;
+    // Helper responsible for converting string locator descriptors into Selenium By objects.
     private final MobileLocatorHandler locatorHandler = new MobileLocatorHandler();
 
+    /**
+     * Create a wrapper around an AppiumDriver to expose reusable mobile actions.
+     *
+     * @param driver AppiumDriver instance (must not be null)
+     * @throws IllegalArgumentException if the provided driver is null
+     */
     public MobileCommonMethods(AppiumDriver driver) {
         if (driver == null) throw new IllegalArgumentException("Appium driver cannot be null.");
         this.driver = driver;
     }
 
+    /* Simple element interactions - these forward to findVisibleElement which includes
+       explicit waiting and browser context synchronization when required. */
+
+    /** Tap a visible element identified by page/locator keys. */
     public void tap(String page, String locator) { findVisibleElement(page, locator).click(); }
+
+    /**
+     * Type into an input element after clearing it first.
+     * If value is null, an empty string is typed to avoid NPE.
+     */
     public void type(String page, String locator, String value) { WebElement e = findVisibleElement(page, locator); e.clear(); e.sendKeys(value == null ? "" : value); }
+
+    /** Clear the input field's current value. */
     public void clear(String page, String locator) { findVisibleElement(page, locator).clear(); }
+
+    /** Return visible element text. */
     public String getText(String page, String locator) { return findVisibleElement(page, locator).getText(); }
+
+    /**
+     * Check if an element is visible on screen.
+     * This returns false when any exception occurs locating the element.
+     */
     public boolean isVisible(String page, String locator) { try { return findVisibleElement(page, locator).isDisplayed(); } catch (Exception e) { return false; } }
+
+    /** Check if an element is enabled (interactable). */
     public boolean isEnabled(String page, String locator) { return findVisibleElement(page, locator).isEnabled(); }
+
+    /** Check if an element is selected (useful for checkboxes/radio buttons). */
     public boolean isSelected(String page, String locator) { return findVisibleElement(page, locator).isSelected(); }
+
+    /** Explicitly wait until element is visible. */
     public void waitForVisible(String page, String locator) { findVisibleElement(page, locator); }
 
-    /** Waits for a locator using an explicit timeout supplied from the feature file. */
+    /**
+     * Waits for a locator using an explicit timeout supplied from the feature file.
+     *
+     * This variation uses ExpectedConditions.visibilityOfElementLocated with a
+     * custom timeout. It also contains diagnostic handling for iOS Safari WEBVIEW
+     * contexts which can surface non-standard runtime errors when the webview is
+     * not yet available.
+     *
+     * @param page locator page key
+     * @param locator locator key on the page
+     * @param timeoutSeconds maximum seconds to wait (non-negative)
+     */
     public void waitForVisible(String page, String locator, int timeoutSeconds) {
         ensureBrowserWebContextReadyIfNeeded();
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(Math.max(timeoutSeconds, 0)));
         try {
             wait.until(ExpectedConditions.visibilityOfElementLocated(resolveLocator(page, locator)));
         } catch (ClassCastException e) {
+            // Some WebKit runtime failures manifest as ClassCastException - surface a helpful message.
             throw browserContextDiagnosticFailure(page, locator, e);
         } catch (RuntimeException e) {
+            // Additional heuristic to detect Safari runtime context problems and provide diagnostics.
             if (looksLikeSafariRuntimeContextFailure(e)) {
                 throw browserContextDiagnosticFailure(page, locator, e);
             }
@@ -69,7 +114,14 @@ public class MobileCommonMethods {
         }
     }
 
-    /** Waits until a locator disappears or becomes invisible. Useful for loaders, splash screens, and transient dialogs. */
+    /**
+     * Waits until a locator disappears or becomes invisible.
+     * Useful for loaders, splash screens, and transient dialogs.
+     *
+     * @param page locator page key
+     * @param locator locator key on the page
+     * @param timeoutSeconds maximum seconds to wait (non-negative)
+     */
     public void waitForNotVisible(String page, String locator, int timeoutSeconds) {
         ensureBrowserWebContextReadyIfNeeded();
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(Math.max(timeoutSeconds, 0)));
@@ -85,11 +137,25 @@ public class MobileCommonMethods {
         }
     }
 
-    /** Pauses intentionally for rare application transitions. Prefer explicit waits whenever a stable locator is available. */
+    /**
+     * Pauses execution for a given number of seconds.
+     *
+     * Note: Prefer explicit waits (findVisibleElement/waitForVisible/etc.) in test code
+     * but this method can be useful for rare cases such as long app transitions.
+     *
+     * @param seconds number of seconds to pause (negative treated as zero)
+     */
     public void pause(int seconds) {
         try { Thread.sleep(Math.max(seconds, 0) * 1000L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 
+    /**
+     * Long press (press-and-hold) on element center for a given duration.
+     *
+     * @param page locator page key
+     * @param locator locator key on the page
+     * @param durationMillis how long to hold in milliseconds (minimum 500ms applied)
+     */
     public void longPress(String page, String locator, long durationMillis) {
         WebElement element = findVisibleElement(page, locator);
         int x = element.getRect().getX() + element.getRect().getWidth() / 2;
@@ -97,6 +163,12 @@ public class MobileCommonMethods {
         pressAt(x, y, Math.max(durationMillis, 500));
     }
 
+    /**
+     * Double-tap on an element by performing two quick tap actions at the element's center.
+     *
+     * @param page locator page key
+     * @param locator locator key on the page
+     */
     public void doubleTap(String page, String locator) {
         WebElement element = findVisibleElement(page, locator);
         int x = element.getRect().getX() + element.getRect().getWidth() / 2;
@@ -105,6 +177,14 @@ public class MobileCommonMethods {
         tapAt(x, y);
     }
 
+    /**
+     * Single touch tap at an (x,y) coordinate in the viewport.
+     *
+     * This uses the W3C Actions API with a single touch pointer.
+     *
+     * @param x x coordinate (pixels)
+     * @param y y coordinate (pixels)
+     */
     public void tapAt(int x, int y) {
         PointerInput finger = new PointerInput(PointerInput.Kind.TOUCH, "finger");
         Sequence seq = new Sequence(finger, 1);
@@ -114,6 +194,15 @@ public class MobileCommonMethods {
         driver.perform(List.of(seq));
     }
 
+    /**
+     * Drag one element to another element's center.
+     * Useful for reordering or drag-and-drop gestures.
+     *
+     * @param fromPage source page key
+     * @param fromLocator source locator key
+     * @param toPage destination page key
+     * @param toLocator destination locator key
+     */
     public void drag(String fromPage, String fromLocator, String toPage, String toLocator) {
         WebElement from = findVisibleElement(fromPage, fromLocator);
         WebElement to = findVisibleElement(toPage, toLocator);
@@ -121,18 +210,34 @@ public class MobileCommonMethods {
         int startY = from.getRect().getY() + from.getRect().getHeight() / 2;
         int endX = to.getRect().getX() + to.getRect().getWidth() / 2;
         int endY = to.getRect().getY() + to.getRect().getHeight() / 2;
+        // Default drag duration is 800ms to mimic a natural swipe/drag.
         dragFromTo(startX, startY, endX, endY, 800);
     }
 
+    /**
+     * Scroll repeatedly (swipe up) until a target element becomes visible or until maxSwipes is reached.
+     * If the element is not found after the attempts, a final findVisibleElement is called to throw a useful error.
+     *
+     * @param page locator page key
+     * @param locator locator key on the page
+     * @param maxSwipes maximum swipe attempts (must be >= 1)
+     */
     public void scrollUntilVisible(String page, String locator, int maxSwipes) {
         int attempts = Math.max(maxSwipes, 1);
         for (int i = 0; i < attempts; i++) {
             if (isVisible(page, locator)) return;
             swipeUp();
         }
+        // Final attempt will either return the element or raise an explicit error.
         findVisibleElement(page, locator);
     }
 
+    /**
+     * Scroll to an element by visible text. Platform-aware: uses different attributes on Android vs iOS.
+     * This method constructs an XPath that searches common attributes for the provided text.
+     *
+     * @param text visible text to locate
+     */
     public void scrollToText(String text) {
         if (text == null || text.trim().isEmpty()) {
             throw new IllegalArgumentException("Text to scroll cannot be blank.");
@@ -145,22 +250,47 @@ public class MobileCommonMethods {
         }
     }
 
+    /**
+     * Hide the on-screen keyboard if the driver supports it.
+     * Any exceptions are swallowed because keyboard absence is not a test failure in most cases.
+     */
     public void hideKeyboard() { try { if (driver instanceof HidesKeyboard) ((HidesKeyboard) driver).hideKeyboard(); } catch (Exception ignored) { } }
 
+    /**
+     * Send app to background for a number of seconds.
+     *
+     * @param seconds seconds to background the app (minimum 1 second enforced)
+     */
     public void backgroundApp(int seconds) {
         driver.executeScript("mobile: backgroundApp", Map.of("seconds", Math.max(seconds, 1)));
     }
 
+    /**
+     * Activate another app on the device by bundleId/package.
+     *
+     * @param appId application bundle id (iOS) or package (Android)
+     */
     public void activateApp(String appId) {
         if (driver instanceof InteractsWithApps) { ((InteractsWithApps) driver).activateApp(appId); return; }
         throw new UnsupportedOperationException("Current Appium driver does not support activateApp.");
     }
 
+    /**
+     * Terminate another app on the device by bundleId/package.
+     *
+     * @param appId application bundle id (iOS) or package (Android)
+     */
     public void terminateApp(String appId) {
         if (driver instanceof InteractsWithApps) { ((InteractsWithApps) driver).terminateApp(appId); return; }
         throw new UnsupportedOperationException("Current Appium driver does not support terminateApp.");
     }
 
+    /**
+     * Open a deep link into a target application. Uses platform-specific Appium mobile commands.
+     *
+     * @param url deep link URL
+     * @param appPackageOrBundleId Android package name or iOS bundleId
+     */
     public void openDeepLink(String url, String appPackageOrBundleId) {
         MobilePlatform platform = MobileDriverManager.getPlatform();
         if (platform != null && platform.isAndroid()) {
@@ -170,6 +300,12 @@ public class MobileCommonMethods {
         }
     }
 
+    /**
+     * Push a local file into the device/simulator at a remote path.
+     *
+     * @param remotePath destination path on device
+     * @param localPath local filesystem path to read file from
+     */
     public void pushFile(String remotePath, String localPath) {
         try {
             byte[] bytes = Files.readAllBytes(Path.of(localPath));
@@ -180,6 +316,12 @@ public class MobileCommonMethods {
         }
     }
 
+    /**
+     * Pull a file from the device to a local output path.
+     *
+     * @param remotePath remote path on device
+     * @param localOutputPath local filesystem destination
+     */
     public void pullFile(String remotePath, String localOutputPath) {
         try {
             Object response = driver.executeScript("mobile: pullFile", Map.of("remotePath", remotePath));
@@ -195,15 +337,33 @@ public class MobileCommonMethods {
         }
     }
 
+    /**
+     * Set plaintext clipboard on the device using Appium mobile command.
+     *
+     * @param text text to set (null treated as empty string)
+     */
     public void setClipboard(String text) {
         driver.executeScript("mobile: setClipboard", Map.of("content", Base64.getEncoder().encodeToString((text == null ? "" : text).getBytes()), "contentType", "plaintext"));
     }
 
+    /**
+     * Retrieve plaintext clipboard from the device.
+     *
+     * @return clipboard text or empty string if Appium returns null
+     */
     public String getClipboard() {
         Object response = driver.executeScript("mobile: getClipboard", Map.of("contentType", "plaintext"));
         return response == null ? "" : new String(Base64.getDecoder().decode(String.valueOf(response)));
     }
 
+    /**
+     * Retrieve available automation contexts (e.g., NATIVE_APP, WEBVIEW_...) from the driver.
+     *
+     * This is invoked reflectively to support multiple Appium client implementations.
+     *
+     * @return set of context names
+     * @throws UnsupportedOperationException when context switching is not supported by the current driver
+     */
     @SuppressWarnings("unchecked")
     public Set<String> getContexts() {
         try {
@@ -212,6 +372,12 @@ public class MobileCommonMethods {
             throw new UnsupportedOperationException("Current Appium driver does not support context switching.", e);
         }
     }
+
+    /**
+     * Switch driver context (reflective invocation of driver.context(name)).
+     *
+     * @param contextName context name to switch to (e.g., "NATIVE_APP" or "WEBVIEW_...")
+     */
     public void switchContext(String contextName) {
         try {
             driver.getClass().getMethod("context", String.class).invoke(driver, contextName);
@@ -219,26 +385,51 @@ public class MobileCommonMethods {
             throw new UnsupportedOperationException("Current Appium driver does not support context switching.", e);
         }
     }
+
+    /** Convenience method to return to native context. */
     public void switchToNativeContext() { switchContext("NATIVE_APP"); }
 
+    /** Grant a runtime permission on Android using Appium changePermissions extension. */
     public void grantPermission(String appId, String permission) {
         driver.executeScript("mobile: changePermissions", Map.of("appPackage", appId, "permissions", permission, "action", "grant"));
     }
 
+    /** Revoke a runtime permission on Android using Appium changePermissions extension. */
     public void revokePermission(String appId, String permission) {
         driver.executeScript("mobile: changePermissions", Map.of("appPackage", appId, "permissions", permission, "action", "revoke"));
     }
 
+    /**
+     * Set device orientation. Accepts "portrait" or "landscape" (case-insensitive).
+     *
+     * @param orientation "portrait" or "landscape"
+     */
     public void setOrientation(String orientation) {
         String normalized = normalizeOrientation(orientation);
         driver.executeScript("mobile: setDeviceOrientation", Map.of("orientation", normalized));
     }
 
+    /**
+     * Set orientation based on configuration properties for the current platform.
+     * This is useful when test suites define a default orientation per platform.
+     */
     public void setConfiguredOrientation() {
         MobilePlatform platform = MobileDriverManager.getPlatform();
         if (platform != null) setOrientation(MobileConfigurationProperties.getOrientation(platform));
     }
 
+    /**
+     * Open a URL in a real mobile browser session.
+     *
+     * This method includes multiple workarounds for flaky iOS Safari automation:
+     * - Ensures the driver is in a WEBVIEW context when required.
+     * - Retries navigation when initial driver.get does not appear to load the expected host.
+     * - Optionally uses a native address-bar fallback to type the URL into Safari on simulators that ignore the first navigation call.
+     *
+     * The method logs progress to System.out so that test logs can indicate navigation attempts and fallback usage.
+     *
+     * @param url URL to open (non-empty)
+     */
     public void openUrl(String url) {
         if (url == null || url.trim().isEmpty()) {
             throw new IllegalArgumentException("Mobile browser URL cannot be blank.");
@@ -269,13 +460,22 @@ public class MobileCommonMethods {
         }
     }
 
+    /** Press Enter/Return key on a focused element identified by page/locator. */
     public void pressEnter(String page, String locator) {
         findVisibleElement(page, locator).sendKeys(Keys.ENTER);
     }
 
+    /** Get the current browser URL; ensures web context readiness first. */
     public String getCurrentUrl() { ensureBrowserWebContextReadyIfNeeded(); return driver.getCurrentUrl(); }
+
+    /** Get the current browser title; ensures web context readiness first. */
     public String getTitle() { ensureBrowserWebContextReadyIfNeeded(); return driver.getTitle(); }
 
+    /**
+     * Save the current browser page source to a local file.
+     *
+     * @param outputPath filesystem path to write to (directories will be created if needed)
+     */
     public void savePageSource(String outputPath) {
         try {
             ensureBrowserWebContextReadyIfNeeded();
@@ -322,6 +522,7 @@ public class MobileCommonMethods {
                     }
                 }
             } catch (Throwable t) {
+                // Remember the last failure to include in logs if we time out.
                 lastFailure = t;
             }
             pause(1);
@@ -335,12 +536,28 @@ public class MobileCommonMethods {
         System.out.println("PTAF APPIUM REAL BROWSER CONTEXT WARNING | " + message);
     }
 
+    /**
+     * Check whether the test configuration enabled native Safari address-bar fallback for navigation.
+     *
+     * This returns true only for iOS browser sessions and when the configuration key
+     * "safari_native_navigation_fallback_enabled" is set to true.
+     *
+     * @return true when fallback navigation is allowed, false otherwise
+     */
     private boolean shouldUseSafariNativeNavigationFallback() {
         MobilePlatform platform = MobileDriverManager.getPlatform();
         if (!MobileDriverManager.isBrowserSession() || platform == null || !platform.isIos()) return false;
         return Boolean.parseBoolean(MobileConfigurationProperties.getBrowserCapability(platform, "safari_native_navigation_fallback_enabled", "true"));
     }
 
+    /**
+     * Heuristic to determine whether a loaded URL string represents a successful page
+     * load for the provided target URL (by comparing hosts and ignoring WebKit runtime errors).
+     *
+     * @param currentUrl URL reported by the driver (may be null/unreadable)
+     * @param targetUrl original requested URL
+     * @return true if the currentUrl likely represents the expected host/page
+     */
     private boolean isExpectedUrlLoaded(String currentUrl, String targetUrl) {
         if (currentUrl == null || currentUrl.isBlank()) return false;
         String current = currentUrl.toLowerCase(Locale.ROOT);
@@ -357,16 +574,22 @@ public class MobileCommonMethods {
      * not exist yet, so this method temporarily switches to NATIVE_APP, taps Safari's
      * address/search field, types the URL, presses Return, and lets the caller switch
      * back to WEBVIEW before DOM validation.</p>
+     *
+     * @param targetUrl URL to type into the native Safari address bar
      */
     private void navigateSafariFromNativeAddressBar(String targetUrl) {
+        // Switch to native so we can interact with Safari's UI elements directly.
         switchToNativeContext();
         pause(1);
+        // Some Safari Start Pages show a close overlay; attempt to remove it if present.
         tapSafariStartPageCloseIfPresent();
 
         WebElement addressBar = findSafariAddressBar();
         if (addressBar != null) {
             addressBar.click();
         } else {
+            // If no recognized address bar control exists, tap near the bottom of the screen
+            // where Safari's address/search control is likely to accept input.
             Dimension size = driver.manage().window().getSize();
             int x = size.width / 2;
             int y = Math.max(1, (int) (size.height * 0.93));
@@ -375,6 +598,7 @@ public class MobileCommonMethods {
         }
         pause(1);
 
+        // Try sending keys to the active element. Some simulator states require a second attempt.
         try {
             WebElement active = driver.switchTo().activeElement();
             active.sendKeys(targetUrl);
@@ -389,9 +613,14 @@ public class MobileCommonMethods {
                 throw new RuntimeException("PTAF could not type URL into Safari native address/search field. Check iOS simulator Safari Start Page UI and safariBrowser.addressBar locator.", secondFailure);
             }
         }
+        // Allow the native navigation some time to complete before switching back to WEBVIEW context.
         pause(4);
     }
 
+    /**
+     * If Safari Start Page overlay close button is configured and visible, click it.
+     * This is defensive: the configuration may not exist or the button may not be visible.
+     */
     private void tapSafariStartPageCloseIfPresent() {
         try {
             Object raw = com.ptaf.mobile.config.MobileYamlReader.get("mobile_elements.safariBrowser.startPageCloseButton.ios");
@@ -408,6 +637,12 @@ public class MobileCommonMethods {
         }
     }
 
+    /**
+     * Attempt to find Safari's native address/search field using configured locator(s)
+     * or a set of reasonable XPath fallbacks. Returns the first visible match.
+     *
+     * @return visible address/search WebElement or null if none found
+     */
     private WebElement findSafariAddressBar() {
         try {
             Object raw = com.ptaf.mobile.config.MobileYamlReader.get("mobile_elements.safariBrowser.addressBar.ios");
@@ -420,6 +655,7 @@ public class MobileCommonMethods {
             }
         } catch (Exception ignored) { }
 
+        // Fallback locators for various Safari versions/OS X accessibility attributes.
         List<By> fallbackLocators = List.of(
                 By.xpath("//*[@name='URL']"),
                 By.xpath("//*[contains(@value,'Search or enter website')]"),
@@ -438,6 +674,10 @@ public class MobileCommonMethods {
         return null;
     }
 
+    /**
+     * Retrieve the driver's current context using reflection, returning null on failure.
+     * This is used for diagnostics without throwing exceptions.
+     */
     private String getCurrentContextSafely() {
         try {
             Object current = driver.getClass().getMethod("getContext").invoke(driver);
@@ -447,6 +687,10 @@ public class MobileCommonMethods {
         }
     }
 
+    /**
+     * Safely get the current URL for diagnostic logging. If the driver cannot provide the URL,
+     * return a readable placeholder with the exception message.
+     */
     private String safeCurrentUrlForDiagnostics() {
         try {
             return driver.getCurrentUrl();
@@ -455,6 +699,10 @@ public class MobileCommonMethods {
         }
     }
 
+    /**
+     * Heuristic identifying common error messages that indicate Safari/WebKit runtime
+     * context problems where WebElements cannot be read in a browser session.
+     */
     private boolean looksLikeSafariRuntimeContextFailure(Throwable throwable) {
         String message = String.valueOf(throwable == null ? "" : throwable.getMessage());
         return MobileDriverManager.isBrowserSession()
@@ -463,12 +711,21 @@ public class MobileCommonMethods {
                 && (message.contains("LinkedHashMap") || message.contains("Runtime") || message.contains("WEBVIEW") || message.contains("WebElement"));
     }
 
+    /**
+     * Build a RuntimeException containing helpful troubleshooting instructions when
+     * an iOS Safari web context failure prevents locating web elements.
+     */
     private RuntimeException browserContextDiagnosticFailure(String page, String locator, Throwable cause) {
         return new RuntimeException("PTAF Appium iOS Safari could not locate mobile browser element [" + page + "." + locator + "] because Safari web context was not ready or WebKit returned a Runtime-domain error. "
                 + "Recommended checks: erase/restart the simulator, close first-run Safari popups, verify mobile-browser-config.yml has include_safari_in_webviews=true, and rerun with a clean Appium server. Root cause: "
                 + cause.getMessage(), cause);
     }
 
+    /**
+     * Parse an integer string and return a positive integer or the provided default.
+     *
+     * This is defensive for configuration values that may be missing or malformed.
+     */
     private int parsePositiveInt(String raw, int defaultValue) {
         try {
             int value = Integer.parseInt(String.valueOf(raw).trim());
@@ -478,7 +735,10 @@ public class MobileCommonMethods {
         }
     }
 
+    /** Take a screenshot and return it as a File object. */
     public File takeScreenshot() { return driver.getScreenshotAs(OutputType.FILE); }
+
+    /* Convenience swipe wrappers that compute coordinates as percentages of screen. */
     public void swipeUp() { swipe(0.5, 0.8, 0.5, 0.2); }
     public void swipeDown() { swipe(0.5, 0.2, 0.5, 0.8); }
     public void swipeLeft() { swipe(0.8, 0.5, 0.2, 0.5); }
@@ -486,6 +746,17 @@ public class MobileCommonMethods {
     public void pinchIn() { pinchOrZoom(0.70, 0.30); }
     public void zoomOut() { pinchOrZoom(0.30, 0.70); }
 
+    /**
+     * Find a visible element using configured mobile locators and explicit wait.
+     *
+     * This method also ensures the browser web context is ready before attempting
+     * to locate elements in real browser sessions, and performs Safari-specific
+     * diagnostic handling when WebKit returns runtime errors.
+     *
+     * @param page page key in the YAML locator configuration
+     * @param locator locator key under the page
+     * @return visible WebElement
+     */
     public WebElement findVisibleElement(String page, String locator) {
         ensureBrowserWebContextReadyIfNeeded();
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(MobileConfigurationProperties.getExplicitWaitSeconds()));
@@ -501,6 +772,20 @@ public class MobileCommonMethods {
         }
     }
 
+    /**
+     * Resolve a textual locator key into a Selenium By object.
+     *
+     * Locator resolution rules:
+     * - First look for mobile_elements.<page>.<locator> in the mobile YAML configuration.
+     * - If running in Appium browser mode and no mobile entry exists, optionally fall back
+     *   to the shared web elements stored under elements.<page>.<locator>.
+     * - Support platform-specific locator values encoded as maps with keys like "android", "ios", "default", "mobileBrowser", etc.
+     *
+     * @param page page key
+     * @param locator locator key
+     * @return By locator appropriate for the current platform/mode
+     * @throws IllegalArgumentException when no locator can be resolved or resolution fails
+     */
     @SuppressWarnings("unchecked")
     public By resolveLocator(String page, String locator) {
         String mobileKey = "mobile_elements." + page + "." + locator;
@@ -546,15 +831,28 @@ public class MobileCommonMethods {
         }
     }
 
+    /**
+     * When raw locator configuration is a map, pick the most appropriate value
+     * based on the current platform or browser-mode keys. Falls back to default/common keys.
+     *
+     * @param raw raw configuration object (either a string or a map)
+     * @param sourceKey the key used to fetch raw (used for error messages)
+     * @param page page key (for diagnostics)
+     * @param locator locator key (for diagnostics)
+     * @param sharedWebKey fallback web key (for diagnostics)
+     * @return chosen locator value as string
+     */
     private String extractPlatformAwareLocatorValue(Object raw, String sourceKey, String page, String locator, String sharedWebKey) {
         if (!(raw instanceof Map<?, ?> rawMap)) return String.valueOf(raw);
 
+        // Determine platform key to select within the map: e.g., "android", "ios", or default value.
         MobilePlatform platform = MobileDriverManager.getPlatform();
         String platformKey = platform == null
                 ? MobileConfigurationProperties.getDefaultPlatform().name().toLowerCase(Locale.ROOT)
                 : platform.name().toLowerCase(Locale.ROOT);
 
         Object platformValue = null;
+        // For browser-mode tests the YAML may include "mobileBrowser"/"browser"/"web" keys.
         if (MobileDriverManager.isBrowserSession()) {
             platformValue = rawMap.get("mobileBrowser");
             if (platformValue == null) platformValue = rawMap.get("browser");
@@ -577,6 +875,12 @@ public class MobileCommonMethods {
         return String.valueOf(platformValue);
     }
 
+    /**
+     * Build a detailed multi-line message to help troubleshoot locator resolution failures.
+     *
+     * This message includes mode, platform, page, locator keys, raw values and guidance so testers
+     * can update YAML configuration appropriately.
+     */
     private String buildLocatorResolutionFailure(String title, String page, String locator, String sourceKey, String fallbackKey, String rawValue, String reason) {
         MobilePlatform platform = MobileDriverManager.getPlatform();
         return "\n========== PTAF " + title + " ==========\n"
@@ -593,11 +897,26 @@ public class MobileCommonMethods {
                 + "===============================================\n";
     }
 
+    /**
+     * Perform a swipe gesture based on normalized percentages of the screen.
+     *
+     * @param startXPct start x percentage (0..1)
+     * @param startYPct start y percentage (0..1)
+     * @param endXPct end x percentage (0..1)
+     * @param endYPct end y percentage (0..1)
+     */
     private void swipe(double startXPct, double startYPct, double endXPct, double endYPct) {
         Dimension size = driver.manage().window().getSize();
         dragFromTo((int)(size.width * startXPct), (int)(size.height * startYPct), (int)(size.width * endXPct), (int)(size.height * endYPct), 700);
     }
 
+    /**
+     * Low-level press-and-hold at a coordinate using W3C Actions.
+     *
+     * @param x x coordinate
+     * @param y y coordinate
+     * @param durationMillis how long to hold
+     */
     private void pressAt(int x, int y, long durationMillis) {
         PointerInput finger = new PointerInput(PointerInput.Kind.TOUCH, "finger");
         Sequence seq = new Sequence(finger, 1);
@@ -608,6 +927,15 @@ public class MobileCommonMethods {
         driver.perform(List.of(seq));
     }
 
+    /**
+     * Low-level drag from start coordinate to end coordinate over a duration.
+     *
+     * @param startX start x coordinate
+     * @param startY start y coordinate
+     * @param endX end x coordinate
+     * @param endY end y coordinate
+     * @param durationMillis duration of the move in milliseconds
+     */
     private void dragFromTo(int startX, int startY, int endX, int endY, long durationMillis) {
         PointerInput finger = new PointerInput(PointerInput.Kind.TOUCH, "finger");
         Sequence seq = new Sequence(finger, 1);
@@ -618,6 +946,15 @@ public class MobileCommonMethods {
         driver.perform(List.of(seq));
     }
 
+    /**
+     * Perform a pinch or zoom gesture using two fingers moving in opposite directions.
+     *
+     * startFactor/endFactor are percentages of the smaller screen dimension (0..1)
+     * that determine how far apart the two fingers start and end.
+     *
+     * @param startFactor how far apart fingers start (e.g., 0.70)
+     * @param endFactor how far apart fingers end (e.g., 0.30)
+     */
     private void pinchOrZoom(double startFactor, double endFactor) {
         Dimension size = driver.manage().window().getSize();
         int centerX = size.width / 2;
@@ -639,6 +976,13 @@ public class MobileCommonMethods {
         driver.perform(List.of(s1, s2));
     }
 
+    /**
+     * Normalize orientation string to values accepted by Appium (uppercase PORTRAIT/LANDSCAPE).
+     *
+     * @param orientation input orientation (case-insensitive)
+     * @return normalized orientation string
+     * @throws IllegalArgumentException if input is null, blank or unsupported
+     */
     private String normalizeOrientation(String orientation) {
         if (orientation == null || orientation.trim().isEmpty()) throw new IllegalArgumentException("Orientation must be portrait or landscape.");
         String normalized = orientation.trim().toUpperCase();
@@ -646,5 +990,6 @@ public class MobileCommonMethods {
         return normalized;
     }
 
+    /** Basic helper to sanitize single quotes for XPath building. */
     private String escapeXPath(String value) { return value.replace("'", ""); }
 }

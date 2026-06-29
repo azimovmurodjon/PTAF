@@ -43,11 +43,21 @@ import java.util.List;
  * </p>
  */
 public class PageCommonMethods {
-    private final Page page; // Playwright Page instance to interact with the browser
-    private final ElementAction elementAction; // Interface instance handling element actions
-    private boolean isFailed = false; // Flag indicating if any action has failed
-    private static final ThreadLocal<Scenario> currentScenario = new ThreadLocal<>(); // Thread-local variable to maintain the current Cucumber scenario
-    private static final Logger logger = LoggerFactory.getLogger(PageCommonMethods.class); // Logger for logging events
+    // Playwright Page instance used to perform browser/page-level interactions.
+    private final Page page;
+
+    // Abstraction over element actions (click, fill, wait, etc.). Implemented by ElementActionImpl.
+    private final ElementAction elementAction;
+
+    // Internal flag used to prevent executing further steps once a failure has been detected.
+    private boolean isFailed = false;
+
+    // Thread-local holder for the current Cucumber Scenario. Using ThreadLocal allows parallel execution.
+    // Note: setCurrentScenario pushes to this ThreadLocal, but getCurrentScenario currently delegates to Hooks.getCurrentScenario().
+    private static final ThreadLocal<Scenario> currentScenario = new ThreadLocal<>();
+
+    // SLF4J logger for structured logging of actions, errors, and debug information.
+    private static final Logger logger = LoggerFactory.getLogger(PageCommonMethods.class);
 
     /**
      * Initializes an instance of <code>PageCommonMethods</code> with a given Playwright page.
@@ -55,8 +65,8 @@ public class PageCommonMethods {
      * @param page The Playwright Page instance to interact with.
      */
     public PageCommonMethods(Page page) {
-        this.page = page; // Assign the provided page instance to the class variable
-        this.elementAction = new ElementActionImpl(page); // Initialize element action performer for executing actions on web elements
+        this.page = page; // store the reference to the Playwright page for later use
+        this.elementAction = new ElementActionImpl(page); // create an ElementActionImpl to perform element-level operations
     }
 
     /**
@@ -67,7 +77,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void click(Page page, String element, String locator) {
-        performAction("click", page, element, locator, null); // Delegate the click action to performAction method
+        performAction("click", page, element, locator, null); // Use centralized performAction for consistent handling
     }
 
     /**
@@ -78,7 +88,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void radio(Page page, String element, String locator) {
-        performAction("radio", page, element, locator, null); // Delegate the click action to performAction method
+        performAction("radio", page, element, locator, null); // Radio selection delegated to elementAction
     }
 
     /**
@@ -90,7 +100,7 @@ public class PageCommonMethods {
      * @param value   The value to be filled in the field.
      */
     public void fill(Page page, String element, String locator, String value) {
-        performAction("fill", page, element, locator, value); // Delegate the fill action to performAction method
+        performAction("fill", page, element, locator, value);
     }
 
     /**
@@ -102,7 +112,7 @@ public class PageCommonMethods {
      * @param value   The value of the option to be selected.
      */
     public void select(Page page, String element, String locator, String value) {
-        performAction("select", page, element, locator, value); // Delegate the selection action to performAction method
+        performAction("select", page, element, locator, value);
     }
 
     /**
@@ -113,7 +123,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the checkbox.
      */
     public void check(Page page, String element, String locator) {
-        performAction("check", page, element, locator, null); // Delegate the check action to performAction method
+        performAction("check", page, element, locator, null);
     }
 
     /**
@@ -124,7 +134,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the checkbox.
      */
     public void uncheck(Page page, String element, String locator) {
-        performAction("uncheck", page, element, locator, null); // Delegate the uncheck action to performAction method
+        performAction("uncheck", page, element, locator, null);
     }
 
     /**
@@ -135,7 +145,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void hover(Page page, String element, String locator) {
-        performAction("hover", page, element, locator, null); // Delegate the hover action to performAction method
+        performAction("hover", page, element, locator, null);
     }
 
     /**
@@ -147,7 +157,7 @@ public class PageCommonMethods {
      * @param value   The value to be typed into the field.
      */
     public void type(Page page, String element, String locator, String value) {
-        performAction("type", page, element, locator, value); // Delegate the type action to performAction method
+        performAction("type", page, element, locator, value);
     }
 
     /**
@@ -159,7 +169,7 @@ public class PageCommonMethods {
      * @param value   The key to be pressed.
      */
     public void press(Page page, String element, String locator, String value) {
-        performAction("press", page, element, locator, value); // Delegate the press action to performAction method
+        performAction("press", page, element, locator, value);
     }
 
     /**
@@ -170,16 +180,16 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void dblclick(Page page, String element, String locator) {
-        performAction("dblclick", page, element, locator, null); // Delegate the double-click action to performAction method
+        performAction("dblclick", page, element, locator, null);
     }
 
     /**
      * Takes a screenshot of the specified element on the current Playwright Page.
-     * <p>
-     * This method constructs the locator for the specified element using the provided
-     * logical name and locator string. It then delegates the action of taking
-     * a screenshot to a helper method and finalizes the scenario by taking
-     * an additional screenshot if applicable.
+     *
+     * This method:
+     * - Resolves the precise locator (via elementAction) for the element.
+     * - Performs any configured screenshot action through performAction.
+     * - If the scenario is still marked as passed, it saves a screenshot using finalizeScenarioScreenshot.
      *
      * @param page    The current Playwright Page instance where the screenshot will be taken.
      * @param element The logical name of the element from which to capture the screenshot.
@@ -187,21 +197,23 @@ public class PageCommonMethods {
      * @param value   Additional parameters for the screenshot action, if any (e.g., options for the screenshot).
      */
     public void screenshot(Page page, String element, String locator, String value) {
-        // Get the precise locator for the specified element using the element action helper
+        // Resolve the "exact" locator for the requested element. This is useful when the locator is composed from YAML/config.
         String targetLocator = elementAction.getExactLocator(element, locator);
 
-        // Delegate the screenshot action to the performAction method,
-        // which is responsible for interfacing with Playwright to capture the screenshot.
+        // Request the configured screenshot action (potentially a no-op depending on implementation).
         performAction("screenshot", page, element, locator, value);
 
-        // Finalize the scenario by taking a screenshot using the target locator,
-        // this may attach a screenshot to the scenario if certain conditions are met.
+        // If the step passed, capture and attach a screenshot for reporting using the resolved locator.
         finalizeScenarioScreenshot(page, targetLocator);
     }
 
     /**
      * Initiates a file download from the given page by interacting with a specified element
      * and saves the downloaded file to the provided directory with a custom suffix.
+     *
+     * Note: The code for waiting and saving the download is commented out here. The performAction call
+     * delegates to elementAction implementation which might internally handle the download. The commented
+     * block shows a typical Playwright pattern for downloads; it was intentionally left for reference.
      *
      * @param page    Playwright Page object representing the current browser page.
      * @param element The element name defined in the locator configuration (e.g., YAML key).
@@ -210,16 +222,19 @@ public class PageCommonMethods {
      */
     public void download(Page page, String element, String locator, String value) {
         performAction("download", page, element, locator, value);
-//
-//        // Wait for a download to begin after performing the download-triggering action
-//        Download download = page.waitForDownload(() -> {
-//            // Perform the click action on the specified element to initiate the download
-//            click(page, element, locator);
-//        });
-//
-//        // After the download is completed, save the file to the specified path
-//        // The filename is composed of the browser-suggested name plus the provided suffix
-//        download.saveAs(Paths.get(value, download.suggestedFilename() + name));
+
+        // The snippet below shows a direct Playwright-based download flow:
+        // Uncomment and adapt if you need explicit control over download wait/save instead of delegating.
+        //
+        // // Wait for a download to begin after performing the download-triggering action
+        // Download download = page.waitForDownload(() -> {
+        //     // Perform the click action on the specified element to initiate the download
+        //     click(page, element, locator);
+        // });
+        //
+        // // After the download is completed, save the file to the specified path
+        // // The filename is composed of the browser-suggested name plus the provided suffix
+        // download.saveAs(Paths.get(value, download.suggestedFilename() + name));
     }
 
 
@@ -231,7 +246,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void scroll(Page page, String element, String locator) {
-        performAction("scroll", page, element, locator, null); // Delegate the scroll action to performAction method
+        performAction("scroll", page, element, locator, null);
     }
 
     /**
@@ -242,7 +257,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void focus(Page page, String element, String locator) {
-        performAction("focus", page, element, locator, null); // Delegate the focus action to performAction method
+        performAction("focus", page, element, locator, null);
     }
 
     /**
@@ -254,7 +269,7 @@ public class PageCommonMethods {
      * @param value   Additional parameters for blurring, if any.
      */
     public void blur(Page page, String element, String locator, String value) {
-        performAction("blur", page, element, locator, value); // Delegate the blur action to performAction method
+        performAction("blur", page, element, locator, value);
     }
 
     /**
@@ -265,7 +280,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void clear(Page page, String element, String locator) {
-        performAction("clear", page, element, locator, null); // Delegate the clear action to performAction method
+        performAction("clear", page, element, locator, null);
     }
 
     /**
@@ -276,7 +291,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void drag(Page page, String element, String locator) {
-        performAction("drag", page, element, locator, null); // Delegate the drag action to performAction method
+        performAction("drag", page, element, locator, null);
     }
 
     /**
@@ -306,7 +321,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void get_and_contain_text(Page page, String element, String locator) {
-        performAction("get_and_contain_text", page, element, locator, null); // Delegate the action to get text to performAction method
+        performAction("get_and_contain_text", page, element, locator, null);
     }
 
     /**
@@ -317,7 +332,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void isvisible(Page page, String element, String locator) {
-        performAction("isvisible", page, element, locator, null); // Delegate visibility check to performAction method
+        performAction("isvisible", page, element, locator, null);
     }
 
     /**
@@ -329,7 +344,6 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element in the DOM.
      */
     public void isenabled(Page page, String element, String locator) {
-        // Delegates the check of element's enabled state to the performAction method
         performAction("isenabled", page, element, locator, null);
     }
 
@@ -342,7 +356,6 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element in the DOM.
      */
     public void isdisabled(Page page, String element, String locator) {
-        // Delegates the check of element's disabled state to the performAction method
         performAction("isdisabled", page, element, locator, null);
     }
 
@@ -355,7 +368,6 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element in the DOM.
      */
     public void ishidden(Page page, String element, String locator) {
-        // Delegates the check of element's visibility state (hidden) to the performAction method
         performAction("ishidden", page, element, locator, null);
     }
 
@@ -367,7 +379,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the checkbox.
      */
     public void ischecked(Page page, String element, String locator) {
-        performAction("ischecked", page, element, locator, null); // Delegate checked status check to performAction method
+        performAction("ischecked", page, element, locator, null);
     }
 
     /**
@@ -382,7 +394,8 @@ public class PageCommonMethods {
      * @return The Locator object representing the specified element.
      */
     public Locator getElement_locator(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator) {
-        return elementAction.getLocator(iFrame, iFrame_2, iFrame_3, element, locator, page, null); // Retrieve the locator for the specified element
+        // Delegate to elementAction which resolves nested iframe locators and returns a Playwright Locator
+        return elementAction.getLocator(iFrame, iFrame_2, iFrame_3, element, locator, page, null);
     }
 
     /**
@@ -393,7 +406,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void exists(Page page, String element, String locator) {
-        performAction("exists", page, element, locator, null); // Delegate existence check to performAction method
+        performAction("exists", page, element, locator, null);
     }
 
     /**
@@ -404,11 +417,11 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void not_exists(Page page, String element, String locator) {
+        // Get locator and count occurrences; only call performAction if elements are found.
         Locator targetLocator = getElement_locator(page, null, null, null, element, locator);
         if (targetLocator.count() > 0) {
             performAction("not_exists", page, element, locator, null);
         }
-
     }
 
     /**
@@ -419,7 +432,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void rightclick(Page page, String element, String locator) {
-        performAction("rightclick", page, element, locator, null); // Delegate right-click action to performAction method
+        performAction("rightclick", page, element, locator, null);
     }
 
     /**
@@ -430,7 +443,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void tap(Page page, String element, String locator) {
-        performAction("tap", page, element, locator, null); // Delegate tap action to performAction method
+        performAction("tap", page, element, locator, null);
     }
 
     /**
@@ -442,7 +455,7 @@ public class PageCommonMethods {
      * @param value   The path to the file to be uploaded.
      */
     public void uploadFile(Page page, String element, String locator, String value) {
-        performAction("uploadfile", page, element, locator, value); // Delegate file upload action to performAction method
+        performAction("uploadfile", page, element, locator, value);
     }
 
     /**
@@ -453,7 +466,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the dropdown.
      */
     public void selectMultiple(Page page, String element, String locator) {
-        performAction("selectmultiple", page, element, locator, null); // Delegate multiple selection to performAction method
+        performAction("selectmultiple", page, element, locator, null);
     }
 
     /**
@@ -465,7 +478,7 @@ public class PageCommonMethods {
      * @param value   The name of the attribute to be retrieved.
      */
     public void getAttribute(Page page, String element, String locator, String value) {
-        performAction("getattribute", page, element, locator, value); // Delegate get attribute action to performAction method
+        performAction("getattribute", page, element, locator, value);
     }
 
     /**
@@ -477,7 +490,7 @@ public class PageCommonMethods {
      * @param value   The value to set for the attribute.
      */
     public void setAttribute(Page page, String element, String locator, String value) {
-        performAction("setattribute", page, element, locator, value); // Delegate set attribute action to performAction method
+        performAction("setattribute", page, element, locator, value);
     }
 
     /**
@@ -489,7 +502,7 @@ public class PageCommonMethods {
      * @param value   The name of the attribute to be removed.
      */
     public void removeAttribute(Page page, String element, String locator, String value) {
-        performAction("removeattribute", page, element, locator, value); // Delegate remove attribute action to performAction method
+        performAction("removeattribute", page, element, locator, value);
     }
 
     /**
@@ -501,7 +514,7 @@ public class PageCommonMethods {
      * @param value   The JavaScript code to be evaluated.
      */
     public void evaluate(Page page, String element, String locator, String value) {
-        performAction("evaluate", page, element, locator, value); // Delegate evaluation action to performAction method
+        performAction("evaluate", page, element, locator, value);
     }
 
     /**
@@ -512,7 +525,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void waitForElement(Page page, String element, String locator) {
-        performAction("waitForelement", page, element, locator, null); // Delegate waiting for element to performAction method
+        performAction("waitForelement", page, element, locator, null);
     }
 
     /**
@@ -523,7 +536,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void waitForState(Page page, String element, String locator) {
-        performAction("waitforstate", page, element, locator, null); // Delegate waiting for state to performAction method
+        performAction("waitforstate", page, element, locator, null);
     }
 
     /**
@@ -535,7 +548,7 @@ public class PageCommonMethods {
      * @param value   The text to wait for.
      */
     public void waitForText(Page page, String element, String locator, String value) {
-        performAction("waitfortext", page, element, locator, value); // Delegate waiting for text appearance to performAction method
+        performAction("waitfortext", page, element, locator, value);
     }
 
     /**
@@ -547,7 +560,7 @@ public class PageCommonMethods {
      * @param value   The value to wait for.
      */
     public void waitForValue(Page page, String element, String locator, String value) {
-        performAction("waitforvalue", page, element, locator, value); // Delegate waiting for value to performAction method
+        performAction("waitforvalue", page, element, locator, value);
     }
 
     /**
@@ -558,7 +571,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void dragStart(Page page, String element, String locator) {
-        performAction("dragstart", page, element, locator, null); // Delegate drag start action to performAction method
+        performAction("dragstart", page, element, locator, null);
     }
 
     /**
@@ -569,7 +582,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void dragEnd(Page page, String element, String locator) {
-        performAction("dragend", page, element, locator, null); // Delegate drag end action to performAction method
+        performAction("dragend", page, element, locator, null);
     }
 
     /**
@@ -581,7 +594,7 @@ public class PageCommonMethods {
      * @param value   The value to be inputted.
      */
     public void input(Page page, String element, String locator, String value) {
-        performAction("input", page, element, locator, value); // Delegate input action to performAction method
+        performAction("input", page, element, locator, value);
     }
 
     /**
@@ -593,7 +606,7 @@ public class PageCommonMethods {
      * @param value   The path to the file to be selected.
      */
     public void selectFile(Page page, String element, String locator, String value) {
-        performAction("selectfile", page, element, locator, value); // Delegate file selection action to performAction method
+        performAction("selectfile", page, element, locator, value);
     }
 
     /**
@@ -605,7 +618,7 @@ public class PageCommonMethods {
      * @param value   The text to check for.
      */
     public void hasText(Page page, String element, String locator, String value) {
-        performAction("hastext", page, element, locator, value); // Delegate text presence check to performAction method
+        performAction("hastext", page, element, locator, value);
     }
 
     /**
@@ -616,7 +629,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void hasclass(Page page, String element, String locator) {
-        performAction("hasclass", page, element, locator, null); // Delegate class check to performAction method
+        performAction("hasclass", page, element, locator, null);
     }
 
     /**
@@ -628,7 +641,7 @@ public class PageCommonMethods {
      * @param value   The value to compare against.
      */
     public void hasEqualValue(Page page, String element, String locator, String value) {
-        performAction("hasqualvalue", page, element, locator, value); // Delegate equality check to performAction method
+        performAction("hasqualvalue", page, element, locator, value);
     }
 
     /**
@@ -639,7 +652,7 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the element.
      */
     public void isempty(Page page, String element, String locator) {
-        performAction("isempty", page, element, locator, null); // Delegate emptiness check to performAction method
+        performAction("isempty", page, element, locator, null);
     }
 
     /**
@@ -651,6 +664,7 @@ public class PageCommonMethods {
      * @param expectedText The expected text that should be contained within the element.
      */
     public void contain(Page page, String element, String locator, String expectedText) {
+        // Reuses existing "hastext" action to assert containment
         performAction("hastext", page, element, locator, expectedText);
     }
 
@@ -663,7 +677,8 @@ public class PageCommonMethods {
      * @param locator  The locator string used to identify the file input.
      */
     public void file_chooser_for_upload(Page page, String fileName, String element, String locator) {
-        elementAction.uploadFile(page, fileName, element, locator); // Utilize the element action to upload the specified file
+        // Delegate to elementAction.uploadFile which handles invoking the Playwright file chooser
+        elementAction.uploadFile(page, fileName, element, locator);
     }
 
     /**
@@ -674,7 +689,8 @@ public class PageCommonMethods {
      * @param locator The locator string used to identify the document link.
      */
     public void click_document_link(Page page, String element, String locator) {
-        elementAction.clickOnDocumentLinkName(page, element, locator); // Utilize the element action to click on the document link
+        // Delegate to specialized method in elementAction to handle document link clicks
+        elementAction.clickOnDocumentLinkName(page, element, locator);
     }
 
     /**
@@ -689,10 +705,12 @@ public class PageCommonMethods {
      */
     private void performAction(String action, Page page, String element, String locator, String value) {
         executeStep(() -> {
-            // Execute the action specified on the given element and check for success
+            // Perform the action via the elementAction implementation.
+            // performActionPage returns a boolean indicating success/failure of the operation.
             boolean actionStatus = elementAction.performActionPage(page, action, element, locator, value);
             if (!actionStatus) {
-                handleFailure(page, action, element); // Handle the failure if the action was unsuccessful
+                // If the action failed, perform centralized failure handling (logging, screenshots, closing resources).
+                handleFailure(page, action, element);
             }
         });
     }
@@ -709,15 +727,17 @@ public class PageCommonMethods {
      * @return The string result of the action, or null if not applicable
      */
     private String getStringValue(String action, Page page, String element, String locator, String value) {
+        // Use an array as a mutable holder so it can be modified inside the lambda.
         final String[] result = {null};
         executeStep(() -> {
-            // Perform the action and capture the result
+            // performActionPageWithReturn should return a string (e.g., text, value, attribute), or null on failure.
             result[0] = elementAction.performActionPageWithReturn(page, action, element, locator, value);
 
-            // Handle failure if result is expected but null
+            // If a result was expected but not returned, treat it as a failure scenario.
             if (result[0] == null && actionRequiresResult(action)) {
                 handleFailure(page, action, element);
             } else if (result[0] != null && !result[0].isEmpty()) {
+                // Log successful result retrieval for debugging and traceability.
                 logger.info("Action '{}' returned result: {}", action, result[0]);
             }
         });
@@ -770,7 +790,7 @@ public class PageCommonMethods {
      * @param value   The expected value that the element should have.
      */
     public void hasvalue(Page page, String element, String locator, String value) {
-        performAction("hasvalue", page, element, locator, value); // Execute the action checking for the expected value
+        performAction("hasvalue", page, element, locator, value);
     }
 
     /**
@@ -783,13 +803,20 @@ public class PageCommonMethods {
      * checked or stored for further verification.
      * </p>
      *
+     * NOTE: The current implementation delegates an action to retrieve the value
+     * but then returns the element identifier (String) instead of the retrieved value.
+     * This mirrors the original code behavior; if the calling tests expect the actual value,
+     * consider updating the method to return the captured value instead of the element name.
+     *
      * @param page    The current Playwright Page instance used to interact with the browser.
      * @param element The logical name of the element whose value is being retrieved, for logging purposes.
      * @param locator The locator string used to identify the element on the page.
-     * @return
+     * @return the element name currently (note: not the retrieved value)
      */
     public String getvalue(Page page, String element, String locator) {
-        performAction("getvalue", page, element, locator, null); // Delegate the action to retrieve the value to performAction method
+        // Trigger retrieval; result (if any) is handled inside elementAction.performActionPageWithReturn
+        performAction("getvalue", page, element, locator, null);
+        // Returning the logical element name (preserves original logic)
         return element;
     }
 
@@ -808,9 +835,9 @@ public class PageCommonMethods {
 
         // Check if elements list is empty and log appropriate information
         if (elements.isEmpty()) {
-            logger.info("No elements found for the specified locator."); // Log that no elements were found
+            logger.info("No elements found for the specified locator.");
         } else {
-            // Iterate through each element in the list and print its details on a new line.
+            // Build a readable output describing each retrieved element for easier debugging.
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < elements.size(); i++) {
                 ElementHandle handle = elements.get(i);
@@ -852,19 +879,25 @@ public class PageCommonMethods {
      * Executes a step while monitoring for exceptions and
      * logging failures appropriately.
      *
+     * This wrapper ensures:
+     * - No further steps are executed once a failure is detected.
+     * - Exceptions thrown by the step are caught and handled centrally.
+     *
      * @param step A Runnable representing the action to be executed.
      */
     private void executeStep(Runnable step) {
         if (isFailed) {
-            // Skip execution of further steps if a previous one has failed
-            return; // Exit if a failure has already occurred to prevent cascading failures
+            // Skip executing the step if a prior step has already failed.
+            return;
         }
         try {
-            step.run(); // Execute the provided step
+            step.run(); // Attempt to execute the step body
         } catch (Exception e) {
-            isFailed = true; // Mark the failure
-            logger.error("Step execution failed: {}", e.getMessage(), e); // Log the error with details
-            handleFailure(page, "Step execution failed", null); // Handle failure cleanly by performing cleanup and logging
+            // Mark failure and log the detailed exception for diagnostics.
+            isFailed = true;
+            logger.error("Step execution failed: {}", e.getMessage(), e);
+            // Perform centralized failure handling which may include screenshots and closing resources.
+            handleFailure(page, "Step execution failed", null);
         }
     }
 
@@ -872,43 +905,59 @@ public class PageCommonMethods {
      * Handles a failure during execution by logging errors and
      * triggering cleanup measures.
      *
+     * This method:
+     * - Marks the internal state as failed.
+     * - Logs the failure context.
+     * - Captures a screenshot (via ScreenshotHandler).
+     * - Attempts to close the page and browser to free resources.
+     * - Throws a RuntimeException to stop further test execution in the current flow.
+     *
      * @param page    The current Playwright Page.
      * @param action  The action that failed.
      * @param element The logical name of the element involved.
      */
     private void handleFailure(Page page, String action, String element) {
-        isFailed = true; // Update internal state to indicate failure
-        logger.error("Action '{}' failed on element '{}'", action, element); // Log detailed failure
-        ScreenshotHandler.handleScenarioTeardown(getCurrentScenario(), page, "Failure Step"); // Clean up for the scenario
-        closeBrowserOnFailure(); // Attempt to close resources on failure
-        throw new RuntimeException(String.format("Action '%s' failed on element '%s', skipping further steps", action, element)); // Provide feedback on failure
+        isFailed = true; // update internal status to prevent subsequent steps
+        logger.error("Action '{}' failed on element '{}'", action, element); // detailed logging for debugging
+        // Capture failure screenshot and perform scenario teardown
+        ScreenshotHandler.handleScenarioTeardown(getCurrentScenario(), page, "Failure Step");
+        // Attempt to gracefully close browser resources
+        closeBrowserOnFailure();
+        // Throw to ensure test execution does not continue silently after a critical failure.
+        throw new RuntimeException(String.format("Action '%s' failed on element '%s', skipping further steps", action, element));
     }
 
     /**
      * Closes the page and the browser if a failure occurs.
+     *
+     * This method tries to safely close both the Playwright page and global browser instance (from Hooks).
+     * Exceptions during closure are logged but do not rethrow to avoid masking original failure.
      */
     private void closeBrowserOnFailure() {
         try {
             if (page != null && !page.isClosed()) {
                 page.close(); // Attempt to close the page
-                logger.info("Page closed due to failure."); // Log closure of page
+                logger.info("Page closed due to failure.");
             }
         } catch (Exception e) {
-            logger.error("Error closing the page: {}", e.getMessage(), e); // Log any errors during closure
+            // Log but do not rethrow as we are already in error handling flow.
+            logger.error("Error closing the page: {}", e.getMessage(), e);
         }
 
         try {
             if (Hooks.getBrowser() != null) {
                 Hooks.getBrowser().close(); // Attempt to close the browser instance
-                logger.info("Browser closed due to failure."); // Log closure of browser
+                logger.info("Browser closed due to failure.");
             }
         } catch (Exception e) {
-            logger.error("Error closing the browser: {}", e.getMessage(), e); // Log any errors during closure
+            logger.error("Error closing the browser: {}", e.getMessage(), e);
         }
     }
 
     /**
      * Stores the current Cucumber scenario in a thread-local variable.
+     *
+     * This allows parallel scenarios to maintain their own context when executed concurrently.
      *
      * @param scenario The current Cucumber scenario.
      */
@@ -919,7 +968,11 @@ public class PageCommonMethods {
     /**
      * Retrieves the current Cucumber scenario.
      *
-     * @return The current Cucumber scenario.
+     * NOTE: Although we store a scenario in the ThreadLocal via setCurrentScenario,
+     * this getter delegates to Hooks.getCurrentScenario() which may be implemented
+     * differently. The difference is preserved to match the original code behavior.
+     *
+     * @return The current Cucumber scenario from Hooks.
      */
     private Scenario getCurrentScenario() {
         return Hooks.getCurrentScenario(); // Access the saved scenario for context management
@@ -928,6 +981,10 @@ public class PageCommonMethods {
     /**
      * Finalizes the scenario. Captures a screenshot if all steps have passed.
      * This method should be called at the completion of a scenario.
+     *
+     * NOTE: Current behavior triggers ScreenshotHandler.handleScenarioTeardown with "Passed Step"
+     * only when isFailed is true. This mirrors the existing code but may be counter-intuitive;
+     * maintainers should review if the intended logic is to capture on pass vs failure.
      */
     public void finalizeScenario() {
         if (isFailed) {
@@ -938,21 +995,18 @@ public class PageCommonMethods {
 
     /**
      * Finalizes the current scenario and captures a screenshot if no failures occurred.
-     * <p>
-     * This method checks the status of the scenario being executed.
-     * If the scenario has not failed, it will invoke the utility method
-     * to capture a screenshot of the specified element or area represented
-     * by the given target locator.
+     *
+     * This method checks the status of the scenario being executed. If the scenario has not failed,
+     * it will invoke the utility method to capture a screenshot of the specified element or area represented
+     * by the given target locator and attach it to the scenario report with status "Passed Step".
      *
      * @param page          The current Playwright Page for which to finalize the scenario.
      * @param targetLocator A string representing the locator of the target element
      *                      from which to capture the screenshot.
      */
     public void finalizeScenarioScreenshot(Page page, String targetLocator) {
-        // Check if the scenario did not encounter any failures during execution
         if (!isFailed) {
-            // Handle the scenario teardown process for a passed step by invoking
-            // the utility method to capture a screenshot and attach it to the report.
+            // Only capture a "passed step" screenshot if no failure occurred.
             ScreenshotHandler.handleScenarioTeardownLocator(
                     getCurrentScenario(),  // Retrieve the current scenario context
                     page,                  // The Playwright Page instance providing context for the screenshot capture

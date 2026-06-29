@@ -40,13 +40,26 @@ public class DatabaseSteps {
 
     /**
      * High-level reusable database methods used by the step definitions.
+     *
+     * <p>
+     * DatabaseCommonMethods exposes domain-level operations used by these step
+     * definitions (e.g. verifyRecordExists, getSingleValue). This keeps step
+     * definitions concise and readable in feature files.
+     * </p>
      */
     private final DatabaseCommonMethods dbMethods;
 
     /**
      * Creates DatabaseSteps with the default DB common methods implementation.
+     *
+     * <p>
+     * The constructor instantiates DatabaseCommonMethods which internally handles
+     * delegating to lower-level database framework components (connection, SQL execution).
+     * Tests and step definitions should not need to manipulate connections directly.
+     * </p>
      */
     public DatabaseSteps() {
+        // Initialize the helper that performs higher-level DB operations used by Cucumber steps.
         this.dbMethods = new DatabaseCommonMethods();
     }
 
@@ -66,6 +79,7 @@ public class DatabaseSteps {
      */
     @Given("I validate the database connection is successful")
     public void i_validate_the_database_connection_is_successful() {
+        // Delegates to a validator which asserts a successful DB connection.
         DatabaseConnectionValidator.assertDatabaseConnectionSuccessful();
     }
 
@@ -82,6 +96,7 @@ public class DatabaseSteps {
      */
     @Given("the database does not contain a record for query {string} with parameters {string}")
     public void the_database_does_not_contain_a_record_for_query(String queryKey, String params) {
+        // Parse the parameters and call the helper to assert the record does not exist.
         dbMethods.verifyRecordDoesNotExist(queryKey, parseParameters(params));
     }
 
@@ -98,6 +113,7 @@ public class DatabaseSteps {
      */
     @Then("I verify the database contains a record for query {string} with parameters {string}")
     public void i_verify_the_database_contains_a_record_for_query_with_parameters(String queryKey, String params) {
+        // Parse parameters and assert that at least one matching record exists.
         dbMethods.verifyRecordExists(queryKey, parseParameters(params));
     }
 
@@ -109,6 +125,7 @@ public class DatabaseSteps {
      */
     @Then("I verify the database does not contain a record for query {string} with parameters {string}")
     public void i_verify_the_database_does_not_contain_a_record_for_query_with_parameters(String queryKey, String params) {
+        // Reuse verifyRecordDoesNotExist for negative checks.
         dbMethods.verifyRecordDoesNotExist(queryKey, parseParameters(params));
     }
 
@@ -120,6 +137,7 @@ public class DatabaseSteps {
      */
     @When("I insert a new record using query {string} with parameters {string}")
     public void i_insert_a_new_record_using_query_with_parameters(String queryKey, String params) {
+        // Expect exactly 1 row affected for a single insert.
         dbMethods.verifyRowsAffected(1, queryKey, parseParameters(params));
     }
 
@@ -131,6 +149,7 @@ public class DatabaseSteps {
      */
     @When("I update a record using query {string} with parameters {string}")
     public void i_update_a_record_using_query_with_parameters(String queryKey, String params) {
+        // Expect exactly 1 row affected for a single update.
         dbMethods.verifyRowsAffected(1, queryKey, parseParameters(params));
     }
 
@@ -143,6 +162,7 @@ public class DatabaseSteps {
      */
     @When("I delete {int} record\\(s) using query {string} with parameters {string}")
     public void i_delete_records_using_query_with_parameters(int expectedRows, String queryKey, String params) {
+        // Validate that the delete affected the expected number of rows.
         dbMethods.verifyRowsAffected(expectedRows, queryKey, parseParameters(params));
     }
 
@@ -170,8 +190,10 @@ public class DatabaseSteps {
             String params,
             String expectedValue
     ) {
+        // Retrieve a single value from the database using the provided query key and parameters.
         Object actualValue = dbMethods.getSingleValue(queryKey, parseParameters(params));
 
+        // Convert actualValue to String (or keep null) and compare with the normalized expected value.
         org.junit.Assert.assertEquals(
                 "Database value verification failed for query key: " + queryKey,
                 normalizeExpectedValue(expectedValue),
@@ -202,6 +224,7 @@ public class DatabaseSteps {
             String params,
             int expectedRows
     ) {
+        // Delegate to the helper to verify the number of rows affected by the update.
         dbMethods.verifyRowsAffected(expectedRows, queryKey, parseParameters(params));
     }
 
@@ -225,24 +248,30 @@ public class DatabaseSteps {
             String params,
             DataTable dataTable
     ) {
+        // Retrieve the first record returned by the query as a map of column -> value.
         Map<String, Object> record = dbMethods.getSingleRecord(queryKey, parseParameters(params));
 
+        // Fail early if no record was returned for the given queryKey.
         org.junit.Assert.assertNotNull(
                 "Database verification failed: No record found for query key: " + queryKey,
                 record
         );
 
+        // Convert Cucumber DataTable (two-column table) into a Map<columnName, expectedValue>.
         Map<String, String> expectedColumnValues = dataTable.asMap(String.class, String.class);
 
+        // Iterate through expected columns and validate presence and equality.
         for (Map.Entry<String, String> expectedEntry : expectedColumnValues.entrySet()) {
             String columnName = expectedEntry.getKey();
             String expectedValue = normalizeExpectedValue(expectedEntry.getValue());
 
+            // Assert that the returned record contains the expected column name.
             org.junit.Assert.assertTrue(
                     "Database verification failed: Column '" + columnName + "' was not found for query key: " + queryKey,
                     record.containsKey(columnName)
             );
 
+            // Retrieve the actual value for the column and assert equality after normalization.
             Object actualValue = record.get(columnName);
 
             org.junit.Assert.assertEquals(
@@ -278,10 +307,13 @@ public class DatabaseSteps {
      * @return array of typed SQL parameter objects.
      */
     private Object[] parseParameters(String paramString) {
+        // Return an empty array when there are no parameters to avoid passing null into the DB helper.
         if (paramString == null || paramString.trim().isEmpty()) {
             return new Object[0];
         }
 
+        // Split the parameter string by comma, trim each entry, filter out empty strings,
+        // convert each parameter to the correct Java type, and collect to an Object[].
         return Arrays.stream(paramString.split(","))
                 .map(String::trim)
                 .filter(value -> !value.isEmpty())
@@ -296,32 +328,41 @@ public class DatabaseSteps {
      * @return converted parameter object.
      */
     private Object convertParameter(String value) {
+        // Defensive null check - should rarely happen because parseParameters filters empty entries,
+        // but keep this to be robust against direct calls.
         if (value == null) {
             return null;
         }
 
         String trimmedValue = value.trim();
 
+        // Treat the literal string "null" (case-insensitive) as a SQL NULL.
         if (trimmedValue.equalsIgnoreCase("null")) {
             return null;
         }
 
+        // Boolean recognition for common literals.
         if (trimmedValue.equalsIgnoreCase("true") || trimmedValue.equalsIgnoreCase("false")) {
             return Boolean.parseBoolean(trimmedValue);
         }
 
+        // Integer (no decimal point) detection using regex.
         if (trimmedValue.matches("^-?\\d+$")) {
             try {
+                // Try to parse as Integer first (common case).
                 return Integer.parseInt(trimmedValue);
             } catch (NumberFormatException ignored) {
+                // If integer parse fails due to range, fall back to Long.
                 return Long.parseLong(trimmedValue);
             }
         }
 
+        // Decimal detection - treat as BigDecimal for precision-safe numeric comparisons.
         if (trimmedValue.matches("^-?\\d+\\.\\d+$")) {
             return new BigDecimal(trimmedValue);
         }
 
+        // If none of the above matched, treat as a String and remove optional wrapping quotes.
         return removeOptionalQuotes(trimmedValue);
     }
 
@@ -338,15 +379,18 @@ public class DatabaseSteps {
      * @return value without wrapping quotes.
      */
     private String removeOptionalQuotes(String value) {
+        // Only attempt removal when the value length is at least 2 (start and end characters exist).
         if (value.length() >= 2) {
             boolean hasDoubleQuotes = value.startsWith("\"") && value.endsWith("\"");
             boolean hasSingleQuotes = value.startsWith("'") && value.endsWith("'");
 
+            // Remove the first and last character if they are matching quote characters.
             if (hasDoubleQuotes || hasSingleQuotes) {
                 return value.substring(1, value.length() - 1);
             }
         }
 
+        // Return the original value when no wrapping quotes are present.
         return value;
     }
 
@@ -357,16 +401,20 @@ public class DatabaseSteps {
      * @return normalized expected value.
      */
     private String normalizeExpectedValue(String expectedValue) {
+        // Preserve null expectedValue as null.
         if (expectedValue == null) {
             return null;
         }
 
+        // Trim whitespace that may be present in Gherkin tables or step parameters.
         String value = expectedValue.trim();
 
+        // Treat the literal "null" as a null expected value for assertions.
         if (value.equalsIgnoreCase("null")) {
             return null;
         }
 
+        // Remove wrapping quotes if present to align with convertParameter behavior.
         return removeOptionalQuotes(value);
     }
 }

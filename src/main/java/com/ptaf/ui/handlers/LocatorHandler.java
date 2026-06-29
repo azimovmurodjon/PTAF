@@ -6,17 +6,63 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
 
 /**
- * LocatorHandler maps locator "types" to Playwright locators for Page, FrameLocator, or chained Locator.
- * Backward-compatible with patterns like "ROW_rowElement > Button_buttonName",
- * and now also supports unnamed roles like "ROW_rowElement > Button" (first button).
+ * Utility that maps a simple "locator type" (e.g. "CSS", "BUTTON", "ID", "TEXTBOX", "ROLE", etc.)
+ * to a Playwright Locator for three different contexts:
+ * - Page (top-level)
+ * - FrameLocator (inside an iframe)
+ * - Locator (chained off an existing locator)
  *
- * ONLY change from your version:
- * - When locatorType is unknown, throw a prettier + more transparent message (exact why)
- * - NO behavior changes for valid types
+ * <p>
+ * Behaviour notes:
+ * - This class does NOT change the semantics or naming of any Playwright calls; it is a thin
+ *   mapping layer providing a consistent set of textual locator types used across tests.
+ * - For ARIA roles (e.g. BUTTON, CHECKBOX, LINKTEXT, TEXTBOX, etc.) the handler supports both:
+ *     - Named role: locatorType="BUTTON", locator="Submit"  -> matches a button with name "Submit"
+ *     - Unnamed role: locatorType="BUTTON", locator="BUTTON" or locator=null or locator="" ->
+ *         returns the role locator without a name filter (i.e. first matching role(s))
+ * - For the special "ROLE" locatorType the locator parameter is expected to be the role name itself,
+ *   e.g. locatorType="ROLE", locator="button" (case-insensitive).
+ * - CSS-style shortcuts (ID/NAME/CLASS) are supported and mapped to locator strings appropriate for
+ *   Playwright (e.g. "#id", "[name='val']", ".class").
+ *
+ * <p>
+ * Examples:
+ * - getLocatorForType("CSS", page, ".myclass") -> page.locator(".myclass")
+ * - getLocatorForType("BUTTON", page, "Submit") -> page.getByRole(AriaRole.BUTTON, setName("Submit"))
+ * - getLocatorForType("BUTTON", page, "BUTTON") -> page.getByRole(AriaRole.BUTTON)
+ * - getLocatorForType("ROLE", page, "LINK") -> page.getByRole(AriaRole.LINK)
+ *
+ * <p>
+ * Error handling:
+ * - If an unknown locatorType is provided, an IllegalArgumentException is thrown containing
+ *   a human-friendly multi-line message constructed by prettyUnknownType(...) explaining the
+ *   context and what was received. This is intended to help testers quickly diagnose YAML/token
+ *   misconfigurations like "TYPE_value".
+ *
+ * <p>
+ * Important: This class is purely a mapping layer. Do not change method signatures or logic here
+ * if you are trying to extend behaviour; instead update the mappings in each method.
  */
 public class LocatorHandler {
 
-    /** Treat empty/null or same-as-type strings as "no name provided" (e.g., "Button"). */
+    /**
+     * Helper that determines whether the given locator string should be treated as "unnamed".
+     *
+     * <p>
+     * We consider a locator unnamed if any of:
+     * - locator == null
+     * - locator is an empty string
+     * - locator equals (case-insensitive) to the locatorType itself (e.g., "BUTTON")
+     *
+     * <p>
+     * This supports usage patterns where a YAML token might be written as "Button" (only the type)
+     * meaning "the first Button role inside the context" rather than a named element.
+     *
+     * @param locator the locator text provided (may be null)
+     * @param locatorType the locator type text (e.g., "BUTTON") already known by the caller
+     * @return true when the locator should be treated as unnamed and therefore the role-specific
+     *         locator should be returned without a name filter
+     */
     private boolean isUnnamed(String locator, String locatorType) {
         return locator == null
                 || locator.isEmpty()
@@ -24,17 +70,43 @@ public class LocatorHandler {
     }
 
     // ============================ PAGE CONTEXT ============================
-
+    /**
+     * Map a locatorType + locator to a Playwright Locator in the context of a Page.
+     *
+     * <p>
+     * Supported locatorType values (case-insensitive) include:
+     * - "CSS", "TAG", "XPATH"      -> page.locator(locator)
+     * - Many ARIA role names such as "BUTTON", "CHECKBOX", "TEXTBOX", "LINKTEXT", "ROW", "CELL", etc.
+     *   When the provided locator is "unnamed" (see isUnnamed), the role locator without a name
+     *   filter is returned; otherwise a role locator with name(locator) is returned.
+     * - "OPTION" uses setExact(true) when a name is provided to enforce exact matching.
+     * - "BUTTONSUBMIT" will set setPressed(true) for the named-case to attempt to match pressed/submit
+     *   style buttons where applicable.
+     * - "TEXT" -> page.getByText(locator)
+     * - "ROLE" -> locator is expected to be the role name, converted to AriaRole.valueOf(...)
+     * - "ALTTEXT", "TITLE", "PLACEHOLDER", "LABEL", "TESTID" -> corresponding page getters
+     * - "ID", "NAME", "CLASS" -> CSS-style short hands (#id, [name='..'], .class)
+     *
+     * @param locatorType textual type of locator (e.g., "CSS", "BUTTON", "ID", "ROLE")
+     * @param page the Playwright Page to resolve the locator against
+     * @param locator locator string value (name, selector, or role name depending on locatorType)
+     * @return a Playwright Locator representing the requested element(s)
+     * @throws IllegalArgumentException if locatorType is not recognized. The thrown message will
+     *         include a detailed multi-line hint (via prettyUnknownType) to aid debugging.
+     */
     public Locator getLocatorForType(String locatorType, Page page, String locator) {
         String t = locatorType.toUpperCase();
 
         switch (t) {
+            // Generic selector styles: pass through to Playwright locator API
             case "CSS":
             case "TAG":
             case "XPATH":
                 return page.locator(locator);
 
             // --- Roles (with or without name) ---
+            // Each role branch: if unnamed => return role locator without name filter,
+            // otherwise return role locator with name set to provided locator.
             case "BUTTON":
                 return isUnnamed(locator, t) ? page.getByRole(AriaRole.BUTTON)
                         : page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(locator));
@@ -42,6 +114,7 @@ public class LocatorHandler {
                 return isUnnamed(locator, t) ? page.getByRole(AriaRole.LINK)
                         : page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName(locator));
             case "OPTION":
+                // For options we enforce exact matching when a name is provided.
                 return isUnnamed(locator, t) ? page.getByRole(AriaRole.OPTION)
                         : page.getByRole(AriaRole.OPTION, new Page.GetByRoleOptions().setName(locator).setExact(true));
             case "TEXTBOX":
@@ -84,6 +157,7 @@ public class LocatorHandler {
                 return isUnnamed(locator, t) ? page.getByRole(AriaRole.CELL)
                         : page.getByRole(AriaRole.CELL, new Page.GetByRoleOptions().setName(locator));
             case "BUTTONSUBMIT":
+                // BUTTONSUBMIT: when named we apply setPressed(true) to attempt to identify submit-style buttons.
                 return isUnnamed(locator, t) ? page.getByRole(AriaRole.BUTTON)
                         : page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(locator).setPressed(true));
             case "SLIDER":
@@ -145,6 +219,7 @@ public class LocatorHandler {
                         : page.getByRole(AriaRole.BANNER, new Page.GetByRoleOptions().setName(locator));
             case "FOOTER":
             case "CONTENTINFO":
+                // These two map to the same ARIA role (CONTENTINFO)
                 return isUnnamed(locator, t) ? page.getByRole(AriaRole.CONTENTINFO)
                         : page.getByRole(AriaRole.CONTENTINFO, new Page.GetByRoleOptions().setName(locator));
             case "MAIN":
@@ -184,13 +259,17 @@ public class LocatorHandler {
                 return isUnnamed(locator, t) ? page.getByRole(AriaRole.FIGURE)
                         : page.getByRole(AriaRole.FIGURE, new Page.GetByRoleOptions().setName(locator));
 
+            // Text-based finder
             case "TEXT":
                 return page.getByText(locator);
 
+            // ROLE case: locator is expected to be a role name, e.g., "BUTTON", "LINK", etc.
+            // Note: AriaRole.valueOf will throw IllegalArgumentException if role name is invalid;
+            // that exception will bubble up to the caller.
             case "ROLE":
-                // Here the "locator" is expected to be the role name (e.g., BUTTON)
                 return page.getByRole(AriaRole.valueOf(locator.toUpperCase()));
 
+            // Other Playwright getters by attribute-like values
             case "ALTTEXT":
                 return page.getByAltText(locator);
             case "TITLE":
@@ -202,6 +281,7 @@ public class LocatorHandler {
             case "TESTID":
                 return page.getByTestId(locator);
 
+            // Simple CSS shortcuts: id, name, class
             case "ID":
                 return page.locator("#" + locator);
             case "NAME":
@@ -210,16 +290,31 @@ public class LocatorHandler {
                 return page.locator("." + locator);
 
             default:
+                // Unknown type -> provide a prettier, more transparent error that includes context.
                 throw new IllegalArgumentException(prettyUnknownType("Unknown locator type", locatorType, locator, "PAGE"));
         }
     }
 
     // ============================ FRAME CONTEXT ============================
-
+    /**
+     * Map a locatorType + locator to a Playwright Locator in the context of a FrameLocator.
+     *
+     * <p>
+     * This method mirrors the behavior of getLocatorForType(Page, ...), but resolves locators
+     * against a FrameLocator instance (useful when interacting with elements inside iframes).
+     *
+     * @param locatorType textual type of locator
+     * @param frame the FrameLocator context to resolve against
+     * @param locator locator string value (name, selector, or role name depending on locatorType)
+     * @return a Playwright Locator resolved from the frame context
+     * @throws IllegalArgumentException when locatorType is unknown; the message will include
+     *         detailed context info to help debugging.
+     */
     public Locator getLocatorForType(String locatorType, FrameLocator frame, String locator) {
         String t = locatorType.toUpperCase();
 
         switch (t) {
+            // Generic selector styles: pass through to FrameLocator API
             case "CSS":
             case "TAG":
             case "XPATH":
@@ -287,12 +382,15 @@ public class LocatorHandler {
                 return isUnnamed(locator, t) ? frame.getByRole(AriaRole.PROGRESSBAR)
                         : frame.getByRole(AriaRole.PROGRESSBAR, new FrameLocator.GetByRoleOptions().setName(locator));
 
+            // Text-based finder inside frame
             case "TEXT":
                 return frame.getByText(locator);
 
+            // ROLE inside frame: locator is expected to be a role name
             case "ROLE":
                 return frame.getByRole(AriaRole.valueOf(locator.toUpperCase()));
 
+            // Other attribute-like getters
             case "ALTTEXT":
                 return frame.getByAltText(locator);
             case "TITLE":
@@ -304,6 +402,7 @@ public class LocatorHandler {
             case "TESTID":
                 return frame.getByTestId(locator);
 
+            // CSS shortcuts in frame context
             case "ID":
                 return frame.locator("#" + locator);
             case "NAME":
@@ -312,16 +411,37 @@ public class LocatorHandler {
                 return frame.locator("." + locator);
 
             default:
+                // Unknown type in frame context -> pretty error
                 throw new IllegalArgumentException(prettyUnknownType("Unknown locator type", locatorType, locator, "FRAME"));
         }
     }
 
     // ============================ CHAINED CONTEXT (off an existing Locator) ============================
-
+    /**
+     * Map a locatorType + locator to a Playwright Locator in the context of an existing base Locator.
+     *
+     * <p>
+     * Use this overload when you want to locate children or nested elements relative to an already
+     * resolved Locator (e.g., rowLocator -> locate buttons inside that row).
+     *
+     * <p>
+     * The behaviour mirrors the Page and FrameLocator versions:
+     * - CSS/TAG/XPATH -> baseLocator.locator(selector)
+     * - Role mapping behaves the same with Locator.GetByRoleOptions
+     * - "TEXT", "ROLE", "ALTTEXT", "TITLE", "PLACEHOLDER", "LABEL", "TESTID" map to baseLocator.getBy...
+     * - ID/NAME/CLASS are treated as CSS shortcuts and resolved relative to the baseLocator
+     *
+     * @param locatorType textual type of locator
+     * @param baseLocator the Locator to resolve children from
+     * @param locator locator string value used by the selected locatorType
+     * @return a Playwright Locator resolved relative to the baseLocator
+     * @throws IllegalArgumentException when locatorType is unknown; message includes helpful context.
+     */
     public Locator getLocatorForType(String locatorType, Locator baseLocator, String locator) {
         String t = locatorType.toUpperCase();
 
         switch (t) {
+            // Generic selector styles relative to a base locator
             case "CSS":
             case "TAG":
             case "XPATH":
@@ -389,12 +509,15 @@ public class LocatorHandler {
                 return isUnnamed(locator, t) ? baseLocator.getByRole(AriaRole.PROGRESSBAR)
                         : baseLocator.getByRole(AriaRole.PROGRESSBAR, new Locator.GetByRoleOptions().setName(locator));
 
+            // Text-based finder relative to baseLocator
             case "TEXT":
                 return baseLocator.getByText(locator);
 
+            // ROLE relative to baseLocator: locator is expected to be a role name
             case "ROLE":
                 return baseLocator.getByRole(AriaRole.valueOf(locator.toUpperCase()));
 
+            // Other attribute-like getters relative to baseLocator
             case "ALTTEXT":
                 return baseLocator.getByAltText(locator);
             case "TITLE":
@@ -406,7 +529,7 @@ public class LocatorHandler {
             case "TESTID":
                 return baseLocator.getByTestId(locator);
 
-            // --- CSS-style shortcuts in chained context ---
+            // CSS-style shortcuts applied relative to baseLocator
             case "ID":
                 return baseLocator.locator("#" + locator);
             case "NAME":
@@ -415,12 +538,23 @@ public class LocatorHandler {
                 return baseLocator.locator("." + locator);
 
             default:
+                // Unknown chained locator type -> pretty error describing context CHAINED
                 throw new IllegalArgumentException(prettyUnknownType("Unknown chained locator type", locatorType, locator, "CHAINED"));
         }
     }
 
     // ============================ PRETTY ERROR ============================
-
+    /**
+     * Build a multi-line, clearer error message describing which locator type failed and why.
+     * This method is used to surface friendly errors to test authors when a YAML or token
+     * contains an unsupported TYPE_value.
+     *
+     * @param title short title for the error (e.g., "Unknown locator type")
+     * @param locatorType the original locatorType that was provided (may be invalid)
+     * @param locator the locator text that accompanied the locatorType
+     * @param context one of "PAGE", "FRAME", or "CHAINED" describing where the mapping was attempted
+     * @return a formatted multi-line string explaining the failure and giving a brief hint
+     */
     private String prettyUnknownType(String title, String locatorType, String locator, String context) {
         StringBuilder sb = new StringBuilder();
         sb.append("\n========== LOCATOR TYPE FAILURE (EXACT WHY) ==========\n");

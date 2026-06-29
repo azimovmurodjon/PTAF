@@ -33,13 +33,25 @@ public class ActionPerformer {
 
     private static final Logger logger = LoggerFactory.getLogger(ActionPerformer.class);
 
+    /**
+     * Utility: replace spaces with newline characters.
+     * Currently unused in the class but preserved for compatibility.
+     *
+     * @param text input text
+     * @return text where every space is replaced with a newline
+     */
     private static String formatTextForNewLine(String text) {
         return text.replaceAll(" ", "\n");
     }
 
     /**
-     * Reads time_to_wait from config (seconds) and returns milliseconds.
-     * If time_to_wait = 0 -> no extra waiting (fail fast; no page-ready waits).
+     * Reads time_to_wait_in_seconds from configuration and returns it in milliseconds.
+     * - If the property is missing or invalid, uses a safe default of 30_000 ms.
+     * - If property value is 0 or negative, returns 0 meaning "no extra waiting" (fail-fast).
+     *
+     * This is the central place that controls the maximum wait applied by helper methods.
+     *
+     * @return configured timeout in milliseconds (non-negative)
      */
     private long actionTimeoutMs() {
         String timeToWait = ConfigurationProperties.getValue("time_to_wait_in_seconds");
@@ -57,9 +69,14 @@ public class ActionPerformer {
     // ============================================================
 
     /**
-     * Waits ONLY if needed:
-     * - If locator.first() is already visible -> returns immediately (no wait).
-     * - Otherwise waits up to time_to_wait for VISIBLE.
+     * Waits for the locator's first matched element to become visible, but only if needed.
+     * Behavior:
+     * - If the element is already visible -> returns instantly (zero overhead).
+     * - Otherwise waits up to actionTimeoutMs() for visibility.
+     *
+     * Any exception is converted to a RuntimeException with a helpful debug message.
+     *
+     * @param locator Playwright locator pointing to one or more elements
      */
     private void waitIfNeededVisible(Locator locator) {
         long timeout = actionTimeoutMs();
@@ -67,7 +84,7 @@ public class ActionPerformer {
 
         Locator first = locator.first();
         try {
-            // Instant check (no wait)
+            // Instant check (no wait) — quick path for already-visible elements
             if (first.isVisible()) return;
 
             // Wait up to configured timeout ONLY if not visible
@@ -75,6 +92,7 @@ public class ActionPerformer {
                     .setState(WaitForSelectorState.VISIBLE)
                     .setTimeout(timeout));
         } catch (Exception e) {
+            // Build a rich failure message for easier debugging and rethrow
             Page page = null;
             try { page = locator.page(); } catch (Exception ignored) {}
             String debug = buildExactFailureMessage(page, "waitIfNeededVisible", null, locator, e);
@@ -84,12 +102,14 @@ public class ActionPerformer {
     }
 
     /**
-     * Clickable wait that DOES NOT impact runtime:
-     * - If already visible+enabled -> instant return (no wait).
-     * - Otherwise waits up to timeout for visible only.
+     * Waits for the locator to be clickable-ish, but intentionally minimal:
+     * - If already visible and enabled -> returns immediately.
+     * - Otherwise waits up to actionTimeoutMs() for visibility only (not full "actionability").
      *
-     * Why: Playwright click() already does actionable checks efficiently.
-     * We avoid custom polling loops that slow runs.
+     * Rationale: Playwright's native click() performs proper actionable checks; we avoid
+     * additional slow polling here while still providing a helpful max-timeout for flaky cases.
+     *
+     * @param locator Playwright locator
      */
     private void waitIfNeededClickable(Locator locator) {
         long timeout = actionTimeoutMs();
@@ -100,11 +120,12 @@ public class ActionPerformer {
             // Instant check: if ready -> no wait
             if (first.isVisible() && first.isEnabled()) return;
 
-            // Otherwise wait up to timeout for visible
+            // Otherwise wait up to timeout for visible (minimal guarantee)
             first.waitFor(new Locator.WaitForOptions()
                     .setState(WaitForSelectorState.VISIBLE)
                     .setTimeout(timeout));
         } catch (Exception e) {
+            // Build detailed failure message and rethrow
             Page page = null;
             try { page = locator.page(); } catch (Exception ignored) {}
             String debug = buildExactFailureMessage(page, "waitIfNeededClickable", null, locator, e);
@@ -118,21 +139,26 @@ public class ActionPerformer {
     // ============================================================
 
     /**
-     * Keeps "page loaded" logic without slowing down:
-     * - DOMCONTENTLOADED only (fast and reliable)
-     * - NETWORKIDLE is intentionally not used by default (SPAs often never reach it)
+     * Waits for the page to reach a "ready" state, but intentionally conservative:
+     * - Waits for DOMContentLoaded only (fast + reliable)
+     * - Does not wait for NETWORKIDLE by default (SPAs rarely reach network idle)
+     *
+     * If the configured timeout is zero or the page is null, this method returns immediately.
+     *
+     * @param page Playwright Page object
      */
     private void waitForPageReady(Page page) {
         long timeout = actionTimeoutMs();
         if (timeout <= 0 || page == null) return;
 
         try {
+            // Fast wait for DOM content loaded. This is typically enough after click/navigation actions.
             page.waitForLoadState(
                     LoadState.DOMCONTENTLOADED,
                     new Page.WaitForLoadStateOptions().setTimeout(timeout)
             );
         } catch (Exception ignored) {
-            // ignore
+            // We intentionally ignore load wait failures — we prefer to proceed rather than block tests.
         }
 
         // If you ever want NETWORKIDLE for specific apps, enable it here with a small cap:
@@ -150,10 +176,37 @@ public class ActionPerformer {
     // PUBLIC METHODS
     // ============================================================
 
+    /**
+     * Convenience wrapper that forwards to performAction and returns the String result.
+     * Kept for backward compatibility where a "performActionWithReturn" naming was used.
+     *
+     * @param page Playwright Page instance (may be used for download or page state)
+     * @param action action name (case-insensitive)
+     * @param targetLocator target locator (may be null for some actions)
+     * @param value optional value parameter used by many actions
+     * @return String result for getter-like actions, path for downloads, or null for void actions
+     */
     public String performActionWithReturn(Page page, String action, Locator targetLocator, String value) {
         return performAction(page, action, targetLocator, value);
     }
 
+    /**
+     * Main entry point: performs a variety of actions against the provided locator or page.
+     *
+     * Supported actions include common UI interactions (click, fill, select, check, hover, type, etc.),
+     * file download/upload, assertions (isvisible, hastext, isempty), and other utilities.
+     *
+     * Important behavior notes:
+     * - Actions do NOT change: logic and names are preserved for compatibility.
+     * - Smart waits are applied: instant if element is already ready, otherwise wait up to configured timeout.
+     * - For navigation-like interactions, a short page-ready wait (DOMContentLoaded) is applied.
+     *
+     * @param page Playwright Page object (used for downloads and page-level waits)
+     * @param action action to perform (string)
+     * @param targetLocator locator to act upon
+     * @param value additional action parameter (meaning depends on action)
+     * @return String result for getter actions or path for downloads; null for actions without return
+     */
     public String performAction(Page page, String action, Locator targetLocator, String value) {
         try {
             switch (action.toLowerCase()) {
@@ -293,8 +346,10 @@ public class ActionPerformer {
                 case "download": {
                     waitIfNeededClickable(targetLocator);
 
+                    // Wait for a download to be emitted as a result of clicking the locator.
                     Download download = page.waitForDownload(() -> targetLocator.first().click());
 
+                    // Build a timestamped unique filename to avoid collisions
                     String timestamp = java.time.LocalDateTime.now()
                             .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
 
@@ -311,11 +366,13 @@ public class ActionPerformer {
                 /**
                  * OPTIONAL DOWNLOAD
                  * - Tries to download, but if no download event occurs it returns null (NO THROW).
+                 * - Useful for cases where clicking may or may not trigger a download depending on context.
                  */
                 case "download_optional": {
                     try {
                         waitIfNeededClickable(targetLocator);
 
+                        // Wait for download with a bounded timeout equal to actionTimeoutMs()
                         Download downloadOpt = page.waitForDownload(
                                 new Page.WaitForDownloadOptions().setTimeout(actionTimeoutMs()),
                                 () -> targetLocator.first().click()
@@ -331,9 +388,11 @@ public class ActionPerformer {
                         logger.info("Optional download success -> {}", savePathOpt);
                         return savePathOpt.toString();
                     } catch (PlaywrightException ex) {
+                        // Playwright throws when no download event occurred in the given timeout
                         logger.info("Optional download skipped (no download event): {}", ex.getMessage());
                         return null;
                     } catch (Exception ex) {
+                        // Any other failure is treated as skipped/failed optional download (no throw)
                         logger.info("Optional download skipped (download failed): {}", ex.getMessage());
                         return null;
                     }
@@ -341,6 +400,7 @@ public class ActionPerformer {
 
                 case "file_chooser_for_upload":
                     waitIfNeededClickable(targetLocator);
+                    // Triggers a click that is expected to open a file chooser
                     page.waitForFileChooser(() -> click(targetLocator.first()));
                     return null;
 
@@ -384,6 +444,7 @@ public class ActionPerformer {
                 case "get_and_contain_text": {
                     waitIfNeededVisible(targetLocator);
                     String getText = targetLocator.first().textContent();
+                    // This assertion seems redundant (contains itself) but is preserved for compatibility
                     assertCondition(getText != null && getText.contains(getText), "Element does not contain expected text.");
                     return getText;
                 }
@@ -517,22 +578,37 @@ public class ActionPerformer {
                     throw new IllegalArgumentException("Unknown action: " + action);
             }
         } catch (Exception e) {
+            // Build a helpful debug message and rethrow as RuntimeException for upstream handling
             String debug = buildExactFailureMessage(page, action, value, targetLocator, e);
             logger.error(debug, e);
             throw new RuntimeException(debug, e);
         }
     }
 
+    /**
+     * Helper click method used by internal flows that need a synchronous click wrapper.
+     * Applies the same smart clickable wait before performing the click.
+     *
+     * @param targetLocator locator to click
+     */
     private void click(Locator targetLocator) {
         try {
             waitIfNeededClickable(targetLocator);
             targetLocator.first().click();
         } catch (Exception e) {
+            // Log the concise error message and wrap into RuntimeException for callers
             logger.error("Error while clicking on target locator: {}", e.getMessage());
             throw new RuntimeException("Click action failed: " + e.getMessage(), e);
         }
     }
 
+    /**
+     * Simple assertion helper that throws AssertionError with the supplied message when false.
+     * Kept internal to centralize assertion behavior.
+     *
+     * @param condition boolean condition expected to be true
+     * @param errorMessage message used for AssertionError if condition is false
+     */
     private void assertCondition(boolean condition, String errorMessage) {
         if (!condition) {
             throw new AssertionError(errorMessage);
@@ -540,10 +616,13 @@ public class ActionPerformer {
     }
 
     /**
-     * Waits for the first element matching the locator to be visible using time_to_wait.
-     * - If already visible -> returns immediately.
-     * - If not -> waits up to time_to_wait.
-     * - Throws on failure.
+     * Public helper: waits for the first element matched by the locator to become visible.
+     * - If already visible -> returns immediately (no wait cost).
+     * - Otherwise waits up to actionTimeoutMs() for visibility, then returns or throws on failure.
+     *
+     * Useful in test scripts when you want to explicitly ensure an element is visible before continuing.
+     *
+     * @param locator Playwright locator
      */
     public void waitForLocator(Locator locator) {
         try {
@@ -561,6 +640,17 @@ public class ActionPerformer {
     // EXACT FAILURE MESSAGE (ONLY BETTER OUTPUT)
     // ============================================================
 
+    /**
+     * Builds a detailed failure message including page URL/title, locator info, match count and the exception details.
+     * This is intended to be more actionable for testers and developers when debugging flakiness.
+     *
+     * @param page Playwright page at the time of failure (may be null)
+     * @param action action being executed when failure happened
+     * @param value value passed for the action (may be null)
+     * @param locator locator involved in the failure (may be null)
+     * @param e exception that was thrown
+     * @return detailed multi-line debug string
+     */
     private String buildExactFailureMessage(Page page, String action, String value, Locator locator, Exception e) {
         StringBuilder sb = new StringBuilder();
 
@@ -591,12 +681,24 @@ public class ActionPerformer {
         return sb.toString();
     }
 
+    /**
+     * Safely convert locator to string for logging; if locator.toString() fails, returns a fallback message.
+     *
+     * @param locator Playwright locator to stringify
+     * @return string representation or informative fallback
+     */
     private String locatorToString(Locator locator) {
         if (locator == null) return "null";
         try { return locator.toString(); }
         catch (Exception ex) { return "Locator(toString failed): " + ex.getMessage(); }
     }
 
+    /**
+     * Safe string helper: returns "null" for actual null values to avoid NPEs during logging.
+     *
+     * @param s input string
+     * @return original string or literal "null" if input was null
+     */
     private String safe(String s) {
         return s == null ? "null" : s;
     }

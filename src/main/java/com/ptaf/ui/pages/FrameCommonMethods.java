@@ -33,12 +33,44 @@ import java.util.List;
  * smoothly. It also provides functionality for taking screenshots and
  * capturing logs as needed.
  * </p>
+ *
+ * <p>
+ * Notes for testers:
+ * - Methods accept optional iframe identifiers (iFrame, iFrame_2, iFrame_3). If an element is not inside an iframe,
+ *   pass null for those parameters.
+ * - Many operations will throw a RuntimeException via handleFailure when they fail; tests should expect that
+ *   to mark the step/scenario as failed and stop further steps in the same scenario instance.
+ * - Screenshot and teardown are coordinated with the Scenario context managed by Hooks and ScreenshotHandler.
+ * </p>
  */
 public class FrameCommonMethods {
+    /**
+     * The Playwright Page instance used for all page-level interactions in this class.
+     * This instance is provided at construction time and should represent the active browser page.
+     */
     private final Page page; // The Playwright Page instance to interact with the browser
+
+    /**
+     * ElementAction is an abstraction that encapsulates low-level interactions (click, fill, evaluate, etc.).
+     * We use an implementation of this interface (ElementActionImpl) to apply actions in the context of frames.
+     */
     private final ElementAction elementAction; // Interface instance for handling element actions
+
+    /**
+     * Flag indicating whether any prior step in this FrameCommonMethods instance has failed.
+     * Once set to true, subsequent executeStep calls will be skipped to avoid cascading errors.
+     */
     private boolean isFailed = false; // Flag to indicate if any action has failed
+
+    /**
+     * Thread-local storage for the current Cucumber Scenario. This is used by screenshot/teardown helpers
+     * to attach artifacts (screenshots/logs) to the correct scenario in multi-threaded test execution.
+     */
     private static final ThreadLocal<Scenario> currentScenario = new ThreadLocal<>(); // Thread-local variable for the current Cucumber scenario
+
+    /**
+     * Logger instance for this class; used to record debug, info and error messages to aid troubleshooting.
+     */
     private static final Logger logger = LoggerFactory.getLogger(FrameCommonMethods.class); // Logger for logging events
 
     /**
@@ -48,6 +80,8 @@ public class FrameCommonMethods {
      */
     public FrameCommonMethods(Page page) {
         this.page = page; // Assign the provided page instance
+        // Initialize the ElementAction implementation which will execute operations in page/frame context.
+        // ElementActionImpl encapsulates the actual Playwright interaction logic for all supported actions.
         this.elementAction = new ElementActionImpl(page); // Initialize the element action instance for performing actions
     }
 
@@ -193,8 +227,10 @@ public class FrameCommonMethods {
      * @param value    Additional parameters for the screenshot, if any.
      */
     public void screenshot(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator, String value) {
+        // Compute the exact locator string so that finalizeScenario can use it for targeted screenshots.
         String targetLocator = elementAction.getExactLocator(element, locator);
         performAction("screenshot", page, iFrame, iFrame_2, iFrame_3, element, locator, value); // Perform screenshot action
+        // After performing the screenshot step, run finalize to attach screenshot and finalize scenario if passed.
         finalizeScenario(page, iFrame, iFrame_2, iFrame_3, targetLocator); // Finalize the scenario by handling teardown
     }
 
@@ -213,14 +249,17 @@ public class FrameCommonMethods {
     public void download(Page page, String iFrame, String iFrame_2, String iFrame_3,
                          String element, String locator, String value, String name) {
 
-        // Start waiting for a download event after the download-triggering action is performed
+        // Start waiting for a download event after the download-triggering action is performed.
+        // page.waitForDownload registers a listener and executes the provided callback (click) in the same context,
+        // returning the resulting Download object once the file starts or completes downloading (Playwright controls lifecycle).
         Download download = page.waitForDownload(() -> {
-            // Perform the click action to initiate the download from the specified element
+            // Perform the click action to initiate the download from the specified element.
+            // This will use the same frame resolution mechanism as other actions.
             click(page, iFrame, iFrame_2, iFrame_3, element, locator);
         });
 
-        // Once the download is complete, save the file to the specified path
-        // The file is saved using its suggested filename appended with a custom suffix
+        // Once the download is complete or available, save the file to the specified path.
+        // The filename chosen here is the suggested filename from the response appended with the provided custom name.
         download.saveAs(Paths.get(value, download.suggestedFilename() + name));
     }
 
@@ -305,10 +344,12 @@ public class FrameCommonMethods {
      * @param iFrame_3 The identifier for the further nested iframe.
      * @param element  The logical name of the element to extract text from.
      * @param locator  The locator string used to identify the element.
+     * @return The retrieved text value or null if not available.
      */
     public String gettext(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator) {
         String value = getStringValue("gettext", page, iFrame, iFrame_2, iFrame_3, element, locator, null); // Perform action to get text
         if (value == null || value.trim().isEmpty()) {
+            // Helpful console output for quick debugging when text is expected but not found.
             System.out.println("There is no text value for element: " + element + ", locator: " + locator);
         }
 
@@ -431,7 +472,9 @@ public class FrameCommonMethods {
      * @param locator  The locator string used to identify the element.
      */
     public void not_exists(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator) {
+        // First retrieve the locator using the standard frame resolution so we know how many matched elements exist.
         Locator targetLocator = getElement_locator(page, iFrame, iFrame_2, iFrame_3, element, locator);
+        // If there are any matches, invoke the not_exists action to validate non-existence (or to log/handle as per implementation).
         if (targetLocator.count() > 0) {
             performAction("not_exists", page, iFrame, iFrame_2, iFrame_3, element, locator, null);
         }
@@ -770,10 +813,23 @@ public class FrameCommonMethods {
      * @return The Locator object representing the specified element.
      */
     public Locator getElement_locator(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator) {
+        // elementAction.getLocator resolves the element using provided iFrame identifiers and returns a Playwright Locator.
         return elementAction.getLocator(iFrame, iFrame_2, iFrame_3, element, locator, page, null); // Retrieve the locator for the specified element
     }
 
+    /**
+     * Returns the input value (value attribute) of a given element resolved within the specified frames.
+     *
+     * @param page     The current Playwright page instance.
+     * @param iFrame   The identifier for the outer iframe.
+     * @param iFrame_2 The identifier for the nested iframe.
+     * @param iFrame_3 The identifier for the nested iframe.
+     * @param element  The logical name of the element to read.
+     * @param locator  The locator key used to find the element.
+     * @return The string value from the input element (equivalent to element.inputValue()).
+     */
     public String get_frame_element_string_value(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator) {
+        // Resolve the locator in the context of frames and read its inputValue (suitable for <input> elements).
         Locator final_locator = getElement_locator(page, iFrame, iFrame_2, iFrame_3, element, locator);
         return final_locator.inputValue();
     }
@@ -795,6 +851,13 @@ public class FrameCommonMethods {
      * Centralized method to perform actions on elements within nested iframes,
      * managing success and failure scenarios.
      *
+     * <p>
+     * This method:
+     * - Wraps the action invocation in executeStep which prevents subsequent steps if a failure occurred.
+     * - Calls elementAction.performActionPageFrame(...) which executes the actual Playwright operations.
+     * - Interprets the boolean return to determine success/failure and invokes handleFailure on failure.
+     * </p>
+     *
      * @param action   The action to be performed (e.g., "click", "fill").
      * @param page     The current Playwright Page.
      * @param iFrame   The identifier for the outer iframe.
@@ -806,8 +869,10 @@ public class FrameCommonMethods {
      */
     private void performAction(String action, Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator, String value) {
         executeStep(() -> {
+            // Execute the action via the ElementAction abstraction. This returns true/false to indicate success.
             boolean actionStatus = elementAction.performActionPageFrame(page, iFrame, iFrame_2, iFrame_3, action, element, locator, value, null); // Execute action and check status
             if (!actionStatus) {
+                // If the action failed, perform standard failure handling (logging, screenshot, teardown).
                 handleFailure(page, action, element); // Handle failure if action is unsuccessful
             }
         });
@@ -817,6 +882,12 @@ public class FrameCommonMethods {
      * Executes an action and returns its string result if applicable.
      * Does not affect the existing performAction method logic.
      *
+     * <p>
+     * This method is used for actions that are expected to return a String (for example, gettext).
+     * It stores the result in a one-element array (to allow assignment from inside a lambda).
+     * If the result is null for actions that should return a value, the failure handler is invoked.
+     * </p>
+     *
      * @param action   The action to be performed (e.g., "click", "fill").
      * @param page     The current Playwright Page.
      * @param iFrame   The identifier for the outer iframe.
@@ -825,6 +896,7 @@ public class FrameCommonMethods {
      * @param element  The logical name of the element involved in the action.
      * @param locator  The locator string used to identify the element.
      * @param value    Any additional value needed for the action, if required.
+     * @return The string result returned by the action or null if none.
      */
     private String getStringValue(String action, Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator, String value) {
         final String[] result = {null};
@@ -836,6 +908,7 @@ public class FrameCommonMethods {
             if (result[0] == null && actionRequiresResult(action)) {
                 handleFailure(page, action, element);
             } else if (result[0] != null && !result[0].isEmpty()) {
+                // Log retrieved non-empty result for traceability.
                 logger.info("Action '{}' returned result: {}", action, result[0]);
             }
         });
@@ -892,6 +965,7 @@ public class FrameCommonMethods {
             // Iterate through each element in the list and print details.
             for (int i = 0; i < elements.size(); i++) {
                 ElementHandle handle = elements.get(i);
+                // Log details of each found element; ElementHandle.toString() is a lightweight representation useful for debugging.
                 logger.info("Element " + (i + 1) + ": " + handle.toString()); // Log details of each found element
             }
         }
@@ -953,6 +1027,12 @@ public class FrameCommonMethods {
      * Executes a step while monitoring for exceptions and
      * logging failures appropriately.
      *
+     * <p>
+     * This wrapper ensures that:
+     * - If a previous step has failed (isFailed == true), subsequent steps are skipped.
+     * - Runtime exceptions are converted into a handled failure flow: mark failure, log, perform teardown.
+     * </p>
+     *
      * @param step A Runnable representing the action to be executed.
      */
     private void executeStep(Runnable step) {
@@ -963,6 +1043,7 @@ public class FrameCommonMethods {
         try {
             step.run(); // Execute the provided step action
         } catch (Exception e) {
+            // Any unexpected exception triggers the common failure handling pipeline.
             isFailed = true; // Mark the test as failed
             logger.error("Step execution failed: {}", e.getMessage(), e); // Log exception details
             handleFailure(page, "Step execution failed", null); // Handle failure cleanly by logging and performing cleanup
@@ -973,6 +1054,15 @@ public class FrameCommonMethods {
      * Handles a failure during execution by logging errors and
      * triggering cleanup measures.
      *
+     * <p>
+     * Failure handling includes:
+     * - Setting internal failure flag
+     * - Logging a clear error message
+     * - Capturing a screenshot and attaching it to the current scenario via ScreenshotHandler
+     * - Closing page and browser resources to avoid leaking sessions
+     * - Throwing a RuntimeException to stop further processing in the current test flow
+     * </p>
+     *
      * @param page    The current Playwright Page.
      * @param action  The action that failed.
      * @param element The logical name of the element involved.
@@ -980,13 +1070,20 @@ public class FrameCommonMethods {
     private void handleFailure(Page page, String action, String element) {
         isFailed = true; // Update internal state to indicate failure
         logger.error("Action '{}' failed on element '{}'", action, element); // Log details of the failure
+        // Attach failure artifacts (screenshot) to the current scenario and perform any scenario-level teardown.
         ScreenshotHandler.handleScenarioTeardown(getCurrentScenario(), page, "Failure Step"); // Cleanup the scenario context
         closeBrowserOnFailure(); // Attempt to close any resources on failure
+        // Throw a runtime exception so upper layers (Cucumber step runner) can mark the step as failed and stop execution.
         throw new RuntimeException(String.format("Action '%s' failed on element '%s', skipping further steps", action, element)); // Throw exception to indicate failure
     }
 
     /**
      * Closes the page and the browser if a failure occurs.
+     *
+     * <p>
+     * This method attempts to gracefully close page and browser resources; exceptions during closure
+     * are logged but do not interrupt the failure flow.
+     * </p>
      */
     private void closeBrowserOnFailure() {
         try {
@@ -995,6 +1092,7 @@ public class FrameCommonMethods {
                 logger.info("Page closed due to failure."); // Log that the page has been closed due to failure
             }
         } catch (Exception e) {
+            // Log but suppress exceptions during resource cleanup.
             logger.error("Error closing the page: {}", e.getMessage(), e); // Log any errors encountered during closure
         }
 
@@ -1004,12 +1102,18 @@ public class FrameCommonMethods {
                 logger.info("Browser closed due to failure."); // Log closure of browser
             }
         } catch (Exception e) {
+            // Log but suppress exceptions during resource cleanup.
             logger.error("Error closing the browser: {}", e.getMessage(), e); // Log any errors encountered during closure
         }
     }
 
     /**
      * Stores the current Cucumber scenario in a thread-local variable.
+     *
+     * <p>
+     * Test harness (Hooks) should set the active scenario for the current thread so that
+     * screenshot and reporting utilities can attach artifacts to the correct scenario.
+     * </p>
      *
      * @param scenario The current Cucumber scenario.
      */
@@ -1019,6 +1123,11 @@ public class FrameCommonMethods {
 
     /**
      * Retrieves the current Cucumber scenario.
+     *
+     * <p>
+     * Implementation uses Hooks.getCurrentScenario() as the canonical source for scenario state.
+     * Keeping this method private prevents external modification while allowing internal utilities to read it.
+     * </p>
      *
      * @return The current Cucumber scenario.
      */
