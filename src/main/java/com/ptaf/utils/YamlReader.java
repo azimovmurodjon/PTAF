@@ -158,47 +158,49 @@ public class YamlReader {
      */
     public static Object get(String key) {
         try {
-            // Split the incoming key into path components. Note: empty segments are possible if
-            // the input contains consecutive dots; the current logic will treat an empty string
-            // as a map key.
             String[] keys = key.split("\\.");
             Map<String, Object> currentMap = data;
 
-            // Traverse the map using each part of the key except the final segment.
-            // Each intermediate segment must resolve to a Map<String,Object>.
             for (int i = 0; i < keys.length - 1; i++) {
                 Object value = currentMap.get(keys[i]);
+
                 if (value instanceof Map) {
-                    // Continue traversal into the nested map.
                     currentMap = (Map<String, Object>) value;
                 } else {
-                    // EXACT WHY: tell which segment is missing/wrong type
-                    // Provide a detailed diagnostic so testers can see exactly where traversal failed.
-                    System.err.println("\n========== YAML GET FAILURE (EXACT WHY) ==========");
-                    System.err.println("Key       : " + key);
-                    System.err.println("FailedAt  : " + keys[i]);
-                    System.err.println("Reason    : " + (value == null
-                            ? "Key segment not found in map"
-                            : ("Expected Map but found: " + value.getClass().getName())));
-                    System.err.println("=================================================\n");
+                    if (!SUPPRESS_LOGS.get()) {
+                        System.err.println("\n========== YAML GET FAILURE (EXACT WHY) ==========");
+                        System.err.println("Key       : " + key);
+                        System.err.println("FailedAt  : " + keys[i]);
+                        System.err.println("Reason    : " + (value == null
+                                ? "Key segment not found in map"
+                                : ("Expected Map but found: " + value.getClass().getName())));
+                        System.err.println("=================================================\n");
+                    }
                     return null;
                 }
             }
 
-            // Return the final value from the last key segment. This may be null if the key doesn't exist.
             return currentMap.get(keys[keys.length - 1]);
 
         } catch (Exception e) {
-            // EXACT WHY: unexpected runtime issue
-            // Catch-all to ensure that any unforeseen runtime exception during traversal is reported
-            // with full diagnostic information to help debugging and testing.
-            System.err.println("\n========== YAML GET FAILURE (EXACT WHY) ==========");
-            System.err.println("Key       : " + key);
-            System.err.println("Exception : " + e.getClass().getName());
-            System.err.println("Message   : " + e.getMessage());
-            System.err.println("=================================================\n");
-            e.printStackTrace();
+            if (!SUPPRESS_LOGS.get()) {
+                System.err.println("\n========== YAML GET FAILURE (EXACT WHY) ==========");
+                System.err.println("Key       : " + key);
+                System.err.println("Exception : " + e.getClass().getName());
+                System.err.println("Message   : " + e.getMessage());
+                System.err.println("=================================================\n");
+                e.printStackTrace();
+            }
             return null;
         }
     }
+
+
+    private static final ThreadLocal<Boolean> SUPPRESS_LOGS =
+            ThreadLocal.withInitial(() -> false);
+
+    public static void setSuppressLogs(boolean suppress) {
+        SUPPRESS_LOGS.set(suppress);
+    }
+
 }

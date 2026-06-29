@@ -235,10 +235,22 @@ public class ConfigurationProperties {
      * @return the String representation of the configured value, or null if not present.
      */
     public static String getValue(String value) {
-        // Fetch raw object from YAML reader utility
-        Object rawValue = YamlReader.get(value);
+        String env = System.getProperty("env", "QA");
 
-        // If rawValue is null, return null so callers can handle absence explicitly.
+        String envValueKey = "environments." + env + "." + value;
+
+        Object rawValue;
+
+        try {
+            YamlReader.setSuppressLogs(true);
+            rawValue = YamlReader.get(envValueKey);
+        } finally {
+            YamlReader.setSuppressLogs(false);
+        }
+        if (rawValue == null) {
+            rawValue = YamlReader.get(value);
+        }
+
         return rawValue == null ? null : String.valueOf(rawValue);
     }
 }
