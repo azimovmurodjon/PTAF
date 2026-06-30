@@ -10,6 +10,7 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.HttpCredentials;
+import com.microsoft.playwright.options.ViewportSize;
 import com.ptaf.ui.mobilebrowser.MobileBrowserExecutionConfig;
 import com.ptaf.ui.mobilebrowser.MobileBrowserProfile;
 import com.ptaf.ui.mobilebrowser.MobileBrowserProfileRepository;
@@ -252,6 +253,9 @@ public final class BrowserFactory {
         boolean maximizeBrowser = getMaximizeBrowser();
         boolean headless = getHeadlessMode();
         Browser.NewContextOptions contextOptions = (new Browser.NewContextOptions()).setIgnoreHTTPSErrors(shouldIgnoreHTTPSErrors);
+        // For headed desktop Chromium runs with maximize_browser=true, set viewport to null so the
+        // OS window size controls the effective viewport (Selenium-style maximize behavior).
+        applySeleniumStyleMaximizeViewportIfConfigured(contextOptions, maximizeBrowser, headless, mobileBrowser);
         // Apply mobile profile settings (viewport, device scale, user agent, etc.) if available
         applyMobileBrowserProfileIfAvailable(contextOptions);
         logger.info("Creating UI BrowserContext. ignoreHTTPSErrors={}", shouldIgnoreHTTPSErrors);
@@ -282,6 +286,46 @@ public final class BrowserFactory {
         }
 
         return context;
+    }
+
+    /**
+     * Applies Selenium-style browser maximize behavior for headed desktop Playwright runs.
+     *
+     * <p>Playwright normally manages viewport size independently from the OS browser window.
+     * Setting viewport to {@code null} allows the context viewport to follow the actual
+     * maximized browser window size, which mirrors Selenium's
+     * {@code driver.manage().window().maximize()} behavior.</p>
+     *
+     * <p>This method is a no-op when:
+     * - maximize_browser is false (default)
+     * - headless mode is active (no visible window to maximize)
+     * - a mobile browser profile is active (profile viewport must remain profile-controlled)
+     * </p>
+     *
+     * @param contextOptions the context options to modify
+     * @param maximizeBrowser whether maximize_browser is enabled in configuration
+     * @param headless whether headless mode is active
+     * @param mobileBrowser whether a mobile browser profile is active
+     */
+    private static void applySeleniumStyleMaximizeViewportIfConfigured(Browser.NewContextOptions contextOptions,
+                                                                       boolean maximizeBrowser,
+                                                                       boolean headless,
+                                                                       boolean mobileBrowser) {
+        if (!maximizeBrowser) return;
+        if (headless) {
+            logger.warn("maximize_browser=true requested, but headless=true. No viewport override will be applied.");
+            return;
+        }
+        if (mobileBrowser) {
+            logger.info("maximize_browser=true ignored for mobile browser emulation context because profile viewport must remain profile-controlled.");
+            return;
+        }
+        
+        // Setting viewport to null tells Playwright to use the actual OS window size.
+        // This is required for true maximize behavior. If this breaks UI tests, the tests
+        // may be relying on a fixed viewport size (e.g., 1280x720) rather than responsive design.
+        contextOptions.setViewportSize((ViewportSize) null);
+        logger.info("Playwright context viewport disabled so headed browser window can use Selenium-style maximized size.");
     }
 
     /**
@@ -327,7 +371,8 @@ public final class BrowserFactory {
             screenHeight = tmp;
         }
 
-        // Apply the computed device metrics and capabilities to the context options
+        // Apply the computed device metrics and capabilities to the context options.
+        // We explicitly set both viewport and screen size to lock the dimensions.
         contextOptions.setViewportSize(viewportWidth, viewportHeight)
                 .setScreenSize(screenWidth, screenHeight)
                 .setDeviceScaleFactor(profile.getDeviceScaleFactor())
