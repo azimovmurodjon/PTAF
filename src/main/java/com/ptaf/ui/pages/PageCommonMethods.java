@@ -6,6 +6,7 @@ import com.microsoft.playwright.Locator;
 import com.ptaf.ui.action_performer.ElementActionImpl;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.ui.interfaces.ElementAction;
+import com.ptaf.utils.ScenarioUtil;
 import com.ptaf.utils.ScreenshotHandler;
 import com.microsoft.playwright.Page;
 import io.cucumber.java.Scenario;
@@ -791,6 +792,88 @@ public class PageCommonMethods {
      */
     public void hasvalue(Page page, String element, String locator, String value) {
         performAction("hasvalue", page, element, locator, value);
+    }
+
+    /**
+     * Checks whether the list of text values from the specified element
+     * matches the expected string.
+     *
+     * <p>
+     * This method interacts with a collection-based web element, identified by
+     * the provided locator, and verifies that the combined or ordered list of
+     * text values is equal to the expected value. This is useful for validating
+     * dropdown options, lists, tables, or any group of elements where text
+     * comparison is required.
+     * </p>
+     *
+     * @param page    The current Playwright Page instance used to interact with the browser.
+     * @param element The logical name of the element being checked, used for logging.
+     * @param locator The locator string used to identify the list elements on the page.
+     * @param value       The expected text value to be compared against the list content.
+     */
+
+    public void equalsListText(Page page, String element, String locator, String value) {
+        performAction("equalslisttext", page, element, locator, value);
+    }
+
+
+    /**
+     * Validates whether the values of the specified element are sorted
+     * according to the given order.
+     *
+     * <p>
+     * This method checks the sorting behavior of a collection-based element,
+     * such as a table column or list, identified by the provided locator.
+     * It verifies that the values are arranged in the expected order
+     * (for example, ascending or descending). This is commonly used when
+     * testing sortable columns in tables or grids.
+     * </p>
+     *
+     * @param page    The current Playwright Page instance used to interact with the browser.
+     * @param element The logical name of the element being validated, used for logging.
+     * @param locator The locator string used to identify the sortable elements on the page.
+     * @param order   The expected sort order (e.g., "ascending" or "descending").
+     */
+
+    public void validateSort(Page page, String element, String locator, String order) {
+        performAction("order", page, element, locator, order);
+    }
+
+    /**
+     * Reports all available options from a dropdown element located within nested iframes.
+     *
+     * @param page       The Playwright page instance.
+     * @param element    The logical name of the dropdown element.
+     * @param locator    The locator strategy or identifier for the dropdown element.
+     */
+    public void reportListOfDropdown(Page page, String element, String locator) {
+        String exactElement = elementAction.getExactLocator(element, locator);
+        ScenarioUtil.reportAllDropdownOptionsMultiline(getCurrentScenario(), page, null, null, null, exactElement);
+    }
+
+    /**
+     * Captures and reports the string value of a specific element along with a screenshot,
+     * handling nested iframe contexts.
+     *
+     * @param page       The Playwright page instance.
+     * @param element    The logical name of the target element.
+     * @param locator    The locator strategy or identifier for the target element.
+     * @param label      A descriptive label to associate with the reported string value.
+     */
+    public void reportElementString(Page page, String element, String locator, String label) {
+        String exactElement = elementAction.getExactLocator(element, locator);
+        ScenarioUtil.reportElementString(getCurrentScenario(), page, null, null, null, exactElement, label);
+    }
+
+    /**
+     * Captures and reports the string value
+     *
+     * @param title       The Playwright page instance.
+     * @param value     The first-level iframe selector.
+     */
+
+    public void reportString(String title, String value) {
+        ScenarioUtil.reportString(getCurrentScenario(), title,  value);
     }
 
     /**

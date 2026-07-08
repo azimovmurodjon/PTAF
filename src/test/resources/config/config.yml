@@ -21,7 +21,7 @@
 #
 # Full list of 20 ready-to-use profiles:
 #   src/test/resources/mobile_browser/config/mobile-browser-profiles.yml
-browser: "chrome"
+browser: "iPhone 17 Pro Max Safari"
 
 # Maximize mode setting.
 # Set to "true" to run the browser with maximized size of your screen.

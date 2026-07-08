@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * ActionPerformer (optimized)
@@ -30,6 +32,16 @@ import java.nio.file.Paths;
  * - "download_optional" returns null if no download event occurs.
  */
 public class ActionPerformer {
+
+    private boolean isFileInput(Locator locator) {
+        try {
+            return Boolean.TRUE.equals(
+                    locator.first().evaluate("el => el.tagName === 'INPUT' && el.type === 'file'")
+            );
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(ActionPerformer.class);
 
@@ -69,22 +81,19 @@ public class ActionPerformer {
     // ============================================================
 
     /**
-     * Waits for the locator's first matched element to become visible, but only if needed.
-     * Behavior:
-     * - If the element is already visible -> returns instantly (zero overhead).
-     * - Otherwise waits up to actionTimeoutMs() for visibility.
-     *
-     * Any exception is converted to a RuntimeException with a helpful debug message.
-     *
-     * @param locator Playwright locator pointing to one or more elements
+     * Waits ONLY if needed:
+     * - If locator.first() is already visible -> returns immediately (no wait).
+     * - Otherwise waits up to time_to_wait for VISIBLE.
      */
     private void waitIfNeededVisible(Locator locator) {
         long timeout = actionTimeoutMs();
         if (timeout <= 0 || locator == null) return;
 
+        if (isFileInput(locator)) return ;
+
         Locator first = locator.first();
         try {
-            // Instant check (no wait) — quick path for already-visible elements
+            // Instant check (no wait)
             if (first.isVisible()) return;
 
             // Wait up to configured timeout ONLY if not visible
@@ -92,7 +101,6 @@ public class ActionPerformer {
                     .setState(WaitForSelectorState.VISIBLE)
                     .setTimeout(timeout));
         } catch (Exception e) {
-            // Build a rich failure message for easier debugging and rethrow
             Page page = null;
             try { page = locator.page(); } catch (Exception ignored) {}
             String debug = buildExactFailureMessage(page, "waitIfNeededVisible", null, locator, e);
@@ -102,30 +110,29 @@ public class ActionPerformer {
     }
 
     /**
-     * Waits for the locator to be clickable-ish, but intentionally minimal:
-     * - If already visible and enabled -> returns immediately.
-     * - Otherwise waits up to actionTimeoutMs() for visibility only (not full "actionability").
+     * Clickable wait that DOES NOT impact runtime:
+     * - If already visible+enabled -> instant return (no wait).
+     * - Otherwise waits up to timeout for visible only.
      *
-     * Rationale: Playwright's native click() performs proper actionable checks; we avoid
-     * additional slow polling here while still providing a helpful max-timeout for flaky cases.
-     *
-     * @param locator Playwright locator
+     * Why: Playwright click() already does actionable checks efficiently.
+     * We avoid custom polling loops that slow runs.
      */
     private void waitIfNeededClickable(Locator locator) {
         long timeout = actionTimeoutMs();
         if (timeout <= 0 || locator == null) return;
+
+        if (isFileInput(locator)) return ;
 
         Locator first = locator.first();
         try {
             // Instant check: if ready -> no wait
             if (first.isVisible() && first.isEnabled()) return;
 
-            // Otherwise wait up to timeout for visible (minimal guarantee)
+            // Otherwise wait up to timeout for visible
             first.waitFor(new Locator.WaitForOptions()
                     .setState(WaitForSelectorState.VISIBLE)
                     .setTimeout(timeout));
         } catch (Exception e) {
-            // Build detailed failure message and rethrow
             Page page = null;
             try { page = locator.page(); } catch (Exception ignored) {}
             String debug = buildExactFailureMessage(page, "waitIfNeededClickable", null, locator, e);
@@ -461,6 +468,33 @@ public class ActionPerformer {
                     String currentValue = targetLocator.first().inputValue();
                     assertCondition(currentValue.equals(value), "Expected: " + value + ", but found: " + currentValue);
                     return currentValue;
+                }
+
+                case "order": {
+
+                    waitIfNeededVisible(targetLocator);
+                    List<String> actual = targetLocator.allTextContents();
+                    List<String> expected = new ArrayList<>(actual);
+
+                    if ("ascending".equalsIgnoreCase(value)) {
+                        expected.sort(String.CASE_INSENSITIVE_ORDER);
+
+                    } else if ("descending".equalsIgnoreCase(value)) {
+                        expected.sort(String.CASE_INSENSITIVE_ORDER.reversed());
+
+                    } else {
+                        assertCondition(
+                                false,
+                                "Invalid sort order value: '" + value + "'. Expected 'ascending' or 'descending'."
+                        );
+                        return String.join(", ", actual);
+                    }
+
+                    assertCondition(
+                            actual.equals(expected), "Expected: " + expected + "\n" + "Actual  : " + actual
+                    );
+
+                    return String.join(", ", actual);
                 }
 
                 case "isvisible": {
