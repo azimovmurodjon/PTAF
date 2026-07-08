@@ -747,21 +747,42 @@ public class MobileCommonMethods {
     public void zoomOut() { pinchOrZoom(0.30, 0.70); }
 
     /**
-     * Find a visible element using configured mobile locators and explicit wait.
+     * Find a visible element using configured mobile locators and a smart two-phase explicit wait.
      *
-     * This method also ensures the browser web context is ready before attempting
+     * <p><strong>How the wait works:</strong></p>
+     * <ul>
+     *   <li>Phase 1 — Presence: waits until the element exists in the UI hierarchy (handles slow
+     *       screen transitions and heavy loading states where the element is not yet rendered).</li>
+     *   <li>Phase 2 — Visibility: waits until the element is also visible on screen (non-zero size,
+     *       not hidden). The action is executed immediately once visibility is confirmed.</li>
+     * </ul>
+     *
+     * <p>The total wait timeout is controlled by {@code explicit_wait_seconds} in
+     * {@code mobile-config.yml} (default: 30 seconds, recommended max: 60 seconds).
+     * The wait skips immediately when the element becomes visible — it never waits the full
+     * timeout unless the element never appears.</p>
+     *
+     * <p>This method also ensures the browser web context is ready before attempting
      * to locate elements in real browser sessions, and performs Safari-specific
-     * diagnostic handling when WebKit returns runtime errors.
+     * diagnostic handling when WebKit returns runtime errors.</p>
      *
-     * @param page page key in the YAML locator configuration
-     * @param locator locator key under the page
-     * @return visible WebElement
+     * @param page    page key in the YAML locator configuration (e.g. "LoginPage")
+     * @param locator locator key under the page (e.g. "loginButton")
+     * @return visible WebElement ready for interaction
      */
     public WebElement findVisibleElement(String page, String locator) {
         ensureBrowserWebContextReadyIfNeeded();
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(MobileConfigurationProperties.getExplicitWaitSeconds()));
+        int timeoutSeconds = MobileConfigurationProperties.getExplicitWaitSeconds();
+        By by = resolveLocator(page, locator);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutSeconds));
         try {
-            return wait.until(ExpectedConditions.visibilityOfElementLocated(resolveLocator(page, locator)));
+            // Phase 1: Wait until the element is present in the UI hierarchy.
+            // This handles cases where the app is still loading or transitioning between screens.
+            // Returns immediately the moment the element appears — does not wait the full timeout.
+            wait.until(ExpectedConditions.presenceOfElementLocated(by));
+            // Phase 2: Wait until the element is also visible (rendered, non-zero size, not hidden).
+            // Returns immediately the moment the element becomes visible and ready for interaction.
+            return wait.until(ExpectedConditions.visibilityOfElementLocated(by));
         } catch (ClassCastException e) {
             throw browserContextDiagnosticFailure(page, locator, e);
         } catch (RuntimeException e) {

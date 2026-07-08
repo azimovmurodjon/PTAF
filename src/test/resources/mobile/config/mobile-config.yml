@@ -25,9 +25,16 @@ mobile:
   default_platform: "android"
 
   # Framework-level waits. Keep implicit wait at 0 and prefer explicit waits.
+  # explicit_wait_seconds: how long to wait for each element to become visible before failing.
+  #   - Default: 30 seconds. Maximum recommended: 60 seconds.
+  #   - The wait is SMART: it returns immediately the moment the element appears.
+  #   - Increase this if your app has slow screen transitions or heavy loading states.
   implicit_wait_seconds: 0
   explicit_wait_seconds: 30
-  new_command_timeout_seconds: 120
+  # new_command_timeout_seconds: how long Appium waits between commands before killing the session.
+  #   - Default: 300 seconds (5 minutes). Increase if your app has long loading screens.
+  #   - If the app closes unexpectedly during a test, increase this value.
+  new_command_timeout_seconds: 300
 
   permissions:
     # Timeout for optional OS/system permission popups. Keep short because no popup is valid.
