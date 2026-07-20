@@ -12,6 +12,7 @@ import com.microsoft.playwright.options.LoadState;
 import com.ptaf.ui.pages.PageCommonMethods;
 import com.ptaf.utils.BrowserFactory;
 import com.ptaf.utils.ConfigurationProperties;
+import com.ptaf.softassert.SoftAssertionContext;
 import com.ptaf.utils.BrowserFactory.BrowserTypeEnum;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
@@ -196,6 +197,23 @@ public class Hooks {
      */
     @After
     public void tearDown(Scenario scenario) {
+        // ── Soft Assertion Flush ──────────────────────────────────────────────────────
+        // When soft_assertions.enabled: true, check if any steps failed softly during this scenario.
+        // IMPORTANT: We do NOT throw here immediately. Instead, we capture the summary and throw
+        // AFTER the @LastScenario browser management logic has run. This prevents the AssertionError
+        // from being thrown before the @LastScenario counter is incremented and the browser-keep-alive
+        // decision is made — which was causing the browser to close prematurely on soft failures.
+        String softAssertionSummary = null;
+        if (ConfigurationProperties.isSoftAssertionsEnabled() && SoftAssertionContext.hasFailed()) {
+            softAssertionSummary = SoftAssertionContext.buildSummary();
+            if (scenario != null) {
+                scenario.log(softAssertionSummary); // attach the summary to the Cucumber/Extent report
+            }
+        }
+        // Always clear the soft assertion context at end of scenario to ensure test isolation.
+        SoftAssertionContext.clear();
+        // ─────────────────────────────────────────────────────────────────────────────
+
         // Resolve the feature key in a safe way: try threadlocal first, then recover from the scenario if missing.
         String featureKey = this.getSafeFeatureKeyForTearDown(scenario);
         boolean var22 = false;
@@ -248,10 +266,19 @@ public class Hooks {
                         Page page = (Page)pageThreadLocal.get();
                         boolean browserAlive = browser != null && context != null && page != null && !page.isClosed();
 
+                        // When soft assertions are enabled and browser is still alive, do NOT mark the feature as failed
+                        // just because of soft assertion failures. The browser should stay open for the next scenario.
+                        boolean isSoftAssertionOnlyFailure = ConfigurationProperties.isSoftAssertionsEnabled()
+                            && softAssertionSummary != null
+                            && browserAlive;
+
                         // If this scenario failed mark the feature as failed so remaining scenarios are intentionally failed.
-                        if (scenario.getStatus() == Status.FAILED) {
+                        // Exception: soft assertion failures with a live browser should NOT close the shared browser.
+                        if (scenario.getStatus() == Status.FAILED && !isSoftAssertionOnlyFailure) {
                             featureFailureMap.put(featureKey, true);
                             logger.error("Scenario [{}] failed in @LastScenario feature [{}]. Remaining scenarios will fail immediately.", scenario.getName(), featureKey);
+                        } else if (scenario.getStatus() == Status.FAILED && isSoftAssertionOnlyFailure) {
+                            logger.warn("Scenario [{}] had soft assertion failures in @LastScenario feature [{}]. Browser is still alive — continuing to next scenario.", scenario.getName(), featureKey);
                         }
 
                         if (!browserAlive) {
@@ -305,9 +332,19 @@ public class Hooks {
                 BrowserContext context = (BrowserContext)contextThreadLocal.get();
                 Page page = (Page)pageThreadLocal.get();
                 boolean browserAlive = browser != null && context != null && page != null && !page.isClosed();
-                if (scenario.getStatus() == Status.FAILED) {
+                // When soft assertions are enabled and the browser is still alive, do NOT mark the
+                // @LastScenario feature as failed just because of soft assertion failures.
+                // A soft assertion failure means the scenario had issues but the browser is still
+                // running and the next scenario should continue. Only mark failed if browser is dead.
+                boolean isSoftAssertionOnlyFailure = ConfigurationProperties.isSoftAssertionsEnabled()
+                    && softAssertionSummary != null
+                    && browserAlive;
+
+                if (scenario.getStatus() == Status.FAILED && !isSoftAssertionOnlyFailure) {
                     featureFailureMap.put(featureKey, true);
                     logger.error("Scenario [{}] failed in @LastScenario feature [{}]. Remaining scenarios will fail immediately.", scenario.getName(), featureKey);
+                } else if (scenario.getStatus() == Status.FAILED && isSoftAssertionOnlyFailure) {
+                    logger.warn("Scenario [{}] had soft assertion failures in @LastScenario feature [{}]. Browser is still alive — continuing to next scenario.", scenario.getName(), featureKey);
                 }
 
                 if (!browserAlive) {
@@ -327,6 +364,10 @@ public class Hooks {
                     logger.info("Keeping browser state unchanged for next scenario in @LastScenario feature [{}].", featureKey);
                 }
 
+                // Throw soft assertion summary AFTER browser management is complete.
+                if (softAssertionSummary != null) {
+                    throw new AssertionError("PTAF Soft Assertion Failures detected — see failed steps above for details. Total failures: " + com.ptaf.softassert.SoftAssertionContext.getFailureCount() + ". (set soft_assertions.enabled: false in config.yml to disable)");
+                }
                 return;
             } else {
                 if (featureKey == null) {
@@ -334,6 +375,10 @@ public class Hooks {
                 }
 
                 closeBrowserResources();
+                // Throw soft assertion summary AFTER browser resources are closed.
+                if (softAssertionSummary != null) {
+                    throw new AssertionError("PTAF Soft Assertion Failures detected — see failed steps above for details. Total failures: " + com.ptaf.softassert.SoftAssertionContext.getFailureCount() + ". (set soft_assertions.enabled: false in config.yml to disable)");
+                }
                 return;
             }
         }
@@ -353,9 +398,16 @@ public class Hooks {
                 BrowserContext context = (BrowserContext)contextThreadLocal.get();
                 Page page = (Page)pageThreadLocal.get();
                 boolean browserAlive = browser != null && context != null && page != null && !page.isClosed();
-                if (scenario.getStatus() == Status.FAILED) {
+
+                boolean isSoftAssertionOnlyFailure = ConfigurationProperties.isSoftAssertionsEnabled()
+                    && softAssertionSummary != null
+                    && browserAlive;
+
+                if (scenario.getStatus() == Status.FAILED && !isSoftAssertionOnlyFailure) {
                     featureFailureMap.put(featureKey, true);
                     logger.error("Scenario [{}] failed in @LastScenario feature [{}]. Remaining scenarios will fail immediately.", scenario.getName(), featureKey);
+                } else if (scenario.getStatus() == Status.FAILED && isSoftAssertionOnlyFailure) {
+                    logger.warn("Scenario [{}] had soft assertion failures in @LastScenario feature [{}]. Browser is still alive — continuing to next scenario.", scenario.getName(), featureKey);
                 }
 
                 if (!browserAlive) {
@@ -382,6 +434,10 @@ public class Hooks {
                 closeBrowserResources();
             }
 
+        }
+        // Throw soft assertion summary at the very end, after all browser management is complete.
+        if (softAssertionSummary != null) {
+            throw new AssertionError("PTAF Soft Assertion Failures detected — see failed steps above for details. Total failures: " + com.ptaf.softassert.SoftAssertionContext.getFailureCount() + ". (set soft_assertions.enabled: false in config.yml to disable)");
         }
     }
 
@@ -541,7 +597,14 @@ public class Hooks {
                             page.close();
                         }
                     } catch (Exception pageCloseEx) {
-                        logger.error("Error closing page: {}", pageCloseEx.getMessage(), pageCloseEx);
+                        // TargetClosedError is expected when the browser/page was already closed
+                        // (e.g. after a soft assertion scenario or a @LastScenario failure).
+                        // Log as debug to avoid misleading ERROR messages in the report.
+                        if (isTargetClosedError(pageCloseEx)) {
+                            logger.debug("Page already closed (expected during teardown): {}", pageCloseEx.getMessage());
+                        } else {
+                            logger.error("Error closing page: {}", pageCloseEx.getMessage(), pageCloseEx);
+                        }
                     }
                 }
 
@@ -549,7 +612,12 @@ public class Hooks {
                 context.close();
             }
         } catch (Exception ex) {
-            logger.error("Error closing the browser context: {}", ex.getMessage(), ex);
+            // TargetClosedError is expected when the browser was already closed — log as debug, not error.
+            if (isTargetClosedError(ex)) {
+                logger.debug("Browser context already closed (expected during teardown): {}", ex.getMessage());
+            } else {
+                logger.error("Error closing the browser context: {}", ex.getMessage(), ex);
+            }
         } finally {
             // Remove page and context thread-local references regardless of errors above to avoid leaks.
             pageThreadLocal.remove();
@@ -563,7 +631,11 @@ public class Hooks {
                 logger.info("Browser closed.");
             }
         } catch (Exception ex) {
-            logger.error("Error closing the browser: {}", ex.getMessage(), ex);
+            if (isTargetClosedError(ex)) {
+                logger.debug("Browser already closed (expected during teardown): {}", ex.getMessage());
+            } else {
+                logger.error("Error closing the browser: {}", ex.getMessage(), ex);
+            }
         } finally {
             // Ensure the browser thread-local reference is removed.
             browserThreadLocal.remove();
@@ -863,16 +935,26 @@ public class Hooks {
     /**
      * Get the active Playwright Page instance for the current thread.
      *
-     * @return the active Page
-     * @throws IllegalStateException if the page is not initialized or already closed
+     * <p>Returns {@code null} instead of throwing when the page is closed or not initialized.
+     * This is intentional for {@code @LastScenario} feature support: when a scenario in a
+     * shared-browser feature fails, the page may be closed before subsequent scenarios run.
+     * Step definitions that call this method must check for null before using the page.</p>
+     *
+     * <p>Previously this method threw {@code IllegalStateException} when the page was closed,
+     * which caused all subsequent scenarios in a {@code @LastScenario} feature to fail with
+     * a misleading "The page is closed or not initialized" error instead of the real failure.
+     * Returning null allows the step definition to produce a cleaner, more informative error.</p>
+     *
+     * @return the active Page, or {@code null} if the page is closed or not initialized
      */
     public static Page getPage() {
         Page page = (Page)pageThreadLocal.get();
         if (page != null && !page.isClosed()) {
             return page;
-        } else {
-            throw new IllegalStateException("The page is closed or not initialized.");
         }
+        // Return null instead of throwing — callers must handle null gracefully.
+        // This prevents cascading IllegalStateException errors in @LastScenario features.
+        return null;
     }
 
     /**
@@ -921,5 +1003,30 @@ public class Hooks {
         } else {
             return context;
         }
+    }
+
+    /**
+     * Check whether an exception is a Playwright TargetClosedError.
+     *
+     * <p>TargetClosedError is thrown by Playwright when an operation is attempted on a browser,
+     * context, or page that has already been closed. This is expected during teardown after
+     * soft assertion scenarios or @LastScenario failures where the browser may already be closed.
+     * These errors should be logged at DEBUG level, not ERROR level, to avoid misleading reports.</p>
+     *
+     * @param ex the exception to check
+     * @return {@code true} if the exception is a TargetClosedError or caused by one
+     */
+    private static boolean isTargetClosedError(Exception ex) {
+        if (ex == null) return false;
+        // Check the exception class name (avoids importing the Playwright internal class)
+        String className = ex.getClass().getName();
+        if (className.contains("TargetClosedError")) return true;
+        // Check the message for the characteristic string
+        String message = ex.getMessage();
+        if (message != null && message.contains("Target page, context or browser has been closed")) return true;
+        // Check the cause chain
+        Throwable cause = ex.getCause();
+        if (cause instanceof Exception) return isTargetClosedError((Exception) cause);
+        return false;
     }
 }

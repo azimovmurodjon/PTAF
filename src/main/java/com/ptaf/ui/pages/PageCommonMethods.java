@@ -6,8 +6,9 @@ import com.microsoft.playwright.Locator;
 import com.ptaf.ui.action_performer.ElementActionImpl;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.ui.interfaces.ElementAction;
-import com.ptaf.utils.ScenarioUtil;
 import com.ptaf.utils.ScreenshotHandler;
+import com.ptaf.utils.ConfigurationProperties;
+import com.ptaf.softassert.SoftAssertionContext;
 import com.microsoft.playwright.Page;
 import io.cucumber.java.Scenario;
 import org.slf4j.Logger;
@@ -795,88 +796,6 @@ public class PageCommonMethods {
     }
 
     /**
-     * Checks whether the list of text values from the specified element
-     * matches the expected string.
-     *
-     * <p>
-     * This method interacts with a collection-based web element, identified by
-     * the provided locator, and verifies that the combined or ordered list of
-     * text values is equal to the expected value. This is useful for validating
-     * dropdown options, lists, tables, or any group of elements where text
-     * comparison is required.
-     * </p>
-     *
-     * @param page    The current Playwright Page instance used to interact with the browser.
-     * @param element The logical name of the element being checked, used for logging.
-     * @param locator The locator string used to identify the list elements on the page.
-     * @param value       The expected text value to be compared against the list content.
-     */
-
-    public void equalsListText(Page page, String element, String locator, String value) {
-        performAction("equalslisttext", page, element, locator, value);
-    }
-
-
-    /**
-     * Validates whether the values of the specified element are sorted
-     * according to the given order.
-     *
-     * <p>
-     * This method checks the sorting behavior of a collection-based element,
-     * such as a table column or list, identified by the provided locator.
-     * It verifies that the values are arranged in the expected order
-     * (for example, ascending or descending). This is commonly used when
-     * testing sortable columns in tables or grids.
-     * </p>
-     *
-     * @param page    The current Playwright Page instance used to interact with the browser.
-     * @param element The logical name of the element being validated, used for logging.
-     * @param locator The locator string used to identify the sortable elements on the page.
-     * @param order   The expected sort order (e.g., "ascending" or "descending").
-     */
-
-    public void validateSort(Page page, String element, String locator, String order) {
-        performAction("order", page, element, locator, order);
-    }
-
-    /**
-     * Reports all available options from a dropdown element located within nested iframes.
-     *
-     * @param page       The Playwright page instance.
-     * @param element    The logical name of the dropdown element.
-     * @param locator    The locator strategy or identifier for the dropdown element.
-     */
-    public void reportListOfDropdown(Page page, String element, String locator) {
-        String exactElement = elementAction.getExactLocator(element, locator);
-        ScenarioUtil.reportAllDropdownOptionsMultiline(getCurrentScenario(), page, null, null, null, exactElement);
-    }
-
-    /**
-     * Captures and reports the string value of a specific element along with a screenshot,
-     * handling nested iframe contexts.
-     *
-     * @param page       The Playwright page instance.
-     * @param element    The logical name of the target element.
-     * @param locator    The locator strategy or identifier for the target element.
-     * @param label      A descriptive label to associate with the reported string value.
-     */
-    public void reportElementString(Page page, String element, String locator, String label) {
-        String exactElement = elementAction.getExactLocator(element, locator);
-        ScenarioUtil.reportElementString(getCurrentScenario(), page, null, null, null, exactElement, label);
-    }
-
-    /**
-     * Captures and reports the string value
-     *
-     * @param title       The Playwright page instance.
-     * @param value     The first-level iframe selector.
-     */
-
-    public void reportString(String title, String value) {
-        ScenarioUtil.reportString(getCurrentScenario(), title,  value);
-    }
-
-    /**
      * Retrieves the current value of the specified element.
      *
      * <p>
@@ -969,19 +888,85 @@ public class PageCommonMethods {
      * @param step A Runnable representing the action to be executed.
      */
     private void executeStep(Runnable step) {
-        if (isFailed) {
-            // Skip executing the step if a prior step has already failed.
+        // In soft assertion mode: do NOT skip steps after a prior failure — continue running all steps.
+        // In normal mode (default): skip all steps after the first failure (existing unchanged behavior).
+        if (isFailed && !ConfigurationProperties.isSoftAssertionsEnabled()) {
             return;
         }
-        try {
-            step.run(); // Attempt to execute the step body
-        } catch (Exception e) {
-            // Mark failure and log the detailed exception for diagnostics.
-            isFailed = true;
-            logger.error("Step execution failed: {}", e.getMessage(), e);
-            // Perform centralized failure handling which may include screenshots and closing resources.
-            handleFailure(page, "Step execution failed", null);
+
+        if (ConfigurationProperties.isSoftAssertionsEnabled()) {
+            // SOFT ASSERTION MODE:
+            // Set a thread-local override in ActionPerformer so that element interaction waits
+            // (waitIfNeededVisible, waitIfNeededClickable) use retry_seconds instead of the full
+            // time_to_wait_in_seconds. This prevents each failed step from blocking for 60s.
+            //
+            // IMPORTANT: Page load waits (waitForPageReady) in ActionPerformer use fullActionTimeoutMs()
+            // which ignores this override — so legitimate page navigations still wait the full 60s.
+            // This satisfies the requirement: page loads fully first, THEN element is waited for 3s.
+            long retryMs = (long) ConfigurationProperties.getSoftAssertionRetrySeconds() * 1000L;
+            try {
+                // Set the override — ActionPerformer.actionTimeoutMs() will return this value
+                com.ptaf.ui.action_performer.ActionPerformer.softAssertionTimeoutOverride.set(retryMs);
+                step.run();
+            } catch (Exception e) {
+                handleSoftFailure("Step execution failed", null, e);
+            } finally {
+                // Always clear the override after the step so subsequent steps use the full timeout.
+                com.ptaf.ui.action_performer.ActionPerformer.softAssertionTimeoutOverride.remove();
+            }
+        } else {
+            // NORMAL MODE (existing behavior — unchanged):
+            try {
+                step.run();
+            } catch (Exception e) {
+                // Mark failed, capture screenshot, close browser, throw to stop execution.
+                isFailed = true;
+                logger.error("Step execution failed: {}", e.getMessage(), e);
+                handleFailure(page, "Step execution failed", null);
+            }
         }
+    }
+
+    /**
+     * Handles a step failure in soft assertion mode.
+     *
+     * <p>Captures a screenshot immediately at the point of failure, records the failure
+     * in {@link SoftAssertionContext}, and returns normally so execution continues to the
+     * next step. The browser is NOT closed.</p>
+     *
+     * <p>This method is ONLY called when {@code soft_assertions.enabled: true}.
+     * It has no effect on normal mode behavior.</p>
+     *
+     * @param action  description of the action that failed (for the failure summary)
+     * @param element the element name (may be null)
+     * @param cause   the original exception that caused the failure
+     */
+    private void handleSoftFailure(String action, String element, Exception cause) {
+        String stepDesc = (element != null && !element.isEmpty())
+            ? action + " on [" + element + "]"
+            : action;
+        logger.warn("PTAF Soft Assert | Step failed: [{}]. Capturing screenshot and continuing.", stepDesc);
+
+        // Capture a screenshot at the point of failure for evidence in the report
+        String screenshotNote = null;
+        try {
+            ScreenshotHandler.handleScenarioTeardown(
+                getCurrentScenario(), page,
+                "SoftFail_" + stepDesc.replaceAll("[^a-zA-Z0-9_]", "_").substring(0, Math.min(stepDesc.length(), 40))
+            );
+            screenshotNote = "captured (see report)";
+        } catch (Exception screenshotEx) {
+            logger.warn("PTAF Soft Assert | Could not capture failure screenshot: {}", screenshotEx.getMessage());
+        }
+
+        // Record the failure — scenario will fail at the end with a full summary if any failures remain
+        SoftAssertionContext.recordFailure(
+            stepDesc,
+            cause != null ? cause.getMessage() : "(no error message)",
+            screenshotNote
+        );
+        logger.warn("PTAF Soft Assert | Continuing to next step. Scenario will fail at end if failures remain.");
+        // Do NOT set isFailed, do NOT close the browser — execution continues normally
     }
 
     /**

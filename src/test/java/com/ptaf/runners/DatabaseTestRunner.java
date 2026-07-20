@@ -111,7 +111,9 @@ import org.junit.runner.RunWith;
                 "pretty",
                 "html:target/cucumber-reports/database-report.html",
                 "json:target/cucumber-reports/database-report.json",
-                "junit:target/cucumber-reports/database-report.xml"
+                "junit:target/cucumber-reports/database-report.xml",
+                "com.ptaf.reporting.PerFeatureReportListener",  // Per-feature individual reports
+                "com.ptaf.reporting.SoftAssertionReportListener"  // marks soft-failed steps as FAILED in Extent/PDF reports (controlled by reporting.per_feature_reports_enabled in config.yml)
         },
 
         /*

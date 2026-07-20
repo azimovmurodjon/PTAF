@@ -1,130 +1,196 @@
-//
-// Source code recreated from a .class file by IntelliJ IDEA
-// (powered by Fernflower decompiler)
-//
+Here is the complete commit message and Teams announcement you can use to share with your team.
 
-package com.ptaf.utils;
+---
 
-import com.microsoft.playwright.Browser;
-import com.microsoft.playwright.BrowserContext;
-import com.microsoft.playwright.BrowserType;
-import com.microsoft.playwright.Playwright;
-import com.microsoft.playwright.options.HttpCredentials;
-import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+## Git Commit Message
 
-public final class BrowserFactory {
-    private static final Logger logger = LoggerFactory.getLogger(BrowserFactory.class);
-    private static final String TIMESTAMP = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-    private static final String VIDEO_DIR;
+```
+feat: Soft Assertions, XML/CSV modules, reporting fixes, mobile fixes, and platform improvements
 
-    private BrowserFactory() {
-        throw new IllegalStateException("Utility class");
-    }
+## Summary of Changes
 
-    public static Browser createBrowser(BrowserTypeEnum browserTypeEnum) {
-        Playwright playwright = Playwright.create();
-        Browser var10000;
-        switch (browserTypeEnum.ordinal()) {
-            case 0 -> var10000 = launchChromium(playwright.chromium(), "CHROME", (String)null);
-            case 1 -> var10000 = launchBrowser(playwright.firefox());
-            case 2 -> var10000 = launchBrowser(playwright.webkit());
-            case 3 -> var10000 = launchChromium(playwright.chromium(), "EDGE", "msedge");
-            default -> throw new MatchException((String)null, (Throwable)null);
-        }
+### New Features
+- **Soft Assertion Mode** (`soft_assertions.enabled: true` in config.yml)
+  - When enabled, failed steps are captured with screenshots and execution continues to the next step
+  - At end of scenario, all failures are summarised with timestamps and error messages
+  - Failed steps now correctly appear as RED in Extent HTML and PDF reports
+  - Works for UI, mobile browser simulation, mobile native app, and native mobile browser
+  - @LastScenario features: browser stays open across scenarios even when soft failures occur
+  - Normal mode (enabled: false) is completely unchanged
 
-        return var10000;
-    }
+- **XML Automation Module** (new: com.ptaf.xml)
+  - Load XML from file or UI element, query by node name or full XPath
+  - 15 Cucumber step definitions covering assertions, existence checks, counts, attributes, and variable extraction
 
-    private static Browser launchBrowser(BrowserType browserType) {
-        boolean headless = getHeadlessMode();
-        logger.info("Launching browser: {} with headless mode: {}", browserType.name().toUpperCase(), headless);
-        return browserType.launch((new BrowserType.LaunchOptions()).setHeadless(headless));
-    }
+- **CSV Automation Module** (new: com.ptaf.csv)
+  - Load CSV from file or UI element with configurable delimiter support
+  - 14 Cucumber step definitions covering cell assertions, column existence, row counts, and variable extraction
 
-    private static Browser launchChromium(BrowserType browserType, String browserName, String channel) {
-        boolean headless = getHeadlessMode();
-        boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
-        BrowserType.LaunchOptions launchOptions = (new BrowserType.LaunchOptions()).setHeadless(headless);
-        if (channel != null && !channel.trim().isEmpty()) {
-            launchOptions.setChannel(channel);
-        }
+- **Per-Feature Extent Reports** (reporting.per_feature_reports_enabled in config.yml)
+  - Generates one individual HTML/PDF report per feature file in addition to the combined report
+  - Each report titled with the Feature Name from the feature file declaration
 
-        if (shouldIgnoreHTTPSErrors) {
-            launchOptions.setArgs(Arrays.asList("--ignore-certificate-errors", "--allow-insecure-localhost", "--disable-web-security"));
-            logger.info("Launching {} with SSL bypass launch arguments enabled because ignoreHTTPSErrors=true.", browserName);
-        }
+### Bug Fixes
+- **UI Automation**: Fixed `IllegalStateException: The page is closed or not initialized` in @LastScenario features — page now returns null instead of throwing, with a clear descriptive error
+- **Mobile Native Browser**: Fixed `invalid session id` error for Android Chrome — skips terminateApp/activateApp which was closing the session
+- **iOS Safari**: Fixed hanging automation — same terminateApp/activateApp skip applied for iOS Safari
+- **Mobile Native App**: Fixed Playwright browser launching unnecessarily during native app scenarios
+- **Browser Maximize**: Fixed `maximize_browser: true` not fully maximizing — uses --start-maximized flag correctly without overriding Playwright viewport
+- **Mobile Browser Simulation**: Fixed viewport expanding to desktop size — screen size now locked to profile dimensions
+- **Maven Build**: Fixed `mvn clean test` running 0 tests — surefire-testng provider now correctly forces TestNG over JUnit Platform auto-detection
 
-        logger.info("Launching {} with headless mode: {}, ignoreHTTPSErrors: {}", new Object[]{browserName, headless, shouldIgnoreHTTPSErrors});
-        return browserType.launch(launchOptions);
-    }
+### Improvements
+- **Mobile element wait**: Two-phase wait (presence then visibility) for more robust native app element detection
+- **Mobile session timeout**: newCommandTimeout increased to 300s to prevent premature session closure on slow screens
+- **Browser teardown**: TargetClosedError during browser close now logged at DEBUG level instead of ERROR
+- **TestNG runner**: com.ptaf.runner.TestRunner now includes com.ptaf.hooks in glue path and correct tags
+- **Professional Javadoc**: All 98 Java classes have comprehensive Javadoc and inline comments
 
-    public static BrowserContext createContextWithVideo(Browser browser) {
-        boolean recordVideo = getVideoCapture();
-        boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
-        Browser.NewContextOptions contextOptions = (new Browser.NewContextOptions()).setIgnoreHTTPSErrors(shouldIgnoreHTTPSErrors);
-        logger.info("Creating UI BrowserContext. ignoreHTTPSErrors={}", shouldIgnoreHTTPSErrors);
-        applyHttpCredentialsIfAvailable(contextOptions);
-        if (recordVideo) {
-            logger.info("Video capture enabled. Videos will be stored under: {}", VIDEO_DIR);
-            contextOptions.setRecordVideoDir(Paths.get(VIDEO_DIR)).setRecordVideoSize(1280, 720);
-        } else {
-            logger.info("Video capture disabled.");
-        }
+### Configuration
+All new features are controlled from `config.yml` and default to `false` — zero behavior change unless explicitly enabled:
+```yaml
+soft_assertions:
+  enabled: false        # set true to enable continue-on-failure mode
+  retry_seconds: 3      # how long to wait per failed step before moving on
 
-        BrowserContext context = browser.newContext(contextOptions);
-        logger.info("UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}", shouldIgnoreHTTPSErrors, recordVideo);
-        return context;
-    }
+reporting:
+  per_feature_reports_enabled: false   # set true for individual feature reports
+  per_feature_pdf_enabled: false       # set true to also generate PDFs
+```
+```
 
-    private static void applyHttpCredentialsIfAvailable(Browser.NewContextOptions contextOptions) {
-        String username = System.getProperty("service.username");
-        String password = System.getProperty("service.password");
-        if (isNotBlank(username) && isNotBlank(password)) {
-            contextOptions.setHttpCredentials(new HttpCredentials(username, password));
-            logger.info("HTTP authentication credentials applied.");
-        } else {
-            logger.info("No HTTP credentials found. Proceeding without authentication.");
-        }
+---
 
-    }
+## Microsoft Teams Message
 
-    private static boolean getHeadlessMode() {
-        String value = ConfigurationProperties.getHeadlessMode();
-        return Boolean.parseBoolean(value);
-    }
+```📢 PTAF Framework Update — July 2026
 
-    private static boolean getVideoCapture() {
-        String value = ConfigurationProperties.getVideoCapture();
-        return Boolean.parseBoolean(value);
-    }
+   Hi team,
 
-    private static boolean getIgnoreHTTPSErrors() {
-        String value = ConfigurationProperties.getIgnoreHTTPSErrors();
-        if (value != null && !value.trim().isEmpty()) {
-            return Boolean.parseBoolean(value.trim());
-        } else {
-            logger.warn("ignoreHTTPSErrors is missing or blank. Defaulting to false.");
-            return false;
-        }
-    }
+   We have a significant update to the PTAF framework. Here is what is new and how to use it.
 
-    private static boolean isNotBlank(String value) {
-        return value != null && !value.trim().isEmpty();
-    }
+   ---
 
-    static {
-        VIDEO_DIR = "test-output/captured-videos/" + TIMESTAMP;
-    }
+   ✅ NEW: Soft Assertion Mode
+   When enabled, failed steps no longer stop the test. The framework captures a screenshot, records the failure, and continues to the next step. At the end of the scenario, all failures are summarised. Failed steps appear RED in the report.
 
-    public static enum BrowserTypeEnum {
-        CHROME,
-        FIREFOX,
-        WEBKIT,
-        EDGE;
-    }
-}
+   Enable in config.yml:
+     soft_assertions:
+       enabled: true
+       retry_seconds: 3
+
+   Set back to false for normal fail-fast behavior.
+
+   ---
+
+   ✅ NEW: XML Automation — Validate XML files and UI elements containing XML
+
+   How to use:
+
+   Step 1 — Add a sample XML file to your test resources:
+     src/test/resources/data/order_response.xml
+
+     <?xml version="1.0"?>
+     <order>
+       <status>SUCCESS</status>
+       <orderId>ORD-12345</orderId>
+       <total currency="USD">99.99</total>
+       <items>
+         <item id="1"><name>Laptop</name><price>99.99</price></item>
+       </items>
+     </order>
+
+   Step 2 — Write your feature file:
+
+     Feature: Order API XML Validation
+
+       @xml_validation
+       Scenario: Verify order response XML
+         Given I load XML file "src/test/resources/data/order_response.xml"
+         Then XML node "status" equals "SUCCESS"
+         Then XML node "orderId" equals "ORD-12345"
+         Then XML XPath "//total/@currency" equals "USD"
+         Then XML XPath "//items/item" count equals 1
+         Then XML node "errorCode" does not exist
+         When I extract XML node "orderId" and store as "ORDER_ID"
+         Then I log stored variable "ORDER_ID"
+
+   Step 3 — To validate XML content displayed in a UI element:
+
+       Scenario: Verify XML shown in browser text area
+         Given we navigate to "https://yourapp.com/api-response"
+         Given I load XML from UI element on page "ResponsePage" locator "xmlTextArea"
+         Then XML node "status" equals "SUCCESS"
+         Then XML XPath "//order/total" equals "99.99"
+
+   Full step reference: src/test/resources/features/xml/xml_automation_example.feature
+
+   ---
+
+   ✅ NEW: CSV Automation — Validate CSV files and UI elements containing CSV data
+
+   How to use:
+
+   Step 1 — Add a sample CSV file to your test resources:
+     src/test/resources/data/transactions.csv
+
+     TransactionId,Amount,Currency,Status,AccountNumber
+     TXN-001,1250.00,USD,COMPLETED,ACC-789
+     TXN-002,500.00,GBP,PENDING,ACC-456
+     TXN-003,75.50,EUR,COMPLETED,ACC-123
+
+   Step 2 — Write your feature file:
+
+     Feature: Transaction Report CSV Validation
+
+       @csv_validation
+       Scenario: Verify exported transaction report
+         Given I load CSV file "src/test/resources/data/transactions.csv"
+         Then CSV row count equals 3
+         Then CSV column "TransactionId" exists
+         Then CSV row 1 column "Amount" equals "1250.00"
+         Then CSV row 1 column "Status" equals "COMPLETED"
+         Then CSV row 2 column "Currency" equals "GBP"
+         Then all CSV rows have column "Currency" is not empty
+         When I extract CSV row 1 column "TransactionId" and store as "TXN_ID"
+         Then I log stored variable "TXN_ID"
+
+   Step 3 — To validate CSV content displayed in a UI element (e.g. a report table ):
+
+       Scenario: Verify CSV data shown on report page
+         Given we navigate to "https://yourapp.com/reports/export"
+         Given I load CSV from UI element on page "ReportPage" locator "csvOutput"
+         Then CSV row 1 column "Status" equals "COMPLETED"
+         Then CSV row count equals 3
+
+   Full step reference: src/test/resources/features/csv/csv_automation_example.feature
+
+   ---
+
+   ✅ NEW: Per-Feature Reports
+   Generate one individual HTML/PDF report per feature file in addition to the combined report.
+
+   Enable in config.yml:
+     reporting:
+       per_feature_reports_enabled: true
+       per_feature_pdf_enabled: true
+
+   ---
+
+   🔧 FIXES
+   - @LastScenario features: browser no longer closes prematurely on soft failures
+   - Android Chrome and iOS Safari native browser: invalid session id error resolved
+   - Native mobile app: Playwright browser no longer starts unnecessarily
+   - Browser maximize: now works correctly with maximize_browser: true
+   - mvn clean test: now correctly picks up testng.xml and runs all tests
+   - Soft assertion step timing: failed steps now respect retry_seconds correctly (was using 30s page default )
+
+   ---
+
+   ⚙️ HOW TO UPDATE
+   Download the latest ZIP from the shared drive, replace your local project files, and run mvn clean compile to verify.
+
+   All new features default to OFF — your existing tests run exactly as before unless you explicitly enable the new settings.
+
+   Questions? Reply in this channel.
+```

@@ -1,0 +1,6 @@
+TransactionId,Date,Description,Amount,Currency,Status,Category,AccountNumber
+TXN-001,2025-07-01,Online Purchase - Amazon,125.50,USD,APPROVED,Shopping,ACC-12345
+TXN-002,2025-07-02,Salary Deposit,3500.00,USD,APPROVED,Income,ACC-12345
+TXN-003,2025-07-03,Electricity Bill Payment,89.75,USD,APPROVED,Utilities,ACC-12345
+TXN-004,2025-07-04,Restaurant - The Bistro,45.20,USD,APPROVED,Dining,ACC-12345
+TXN-005,2025-07-05,ATM Withdrawal,200.00,USD,APPROVED,Cash,ACC-12345

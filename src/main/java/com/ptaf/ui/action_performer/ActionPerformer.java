@@ -33,6 +33,20 @@ import java.util.List;
  */
 public class ActionPerformer {
 
+    /**
+     * Thread-local override for the element interaction timeout used in soft assertion mode.
+     *
+     * <p>When soft assertions are enabled, {@code PageCommonMethods.executeStep()} sets this
+     * value to {@code retry_seconds * 1000} before running each step, then clears it afterward.
+     * This causes {@link #actionTimeoutMs()} to return the shorter retry timeout for element
+     * interactions, while page load waits ({@link #waitForPageReady}) always use the full
+     * configured timeout from {@code time_to_wait_in_seconds}.</p>
+     *
+     * <p>When not set (normal mode), this is null and {@link #actionTimeoutMs()} reads from config
+     * as before — zero change to existing behavior.</p>
+     */
+    public static final ThreadLocal<Long> softAssertionTimeoutOverride = new ThreadLocal<>();
+
     private boolean isFileInput(Locator locator) {
         try {
             return Boolean.TRUE.equals(
@@ -66,12 +80,37 @@ public class ActionPerformer {
      * @return configured timeout in milliseconds (non-negative)
      */
     private long actionTimeoutMs() {
+        // In soft assertion mode, PageCommonMethods.executeStep() sets a thread-local override
+        // to retry_seconds * 1000 so element interactions fail fast instead of waiting 60s.
+        // This override is cleared after each step so subsequent steps use the full timeout.
+        // Page load waits (waitForPageReady) use fullActionTimeoutMs() and are NOT affected.
+        Long override = softAssertionTimeoutOverride.get();
+        if (override != null) {
+            return override;
+        }
         String timeToWait = ConfigurationProperties.getValue("time_to_wait_in_seconds");
         try {
             int seconds = Integer.parseInt(timeToWait == null ? "0" : timeToWait.trim());
             return Math.max(0, seconds) * 1000L;
         } catch (Exception e) {
             // Safe fallback if config is missing or invalid
+            return 30_000L;
+        }
+    }
+
+    /**
+     * Returns the full configured timeout from {@code time_to_wait_in_seconds} in milliseconds,
+     * regardless of any soft assertion override. Used for page load waits that must always
+     * use the full timeout so legitimate page navigations are not cut short.
+     *
+     * @return full configured timeout in milliseconds
+     */
+    private long fullActionTimeoutMs() {
+        String timeToWait = ConfigurationProperties.getValue("time_to_wait_in_seconds");
+        try {
+            int seconds = Integer.parseInt(timeToWait == null ? "0" : timeToWait.trim());
+            return Math.max(0, seconds) * 1000L;
+        } catch (Exception e) {
             return 30_000L;
         }
     }
@@ -155,7 +194,12 @@ public class ActionPerformer {
      * @param page Playwright Page object
      */
     private void waitForPageReady(Page page) {
-        long timeout = actionTimeoutMs();
+        // IMPORTANT: Use fullActionTimeoutMs() here, NOT actionTimeoutMs().
+        // Page load waits must always use the full configured timeout (e.g. 60s) so that
+        // legitimate page navigations are not cut short by the soft assertion retry window (e.g. 3s).
+        // Only element interaction waits (waitIfNeededVisible, waitIfNeededClickable) use the
+        // shorter soft assertion timeout via actionTimeoutMs().
+        long timeout = fullActionTimeoutMs();
         if (timeout <= 0 || page == null) return;
 
         try {

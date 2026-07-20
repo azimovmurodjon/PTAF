@@ -48,14 +48,16 @@ import org.junit.runner.RunWith;
                 // JUnit XML report to be consumed by CI servers
                 "junit:target/cucumber-reports/mobile-report.xml",
                 // ExtentReports adapter for rich interactive reports (requires adapter on classpath)
-                "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:"
+                "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:",
+                "com.ptaf.reporting.PerFeatureReportListener",
+                "com.ptaf.reporting.SoftAssertionReportListener"  // marks soft-failed steps as FAILED in Extent/PDF reports  // Per-feature individual reports (controlled by reporting.per_feature_reports_enabled in config.yml)
         },
         // Path to feature files that describe mobile test scenarios using Gherkin syntax.
         features = "src/test/resources/features/mobile",
         // Packages that contain step definitions and Cucumber hooks (before/after, etc.).
         glue = {"com.ptaf.stepdefinitions", "com.ptaf.hooks"},
         // Tag expression controlling which scenarios will be executed. Modify this to run other suites.
-        tags = "@appium_browser",
+        tags = "@theapp_smoke",
         // When true, Cucumber will check for undefined steps without running tests. We execute tests here.
         dryRun = false,
         // When true, disables ANSI colors in console output for prettier CI logs and plain terminals.

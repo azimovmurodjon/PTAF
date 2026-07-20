@@ -4,6 +4,8 @@ import com.ptaf.mobile.config.MobileConfigurationProperties;
 import com.ptaf.mobile.config.MobilePlatform;
 import com.ptaf.mobile.drivers.MobileDriverManager;
 import com.ptaf.mobile.evidence.MobileEvidenceManager;
+import com.ptaf.softassert.SoftAssertionContext;
+import com.ptaf.utils.ConfigurationProperties;
 import io.appium.java_client.AppiumDriver;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
@@ -91,6 +93,20 @@ public class MobileHooks {
     public void tearDownMobile(Scenario scenario) {
         // If the scenario is not a mobile scenario, nothing to tear down for Appium.
         if (!isMobileScenario(scenario)) return;
+
+        // ── Soft Assertion Flush (Mobile) ──────────────────────────────────────────────────
+        // When soft_assertions.enabled: true, fail the scenario if any mobile steps failed softly.
+        // When soft_assertions.enabled: false (default), this block is a no-op.
+        if (ConfigurationProperties.isSoftAssertionsEnabled() && SoftAssertionContext.hasFailed()) {
+            String summary = SoftAssertionContext.buildSummary();
+            SoftAssertionContext.clear();
+            if (scenario != null) {
+                scenario.log(summary);
+            }
+            throw new AssertionError(summary);
+        }
+        SoftAssertionContext.clear();
+        // ─────────────────────────────────────────────────────────────────────────────
 
         try {
             // Only attempt evidence capture if a driver is present (i.e., we started one in setup).

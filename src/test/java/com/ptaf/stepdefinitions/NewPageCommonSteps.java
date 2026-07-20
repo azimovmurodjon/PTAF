@@ -72,7 +72,17 @@ public class NewPageCommonSteps {
      * @return the active Page instance used for subsequent actions
      */
     private Page getActivePage() {
-        return Hooks.getPage();
+        Page page = Hooks.getPage();
+        if (page == null) {
+            // The page is null — this happens in @LastScenario features when a previous scenario failed
+            // and closed the shared browser. Throw a clear, descriptive error instead of a NullPointerException.
+            throw new IllegalStateException(
+                "The Playwright page is not available for this scenario. " +
+                "This typically occurs in @LastScenario features when a previous scenario failed " +
+                "and closed the shared browser. Check the failure in the previous scenario for the root cause."
+            );
+        }
+        return page;
     }
 
     /**

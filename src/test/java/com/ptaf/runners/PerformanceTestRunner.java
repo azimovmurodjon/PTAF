@@ -49,13 +49,17 @@ import org.junit.runner.RunWith;
                 "html:target/performance-cucumber-report.html",
 
                 /*
-                 * "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:"
+                 * "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:",
+                "com.ptaf.reporting.PerFeatureReportListener",
+                "com.ptaf.reporting.SoftAssertionReportListener"  // marks soft-failed steps as FAILED in Extent/PDF reports  // Per-feature individual reports (controlled by reporting.per_feature_reports_enabled in config.yml)
                  * - integrates with the ExtentReports reporter adapter. When this adapter
                  * is present on the classpath, a rich HTML report (Extent) will be produced.
                  * Ensure the Extent Cucumber adapter dependency and its configuration file
                  * (if any) are available in the project when using this plugin.
                  */
-                "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:"
+                "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:",
+                "com.ptaf.reporting.PerFeatureReportListener",
+                "com.ptaf.reporting.SoftAssertionReportListener"  // marks soft-failed steps as FAILED in Extent/PDF reports  // Per-feature individual reports (controlled by reporting.per_feature_reports_enabled in config.yml)
         },
 
         /*

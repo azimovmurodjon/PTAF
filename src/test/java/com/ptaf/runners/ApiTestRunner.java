@@ -50,7 +50,9 @@ import io.cucumber.junit.CucumberOptions;
         plugin = {"pretty",
                 "html:target/api-cucumber-reports.html", // HTML report file (keeps API runner reports separate)
                 "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:", // ExtentReports integration
-                "timeline:test-output-thread/" // Timeline output for multi-threaded execution visualization
+                "timeline:test-output-thread/", // Timeline output for multi-threaded execution visualization
+                "com.ptaf.reporting.PerFeatureReportListener",
+                "com.ptaf.reporting.SoftAssertionReportListener"  // marks soft-failed steps as FAILED in Extent/PDF reports  // Per-feature individual reports (controlled by reporting.per_feature_reports_enabled in config.yml)
         },
         // Only run scenarios/features marked with the @api tag. This keeps API tests isolated
         // from UI or other test types that may exist in the same project.

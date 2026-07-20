@@ -882,9 +882,17 @@ public class FrameCommonMethods {
      */
     private void performAction(String action, Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator, String value) {
         executeStep(() -> {
-            boolean actionStatus = elementAction.performActionPageFrame(page, iFrame, iFrame_2, iFrame_3, action, element, locator, value, null); // Execute action and check status
+            boolean actionStatus = elementAction.performActionPageFrame(page, iFrame, iFrame_2, iFrame_3, action, element, locator, value, null);
             if (!actionStatus) {
-                handleFailure(page, action, element); // Handle failure if action is unsuccessful
+                if (com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
+                    // SOFT ASSERTION MODE: throw a simple exception WITHOUT closing the browser.
+                    // The catch block in executeStep() will handle it, record the failure,
+                    // and continue to the next step with the browser still open.
+                    throw new RuntimeException("Action '" + action + "' failed on element '" + element + "', skipping further steps");
+                } else {
+                    // NORMAL MODE: call handleFailure which closes the browser and throws.
+                    handleFailure(page, action, element);
+                }
             }
         });
     }
@@ -910,7 +918,12 @@ public class FrameCommonMethods {
 
             // Handle failure if result is expected but null
             if (result[0] == null && actionRequiresResult(action)) {
-                handleFailure(page, action, element);
+                if (com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
+                    // SOFT ASSERTION MODE: throw without closing the browser
+                    throw new RuntimeException("Action '" + action + "' failed on element '" + element + "', skipping further steps");
+                } else {
+                    handleFailure(page, action, element);
+                }
             } else if (result[0] != null && !result[0].isEmpty()) {
                 logger.info("Action '{}' returned result: {}", action, result[0]);
             }
@@ -1032,16 +1045,73 @@ public class FrameCommonMethods {
      * @param step A Runnable representing the action to be executed.
      */
     private void executeStep(Runnable step) {
-        if (isFailed) {
-            // Skip execution of further steps if a previous one has failed
-            return; // Exit if a failure has already occurred to prevent cascading failures
+        // In soft assertion mode: do NOT skip steps after a prior failure.
+        // In normal mode (default): skip all steps after the first failure.
+        if (isFailed && !com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
+            return;
         }
-        try {
-            step.run(); // Execute the provided step action
-        } catch (Exception e) {
-            isFailed = true; // Mark the test as failed
-            logger.error("Step execution failed: {}", e.getMessage(), e); // Log exception details
-            handleFailure(page, "Step execution failed", null); // Handle failure cleanly by logging and performing cleanup
+
+        if (com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
+            // SOFT ASSERTION MODE:
+            // Set the ActionPerformer thread-local override so element waits use retry_seconds
+            // instead of the full time_to_wait_in_seconds. Page load waits are not affected.
+            // ALSO set page.setDefaultTimeout(retryMs) so ALL Playwright operations within this
+            // step (including click(), fill(), etc.) use the short retry timeout instead of the
+            // 30s page default timeout. Without this, click() on an unactionable element would
+            // wait 30s before failing even though the element wait already used 3s.
+            long retryMs = (long) com.ptaf.utils.ConfigurationProperties.getSoftAssertionRetrySeconds() * 1000L;
+            double originalPageTimeout = retryMs; // track for restore
+            try {
+                com.ptaf.ui.action_performer.ActionPerformer.softAssertionTimeoutOverride.set(retryMs);
+                // Set Playwright page default timeout to retryMs so all locator operations use it.
+                if (page != null && !page.isClosed()) {
+                    page.setDefaultTimeout(retryMs);
+                }
+                step.run();
+            } catch (Exception e) {
+                // Record the failure, capture screenshot, and continue to next step.
+                // Do NOT close the browser. Do NOT set isFailed.
+                String stepDesc = "Step execution failed";
+                logger.warn("PTAF Soft Assert | Frame step failed: [{}]. Capturing screenshot and continuing.", e.getMessage());
+                String screenshotNote = null;
+                try {
+                    com.ptaf.utils.ScenarioUtil.handleScenarioTeardownFailier(getCurrentScenario(), page, "SoftFail");
+                    screenshotNote = "captured (see report)";
+                } catch (Exception screenshotEx) {
+                    logger.warn("PTAF Soft Assert | Could not capture failure screenshot: {}", screenshotEx.getMessage());
+                }
+                com.ptaf.softassert.SoftAssertionContext.recordFailure(
+                    stepDesc,
+                    e.getMessage() != null ? e.getMessage() : "(no error message)",
+                    screenshotNote
+                );
+                logger.warn("PTAF Soft Assert | Continuing to next step.");
+            } finally {
+                com.ptaf.ui.action_performer.ActionPerformer.softAssertionTimeoutOverride.remove();
+                // Restore the page default timeout to the full configured value after each step.
+                // This ensures subsequent steps that pass use the full timeout for legitimate waits.
+                try {
+                    if (page != null && !page.isClosed()) {
+                        long fullMs = com.ptaf.utils.ConfigurationProperties.getRuntimeTimeoutMillis();
+                        if (fullMs <= 0) fullMs = 30000L;
+                        page.setDefaultTimeout(fullMs);
+                    }
+                } catch (Exception restoreEx) {
+                    logger.debug("PTAF Soft Assert | Could not restore page default timeout: {}", restoreEx.getMessage());
+                }
+            }
+        } else {
+            // NORMAL MODE (existing behavior — unchanged):
+            if (isFailed) {
+                return;
+            }
+            try {
+                step.run();
+            } catch (Exception e) {
+                isFailed = true;
+                logger.error("Step execution failed: {}", e.getMessage(), e);
+                handleFailure(page, "Step execution failed", null);
+            }
         }
     }
 

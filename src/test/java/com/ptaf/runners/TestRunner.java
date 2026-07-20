@@ -42,7 +42,9 @@ import io.cucumber.junit.CucumberOptions;
         plugin = {"pretty",                      // Print test results in a readable form to the console
                 "html:target/cucumber-reports.html",  // Generate an HTML report at target/cucumber-reports.html
                 "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:",  // Adapter for ExtentReports (requires dependency)
-                "timeline:test-output-thread/"       // Produce a timeline report in the specified folder
+                "timeline:test-output-thread/",       // Produce a timeline report in the specified folder
+                "com.ptaf.reporting.PerFeatureReportListener",
+                "com.ptaf.reporting.SoftAssertionReportListener"  // marks soft-failed steps as FAILED in Extent/PDF reports  // Per-feature individual reports (controlled by reporting.per_feature_reports_enabled in config.yml)
         },
         // Tag expression selecting which scenarios to run. Change this to run different tagged scenarios.
         // Examples:

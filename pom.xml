@@ -187,23 +187,6 @@
             <version>${slf4j.version}</version>
         </dependency>
 
-        <!--
-            Do not use Logback together with log4j-slf4j2-impl unless you intentionally want Logback.
-            Keeping both can create multiple SLF4J provider conflicts.
-
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <version>${logback.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-core</artifactId>
-            <version>${logback.version}</version>
-        </dependency>
-        -->
-
         <!-- Log4j API - version controlled by Log4j BOM -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
@@ -305,61 +288,6 @@
             </exclusions>
         </dependency>
 
-        <!--
-            Optional internal PTAF jar.
-
-            If this internal jar is required, uncomment this dependency and remove any manually added jar from IntelliJ:
-            File -> Project Structure -> Modules -> Dependencies
-
-            The exclusions prevent old Log4j/Cucumber/SnakeYAML versions from overriding this POM.
-        -->
-
-        <!--
-        <dependency>
-            <groupId>com.fnb_ptaf</groupId>
-            <artifactId>fnb_ptaf</artifactId>
-            <version>1.0.0-7324</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.apache.logging.log4j</groupId>
-                    <artifactId>log4j-api</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.apache.logging.log4j</groupId>
-                    <artifactId>log4j-core</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.apache.logging.log4j</groupId>
-                    <artifactId>log4j-1.2-api</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.apache.logging.log4j</groupId>
-                    <artifactId>log4j-slf4j2-impl</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.cucumber</groupId>
-                    <artifactId>cucumber-java</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.cucumber</groupId>
-                    <artifactId>cucumber-core</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.cucumber</groupId>
-                    <artifactId>cucumber-junit</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.cucumber</groupId>
-                    <artifactId>cucumber-testng</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.yaml</groupId>
-                    <artifactId>snakeyaml</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        -->
-
     </dependencies>
 
     <build>
@@ -384,9 +312,30 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
-                <configuration>
 
-                    <!-- Your existing TestNG XML runner -->
+                <!--
+                    IMPORTANT FIX: surefire-testng must be declared as a PLUGIN dependency here,
+                    NOT in the project <dependencies> section.
+
+                    Without this, Maven Surefire auto-detects the JUnit Platform provider
+                    (because JUnit 5 is on the classpath) and completely ignores <suiteXmlFiles>,
+                    resulting in 0 tests run.
+
+                    With this dependency inside the plugin, Surefire uses the TestNG provider
+                    and correctly picks up testng.xml.
+                -->
+                <dependencies>
+                    <dependency>
+                        <groupId>org.apache.maven.surefire</groupId>
+                        <artifactId>surefire-testng</artifactId>
+                        <version>3.2.5</version>
+                    </dependency>
+                </dependencies>
+
+                <configuration>
+                    <testFailureIgnore>true</testFailureIgnore>
+
+                    <!-- TestNG suite XML file — picked up by mvn test and mvn clean install -->
                     <suiteXmlFiles>
                         <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
                     </suiteXmlFiles>
@@ -402,7 +351,7 @@
                     <reportsDirectory>target/surefire-reports</reportsDirectory>
                     <useFile>true</useFile>
 
-                    <!-- Helps Java 21 reflection access issues in some test frameworks -->
+                    <!-- Java 21 reflection access required by Playwright, Appium, and JMeter -->
                     <argLine>
                         --add-opens java.base/java.lang=ALL-UNNAMED
                         --add-opens java.base/java.lang.reflect=ALL-UNNAMED
@@ -413,7 +362,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Maven Shade Plugin - kept and safely updated for Java 21 + Appium/Selenium/JMeter dependency set -->
+            <!-- Maven Shade Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>

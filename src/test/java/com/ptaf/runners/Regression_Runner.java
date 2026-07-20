@@ -38,7 +38,9 @@ import org.junit.runner.RunWith;
         // Define the output formats and locations for the test reports and console output.
         plugin = {"pretty",                       // Print the test results in a readable format to the console
                 "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:",  // Produce an Extent HTML report (adapter controls output location/config)
-                "timeline:test-output-thread/"   // Generate timeline artifacts under test-output-thread/ for parallel run visualization
+                "timeline:test-output-thread/",   // Generate timeline artifacts under test-output-thread/ for parallel run visualization
+                "com.ptaf.reporting.PerFeatureReportListener",
+                "com.ptaf.reporting.SoftAssertionReportListener"  // marks soft-failed steps as FAILED in Extent/PDF reports  // Per-feature individual reports (controlled by reporting.per_feature_reports_enabled in config.yml)
         },
         tags = "@regression", // Execute only scenarios and features annotated with this tag
         // Specify the location of the feature files relative to the project root.

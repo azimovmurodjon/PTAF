@@ -36,6 +36,8 @@ import io.cucumber.testng.CucumberOptions;
                 "pretty",  // Print a human-readable summary of Cucumber execution to the console
                 "html:target/cucumber-reports.html",  // Generate an HTML report at the specified path
                 "com.aventstack.extentreports.cucumber.adapter.ExtentCucumberAdapter:",  // ExtentReports adapter for richer reporting
+                "com.ptaf.reporting.PerFeatureReportListener",  // Per-feature individual reports (controlled by reporting.per_feature_reports_enabled in config.yml)
+                "com.ptaf.reporting.SoftAssertionReportListener",  // marks soft-failed steps as FAILED in Extent/PDF reports
                 "timeline:test-output-thread/"  // Produce a timeline view of execution per thread
         },
         monochrome = true,  // Produce cleaner console output without ANSI escape codes

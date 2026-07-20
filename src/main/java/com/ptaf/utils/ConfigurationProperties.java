@@ -201,22 +201,27 @@ public class ConfigurationProperties {
      * @return the configured runtime timeout as a long, or a default value if not configured.
      */
     public static long getRuntimeTimeoutMillis() {
-        // Fetch the configured timeout as string
+        // First try runtimeTimeoutMillis (milliseconds) for backward compatibility.
+        // Fall back to runtimeWait (seconds) which is the actual key in config.yml.
         String value = getValue("runtimeTimeoutMillis");
-
-        // If missing or empty, warn and return default (30 seconds)
-        if (value == null || value.trim().isEmpty()) {
-            logger.warn("Configuration key 'runtimeTimeoutMillis' was not found. Defaulting to 30000 ms.");
-            return 30000L; // Default to 30 seconds
+        if (value != null && !value.trim().isEmpty()) {
+            try {
+                return Long.parseLong(value.trim());
+            } catch (NumberFormatException ignored) {}
         }
 
-        // Attempt to parse configured value as long. If parsing fails, log the error and return default.
-        try {
-            return Long.parseLong(value);
-        } catch (NumberFormatException e) {
-            logger.error("Invalid number format for runtimeTimeoutMillis: {}. Defaulting to 30000 ms.", value, e);
-            return 30000L;
+        // Try runtimeWait (value in seconds, convert to milliseconds)
+        String waitSeconds = getValue("runtimeWait");
+        if (waitSeconds != null && !waitSeconds.trim().isEmpty()) {
+            try {
+                long seconds = Long.parseLong(waitSeconds.trim());
+                return seconds * 1000L;
+            } catch (NumberFormatException ignored) {}
         }
+
+        // Default to 30 seconds if neither key is found.
+        logger.warn("Configuration keys 'runtimeTimeoutMillis' and 'runtimeWait' were not found. Defaulting to 30000 ms.");
+        return 30000L;
     }
 
     /**
@@ -235,8 +240,10 @@ public class ConfigurationProperties {
      * @return the String representation of the configured value, or null if not present.
      */
     public static String getValue(String value) {
+        // First try environment-specific key: environments.{env}.{key}
+        // This allows per-environment overrides in config.yml under an 'environments' section.
+        // The 'env' system property defaults to 'QA' if not set (e.g. -Denv=PROD).
         String env = System.getProperty("env", "QA");
-
         String envValueKey = "environments." + env + "." + value;
 
         Object rawValue;
@@ -247,10 +254,111 @@ public class ConfigurationProperties {
         } finally {
             YamlReader.setSuppressLogs(false);
         }
+
+        // Fall back to the plain key if no environment-specific value was found.
         if (rawValue == null) {
             rawValue = YamlReader.get(value);
         }
 
+        // If rawValue is null, return null so callers can handle absence explicitly.
         return rawValue == null ? null : String.valueOf(rawValue);
+    }
+
+    // ─── Reporting configuration ──────────────────────────────────────────────────
+
+    /**
+     * Whether per-feature-file Extent Reports are enabled.
+     *
+     * <p>When {@code true}, PTAF generates one individual Extent HTML report per feature file
+     * in addition to the combined report. Each report is titled with the Feature Name
+     * from the feature file's {@code Feature:} declaration.</p>
+     *
+     * <p>Config key: {@code reporting.per_feature_reports_enabled}</p>
+     * <p>Default: {@code false} (only the combined report is generated).</p>
+     *
+     * @return {@code true} if per-feature reports are enabled, {@code false} otherwise
+     */
+    public static boolean isPerFeatureReportsEnabled() {
+        String value = getValue("reporting.per_feature_reports_enabled");
+        return "true".equalsIgnoreCase(value);
+    }
+
+    /**
+     * The output directory for per-feature Extent HTML reports.
+     *
+     * <p>Each report is saved as: {@code {output_dir}/{feature_file_name}_{timestamp}.html}.
+     * The directory is created automatically if it does not exist.</p>
+     *
+     * <p>Config key: {@code reporting.per_feature_reports_output_dir}</p>
+     * <p>Default: {@code "test-output/per-feature-reports"}</p>
+     *
+     * @return the configured output directory path
+     */
+    public static String getPerFeatureReportsOutputDir() {
+        String value = getValue("reporting.per_feature_reports_output_dir");
+        return (value != null && !value.trim().isEmpty()) ? value.trim() : "test-output/per-feature-reports";
+    }
+
+    /**
+     * Whether a PDF version of each per-feature report should also be generated.
+     *
+     * <p>Only has effect when {@link #isPerFeatureReportsEnabled()} returns {@code true}.</p>
+     *
+     * <p>Config key: {@code reporting.per_feature_pdf_enabled}</p>
+     * <p>Default: {@code false}</p>
+     *
+     * @return {@code true} if per-feature PDF reports are enabled, {@code false} otherwise
+     */
+    public static boolean isPerFeaturePdfEnabled() {
+        String value = getValue("reporting.per_feature_pdf_enabled");
+        return "true".equalsIgnoreCase(value);
+    }
+
+    // ─── Soft assertions configuration ────────────────────────────────────────────
+
+    /**
+     * Whether soft assertion mode is enabled.
+     *
+     * <p>When {@code true}, a failing step is retried for {@link #getSoftAssertionRetrySeconds()}
+     * seconds before being recorded as a soft failure. Execution continues to the next step.
+     * The scenario fails at the end if any soft failures were recorded.</p>
+     *
+     * <p>When {@code false} (default), normal fail-fast behavior applies: the first failure
+     * stops the scenario immediately and closes the browser. This is the current behavior
+     * and is unchanged unless this setting is explicitly set to {@code true}.</p>
+     *
+     * <p>Config key: {@code soft_assertions.enabled}</p>
+     * <p>Default: {@code false}</p>
+     *
+     * @return {@code true} if soft assertion mode is enabled, {@code false} otherwise
+     */
+    public static boolean isSoftAssertionsEnabled() {
+        String value = getValue("soft_assertions.enabled");
+        return "true".equalsIgnoreCase(value);
+    }
+
+    /**
+     * The number of seconds to retry a failed step before recording it as a soft failure.
+     *
+     * <p>Only used when {@link #isSoftAssertionsEnabled()} returns {@code true}.</p>
+     *
+     * <p>Keep this value low (1–10 seconds). If an element has not appeared within 3 seconds
+     * it is almost certainly a real failure, not a timing issue.</p>
+     *
+     * <p>Config key: {@code soft_assertions.retry_seconds}</p>
+     * <p>Default: {@code 3} seconds</p>
+     *
+     * @return the configured retry duration in seconds
+     */
+    public static int getSoftAssertionRetrySeconds() {
+        String value = getValue("soft_assertions.retry_seconds");
+        if (value == null || value.trim().isEmpty()) return 3;
+        try {
+            int seconds = Integer.parseInt(value.trim());
+            return Math.max(1, Math.min(seconds, 60)); // clamp between 1 and 60 seconds
+        } catch (NumberFormatException e) {
+            logger.warn("Invalid value for soft_assertions.retry_seconds: [{}]. Defaulting to 3 seconds.", value);
+            return 3;
+        }
     }
 }

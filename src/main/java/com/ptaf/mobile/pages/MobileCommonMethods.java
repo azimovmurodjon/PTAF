@@ -4,7 +4,12 @@ import com.ptaf.mobile.config.MobileConfigurationProperties;
 import com.ptaf.mobile.config.MobilePlatform;
 import com.ptaf.mobile.drivers.MobileDriverManager;
 import com.ptaf.mobile.handlers.MobileLocatorHandler;
+import com.ptaf.mobile.evidence.MobileEvidenceManager;
+import com.ptaf.softassert.SoftAssertionContext;
+import com.ptaf.utils.ConfigurationProperties;
 import io.appium.java_client.AppiumDriver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.appium.java_client.HidesKeyboard;
 import io.appium.java_client.InteractsWithApps;
 import org.openqa.selenium.By;
@@ -36,6 +41,9 @@ import java.util.Set;
  * writing Java code in project teams.</p>
  */
 public class MobileCommonMethods {
+    // SLF4J logger for structured logging of actions, errors, and soft assertion events.
+    private static final Logger logger = LoggerFactory.getLogger(MobileCommonMethods.class);
+
     // Underlying Appium driver used by all actions.
     private final AppiumDriver driver;
     // Helper responsible for converting string locator descriptors into Selenium By objects.
@@ -55,34 +63,77 @@ public class MobileCommonMethods {
     /* Simple element interactions - these forward to findVisibleElement which includes
        explicit waiting and browser context synchronization when required. */
 
-    /** Tap a visible element identified by page/locator keys. */
-    public void tap(String page, String locator) { findVisibleElement(page, locator).click(); }
+    /**
+     * Tap a visible element identified by page/locator keys.
+     * In soft assertion mode, if the element was not found (null returned), the tap is skipped gracefully.
+     */
+    public void tap(String page, String locator) {
+        WebElement el = findVisibleElement(page, locator);
+        if (el != null) el.click();
+    }
 
     /**
      * Type into an input element after clearing it first.
      * If value is null, an empty string is typed to avoid NPE.
+     * In soft assertion mode, if the element was not found (null returned), the type is skipped gracefully.
      */
-    public void type(String page, String locator, String value) { WebElement e = findVisibleElement(page, locator); e.clear(); e.sendKeys(value == null ? "" : value); }
+    public void type(String page, String locator, String value) {
+        WebElement el = findVisibleElement(page, locator);
+        if (el != null) { el.clear(); el.sendKeys(value == null ? "" : value); }
+    }
 
-    /** Clear the input field's current value. */
-    public void clear(String page, String locator) { findVisibleElement(page, locator).clear(); }
+    /**
+     * Clear the input field's current value.
+     * In soft assertion mode, if the element was not found (null returned), the clear is skipped gracefully.
+     */
+    public void clear(String page, String locator) {
+        WebElement el = findVisibleElement(page, locator);
+        if (el != null) el.clear();
+    }
 
-    /** Return visible element text. */
-    public String getText(String page, String locator) { return findVisibleElement(page, locator).getText(); }
+    /**
+     * Return visible element text.
+     * In soft assertion mode, if the element was not found (null returned), returns an empty string.
+     */
+    public String getText(String page, String locator) {
+        WebElement el = findVisibleElement(page, locator);
+        return el != null ? el.getText() : "";
+    }
 
     /**
      * Check if an element is visible on screen.
-     * This returns false when any exception occurs locating the element.
+     * Returns false when any exception occurs locating the element, or when soft assertion mode
+     * returns null (element not found but failure already recorded).
      */
-    public boolean isVisible(String page, String locator) { try { return findVisibleElement(page, locator).isDisplayed(); } catch (Exception e) { return false; } }
+    public boolean isVisible(String page, String locator) {
+        try {
+            WebElement el = findVisibleElement(page, locator);
+            return el != null && el.isDisplayed();
+        } catch (Exception e) { return false; }
+    }
 
-    /** Check if an element is enabled (interactable). */
-    public boolean isEnabled(String page, String locator) { return findVisibleElement(page, locator).isEnabled(); }
+    /**
+     * Check if an element is enabled (interactable).
+     * In soft assertion mode, if the element was not found (null returned), returns false.
+     */
+    public boolean isEnabled(String page, String locator) {
+        WebElement el = findVisibleElement(page, locator);
+        return el != null && el.isEnabled();
+    }
 
-    /** Check if an element is selected (useful for checkboxes/radio buttons). */
-    public boolean isSelected(String page, String locator) { return findVisibleElement(page, locator).isSelected(); }
+    /**
+     * Check if an element is selected (useful for checkboxes/radio buttons).
+     * In soft assertion mode, if the element was not found (null returned), returns false.
+     */
+    public boolean isSelected(String page, String locator) {
+        WebElement el = findVisibleElement(page, locator);
+        return el != null && el.isSelected();
+    }
 
-    /** Explicitly wait until element is visible. */
+    /**
+     * Explicitly wait until element is visible.
+     * In soft assertion mode, if the element was not found, the failure is already recorded.
+     */
     public void waitForVisible(String page, String locator) { findVisibleElement(page, locator); }
 
     /**
@@ -777,20 +828,66 @@ public class MobileCommonMethods {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutSeconds));
         try {
             // Phase 1: Wait until the element is present in the UI hierarchy.
-            // This handles cases where the app is still loading or transitioning between screens.
-            // Returns immediately the moment the element appears — does not wait the full timeout.
             wait.until(ExpectedConditions.presenceOfElementLocated(by));
             // Phase 2: Wait until the element is also visible (rendered, non-zero size, not hidden).
-            // Returns immediately the moment the element becomes visible and ready for interaction.
             return wait.until(ExpectedConditions.visibilityOfElementLocated(by));
         } catch (ClassCastException e) {
+            // ClassCastException is a session/context failure — not retried in soft assertion mode.
             throw browserContextDiagnosticFailure(page, locator, e);
         } catch (RuntimeException e) {
             if (looksLikeSafariRuntimeContextFailure(e)) {
+                // Safari context failure — not retried in soft assertion mode.
                 throw browserContextDiagnosticFailure(page, locator, e);
+            }
+            // For element-not-found and timeout failures, apply soft assertion handling if enabled.
+            if (ConfigurationProperties.isSoftAssertionsEnabled()) {
+                handleMobileSoftFailure(page, locator, e);
+                // Return null — callers that receive null will skip the action gracefully.
+                // This is safe because all callers (tap, type, etc.) call findVisibleElement
+                // and the null return prevents the NPE by being caught in the calling method.
+                return null;
             }
             throw e;
         }
+    }
+
+    /**
+     * Handles an element-not-found failure in soft assertion mode for mobile automation.
+     *
+     * <p>Captures a screenshot using {@link MobileEvidenceManager}, records the failure
+     * in {@link SoftAssertionContext}, and returns normally so execution continues to the
+     * next step. The Appium driver session is NOT terminated.</p>
+     *
+     * <p>This method is ONLY called when {@code soft_assertions.enabled: true}.
+     * Session crashes and Safari context failures are NOT handled here — they still throw.</p>
+     *
+     * @param page    the page key from the YAML locator file
+     * @param locator the locator key from the YAML locator file
+     * @param cause   the original exception
+     */
+    private void handleMobileSoftFailure(String page, String locator, RuntimeException cause) {
+        String stepDesc = "findElement on [" + page + "." + locator + "]";
+        logger.warn("PTAF Soft Assert (Mobile) | Element not found: [{}]. Capturing screenshot and continuing.", stepDesc);
+
+        // Capture a screenshot at the point of failure
+        String screenshotNote = null;
+        try {
+            MobileEvidenceManager.captureNamedScreenshot(
+                driver,
+                "SoftFail_" + page + "_" + locator
+            );
+            screenshotNote = "captured (see mobile evidence)";
+        } catch (Exception screenshotEx) {
+            logger.warn("PTAF Soft Assert (Mobile) | Could not capture failure screenshot: {}", screenshotEx.getMessage());
+        }
+
+        // Record the failure — scenario will fail at the end with a full summary
+        SoftAssertionContext.recordFailure(
+            stepDesc,
+            cause != null ? cause.getMessage() : "(no error message)",
+            screenshotNote
+        );
+        logger.warn("PTAF Soft Assert (Mobile) | Continuing to next step. Scenario will fail at end if failures remain.");
     }
 
     /**
