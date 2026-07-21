@@ -45,7 +45,7 @@ import io.cucumber.testng.CucumberOptions;
         // Tag expression controlling which scenarios are executed.
         // Change this to run a different set of scenarios.
         // This value is also used when running via testng.xml or mvn clean test.
-        tags = "@eStore",
+        tags = "@csv",
 
         // Reporting plugins.
         plugin = {

@@ -361,4 +361,8 @@ public class ConfigurationProperties {
             return 3;
         }
     }
+
+    public static String getPropertyValue(String value) {
+        return (String)PropertiesReader.get(value);
+    }
 }
