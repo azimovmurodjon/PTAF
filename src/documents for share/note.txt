@@ -1,165 +1,23 @@
-📢 PTAF Framework — Full Update Summary
+Description
 
-Hi team,
+FNB-ETAF (Enterprise Test Automation Framework) Security Architecture Review
 
-Here is a complete summary of all updates, fixes, and new features added to the PTAF (Portable Test Automation Framework). Please read through and update your local project with the latest ZIP from the shared drive.
+The Security Architecture Review (SAR) is requested for the FNB-ETAF Enterprise Test Automation Framework to validate that the solution complies with FNB enterprise security standards and infrastructure requirements. The framework provides automated UI, API, database, mobile, and performance testing capabilities while integrating with Azure DevOps (ADO), internal repositories, SQL Server databases, and enterprise application environments. The review includes assessment of network architecture, authentication, encrypted communications, outbound connectivity, and overall security controls before production use.
 
----
+⸻
 
-🆕 NEW FEATURES
+Business Justification
 
----
+FNB-ETAF is a strategic enterprise automation framework that standardizes test automation across multiple applications and development teams. Approval is required to ensure the framework meets enterprise security requirements before broader adoption.
 
-1️⃣ Soft Assertion Mode (continue-on-failure)
+The framework provides the following business benefits:
 
-When enabled, a failed step no longer stops the test. The framework captures a screenshot of the failure, records it, and continues to the next step. At the end of the scenario, a full summary of all failures is shown. Failed steps appear RED in the Extent and PDF reports. The browser stays open throughout the scenario.
-
-Enable in config.yml:
-  soft_assertions:
-    enabled: true       ← set true to enable, false for normal behavior (default)
-    retry_seconds: 3    ← how long to wait per failed step before moving on
-
-Works for: UI automation, mobile browser simulation, mobile native app, native mobile browser.
-
----
-
-2️⃣ XML Automation Module
-
-Validate XML data directly from feature files — from files on disk or from UI elements on screen.
-
-Example feature file:
-
-  Feature: Order API XML Validation
-
-    @xml_validation
-    Scenario: Verify order response XML from file
-      Given I load XML file "src/test/resources/data/order_response.xml"
-      Then XML node "status" equals "SUCCESS"
-      Then XML node "orderId" equals "ORD-12345"
-      Then XML XPath "//total/@currency" equals "USD"
-      Then XML XPath "//items/item" count equals 1
-      Then XML node "errorCode" does not exist
-      When I extract XML node "orderId" and store as "ORDER_ID"
-
-    @xml_ui_validation
-    Scenario: Verify XML shown in browser
-      Given we navigate to "https://yourapp.com/api-response"
-      Given I load XML from UI element on page "ResponsePage" locator "xmlTextArea"
-      Then XML node "status" equals "SUCCESS"
-
-Full step reference: src/test/resources/features/xml/xml_automation_example.feature
-
----
-
-3️⃣ CSV Automation Module
-
-Validate CSV data directly from feature files — from files on disk or from UI elements on screen.
-
-Example feature file:
-
-  Feature: Transaction Report CSV Validation
-
-    @csv_validation
-    Scenario: Verify exported transaction report
-      Given I load CSV file "src/test/resources/data/transactions.csv"
-      Then CSV row count equals 3
-      Then CSV column "TransactionId" exists
-      Then CSV row 1 column "Amount" equals "1250.00"
-      Then CSV row 1 column "Status" equals "COMPLETED"
-      Then all CSV rows have column "Currency" is not empty
-      When I extract CSV row 1 column "TransactionId" and store as "TXN_ID"
-
-    @csv_ui_validation
-    Scenario: Verify CSV data shown on report page
-      Given we navigate to "https://yourapp.com/reports/export"
-      Given I load CSV from UI element on page "ReportPage" locator "csvOutput"
-      Then CSV row 1 column "Status" equals "COMPLETED"
-      Then CSV row count equals 3
-
-Full step reference: src/test/resources/features/csv/csv_automation_example.feature
-
----
-
-4️⃣ Per-Feature Individual Reports
-
-In addition to the combined Extent report, you can now generate one individual HTML and/or PDF report per feature file. Each report is titled with the Feature Name declared in the feature file.
-
-Enable in config.yml:
-  reporting:
-    per_feature_reports_enabled: true     ← set true to generate individual reports
-    per_feature_reports_output_dir: "test-output/per-feature-reports"
-    per_feature_pdf_enabled: true         ← set true to also generate PDFs
-
-Default is false — no change to current combined report behavior.
-
----
-
-5️⃣ Mobile Native App — Smart Element Wait
-
-Element finding in native mobile app automation now uses a two-phase wait: first waits for the element to be present in the UI hierarchy, then waits for it to be visible. This prevents false failures on slow screen transitions.
-
-Configurable in mobile-config.yml:
-  mobile:
-    explicit_wait_seconds: 30       ← increase for slow apps (max 60 )
-    new_command_timeout_seconds: 300
-
----
-
-🔧 BUG FIXES
-
----
-
-✅ UI Automation — @LastScenario browser no longer closes on soft failures
-Previously, when soft assertions were enabled and a step failed in a @LastScenario feature, the browser was closing and all remaining scenarios were failing. Fixed — the browser now stays open for the next scenario when the failure is a soft assertion and the browser is still alive.
-
-✅ UI Automation — IllegalStateException "page is closed or not initialized"
-The getPage() method now returns null instead of throwing, and a clear descriptive error message is shown. This prevents cascading failures in @LastScenario features.
-
-✅ Mobile Native Browser — Android Chrome invalid session id
-The framework was calling terminateApp and activateApp after the Appium session was established, which killed the browser session. Fixed — these calls are now skipped for Android Chrome browser sessions.
-
-✅ Mobile Native Browser — iOS Safari hanging indefinitely
-Same root cause as Android Chrome. Fixed — terminateApp and activateApp are now skipped for iOS Safari sessions.
-
-✅ Mobile Native App — Playwright browser launching unnecessarily
-When running native mobile app scenarios, a Playwright UI browser was also starting. Fixed — Hooks.java now detects mobile scenarios by tag (@mobile, @appium_browser, @cross_platform) and skips Playwright browser initialization.
-
-✅ Browser Maximize — maximize_browser: true not working fully
-The --start-maximized flag is now applied correctly. The Playwright viewport is not overridden so element interactions continue to work normally.
-
-✅ Mobile Browser Simulation — viewport expanding to desktop size
-When using Playwright mobile browser profiles (e.g. iPhone 17 Pro Max Safari), the viewport was expanding to desktop size during the test. Fixed — screen size is now locked to the profile dimensions.
-
-✅ Maven Build — mvn clean test running 0 tests
-Maven Surefire was auto-detecting the JUnit Platform provider instead of TestNG, ignoring testng.xml. Fixed — surefire-testng is now explicitly configured as a plugin dependency, forcing TestNG provider selection.
-
-✅ TestNG Runner — incorrect tags and missing hooks glue path
-The com.ptaf.runner.TestRunner referenced by testng.xml had wrong tags and was missing com.ptaf.hooks in the glue path. Fixed.
-
-✅ Soft Assertion Timing — failed steps waiting 30 seconds instead of retry_seconds
-The Playwright page default timeout (30s from runtimeWait) was being applied to all operations within a soft assertion step, overriding the retry_seconds setting. Fixed — page.setDefaultTimeout is now set to retry_seconds at the start of each step in soft assertion mode and restored to the full timeout in the finally block.
-
-✅ Soft Assertion Reporting — failed steps showing as PASSED in report
-Steps that failed softly were appearing as green/PASSED in the Extent and PDF reports because Cucumber determines step status from whether an exception was thrown. Fixed — a new SoftAssertionReportListener (ConcurrentEventListener) now marks soft-failed steps as FAILED (red) in the report after each step completes.
-
-✅ Soft Assertion Reporting — duplicate failure entries in report
-The @After hook was throwing the full verbose failure summary as an AssertionError, causing the same failure to appear twice in the report (once on the step row from the listener, once on the @After row). Fixed — the @After hook now throws a short single-line message referencing the step-level details.
-
-✅ Soft Assertion — browser closing before catch block runs
-The performAction method in FrameCommonMethods was calling handleFailure() when an action returned false, which closed the browser before the soft assertion catch block could run. Fixed — in soft assertion mode, a plain RuntimeException is thrown instead of calling handleFailure(), keeping the browser open.
-
----
-
-📝 CODE QUALITY
-
-✅ Professional Javadoc added to all 98 Java classes — every class, method, and complex logic block now has clear, tester-friendly documentation explaining purpose, parameters, and behavior.
-
----
-
-⚙️ HOW TO UPDATE
-
-1. Please pull latest dependency from the library.
-
-All new features default to OFF. Your existing tests run exactly as before unless you explicitly enable the new settings in config.yml.
-
-Questions? Reply in this channel.
+* Standardizes automated testing across QA teams.
+* Reduces manual testing effort and accelerates software delivery.
+* Integrates securely with Azure DevOps (ADO) CI/CD pipelines.
+* Supports UI, API, database, mobile, and performance testing from a single framework.
+* Uses only encrypted communications (HTTPS/TLS and encrypted JDBC).
+* Restricts all inbound connectivity; only outbound connections to approved enterprise resources are permitted.
+* Uses Azure DevOps Artifacts for internal dependency management and approved package distribution.
+* Improves release quality while reducing deployment risk and production defects.
+* Aligns with enterprise security, compliance, and secure software development standards.
