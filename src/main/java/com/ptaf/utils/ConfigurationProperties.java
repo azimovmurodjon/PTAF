@@ -314,6 +314,89 @@ public class ConfigurationProperties {
         return "true".equalsIgnoreCase(value);
     }
 
+    /**
+     * Whether a Glass-style PDF (via cucumber-pdf-report subprocess) should be generated
+     * for each per-feature report, written to a separate directory.
+     *
+     * <p>Only has effect when {@link #isPerFeatureReportsEnabled()} returns {@code true}.</p>
+     *
+     * <p>Config key: {@code reporting.per_feature_glass_pdf_enabled}</p>
+     * <p>Default: {@code false}</p>
+     *
+     * @return {@code true} if per-feature Glass PDF reports are enabled, {@code false} otherwise
+     */
+    public static boolean isPerFeatureGlassPdfEnabled() {
+        String value = getValue("reporting.per_feature_glass_pdf_enabled");
+        return "true".equalsIgnoreCase(value);
+    }
+
+    /**
+     * The output directory for per-feature Glass-style PDF reports.
+     *
+     * <p>Config key: {@code reporting.per_feature_glass_pdf_output_dir}</p>
+     * <p>Default: {@code "test-output/per-feature-reports-glass"}</p>
+     *
+     * @return the configured Glass PDF output directory path
+     */
+    public static String getPerFeatureGlassPdfOutputDir() {
+        String value = getValue("reporting.per_feature_glass_pdf_output_dir");
+        return (value != null && !value.trim().isEmpty()) ? value.trim() : "test-output/per-feature-reports-glass";
+    }
+
+    // ─── ZIP file configuration ──────────────────────────────────────────────────
+
+    /**
+     * The directory where ZIP file contents are extracted during test execution.
+     *
+     * <p>This directory is created automatically if it does not exist.
+     * Each ZIP is extracted into a subdirectory named after the ZIP file (without extension).</p>
+     *
+     * <p>Config key: {@code zip.extraction_dir}</p>
+     * <p>Default: {@code "test-output/extracted"}</p>
+     *
+     * @return the configured ZIP extraction directory path
+     */
+    public static String getZipExtractionDir() {
+        String value = getValue("zip.extraction_dir");
+        return (value != null && !value.trim().isEmpty()) ? value.trim() : "test-output/extracted";
+    }
+
+    /**
+     * Whether extracted ZIP files should be automatically deleted at the end of each scenario.
+     *
+     * <p>When {@code true}, the extraction directory for the current scenario is deleted
+     * in the {@code @After} hook of {@code ZipSteps} after each scenario completes.
+     * When {@code false}, extracted files are kept for debugging and manual inspection.</p>
+     *
+     * <p>Config key: {@code zip.cleanup_after_scenario}</p>
+     * <p>Default: {@code true}</p>
+     *
+     * @return {@code true} if auto-cleanup is enabled, {@code false} otherwise
+     */
+    public static boolean isZipCleanupAfterScenario() {
+        String value = getValue("zip.cleanup_after_scenario");
+        if (value == null || value.trim().isEmpty()) return true; // default: cleanup enabled
+        return "true".equalsIgnoreCase(value.trim());
+    }
+
+    /**
+     * Whether nested ZIP files found inside an extracted ZIP should also be extracted recursively.
+     *
+     * <p>When {@code true}, any {@code .zip} file found within the extracted contents
+     * is automatically extracted into a subdirectory of the same name.
+     * When {@code false}, nested ZIPs are left as-is.</p>
+     *
+     * <p>Config key: {@code zip.recursive_unzip}</p>
+     * <p>Default: {@code true}</p>
+     *
+     * @return {@code true} if recursive unzip is enabled, {@code false} otherwise
+     */
+    public static boolean isZipRecursiveUnzip() {
+        String value = getValue("zip.recursive_unzip");
+        if (value == null || value.trim().isEmpty()) return true; // default: recursive enabled
+        return "true".equalsIgnoreCase(value.trim());
+    }
+
     // ─── Soft assertions configuration ────────────────────────────────────────────
 
     /**

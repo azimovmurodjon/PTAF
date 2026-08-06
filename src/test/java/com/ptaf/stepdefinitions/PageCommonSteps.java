@@ -433,7 +433,10 @@ public class PageCommonSteps {
      */
     @Then("^we close all browsers$")
     public void weCloseAllBrowsers() throws Exception{
-        // Delegate to the Hooks utility to free browser resources.
+        // Mark the browser as intentionally closed BEFORE freeing resources.
+        // This prevents the @LastScenario teardown logic from treating the missing
+        // browser as a failure and blocking subsequent scenarios in the same feature.
+        Hooks.markBrowserClosedIntentionally();
         Hooks.closeBrowserResources();
     }
 }

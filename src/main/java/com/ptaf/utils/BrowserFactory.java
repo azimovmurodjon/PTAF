@@ -201,13 +201,50 @@ public final class BrowserFactory {
         boolean headless = getHeadlessMode();
         boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
         boolean maximizeBrowser = getMaximizeBrowser();
-        BrowserType.LaunchOptions launchOptions = (new BrowserType.LaunchOptions()).setHeadless(headless);
+
+        // ── Headless mode: do NOT use setHeadless() together with --headless=old ─────────────────
+        // Playwright 1.44+ changed setHeadless(true) to launch the Chrome Headless Shell binary
+        // (a separate executable). If you ALSO pass --headless=old as a launch arg while
+        // setHeadless(true) is set, the two flags conflict: the Headless Shell does not
+        // understand --headless=old and either crashes or ignores it, causing the browser to
+        // open in headed mode unexpectedly.
+        //
+        // Solution: always call setHeadless(false) on LaunchOptions (tells Playwright NOT to
+        // switch to the Headless Shell binary), then control headless behaviour exclusively
+        // via the --headless=old Chrome flag when headless mode is requested.
+        //   headless=false → no flag added  → headed browser window (normal)
+        //   headless=true  → --headless=old → classic Chrome headless (no window, reliable)
+        BrowserType.LaunchOptions launchOptions = (new BrowserType.LaunchOptions()).setHeadless(false);
         // If a channel is supplied, use it to launch a particular Chromium-based browser
         if (channel != null && !channel.trim().isEmpty()) {
             launchOptions.setChannel(channel);
         }
 
         List<String> launchArgs = new ArrayList<>();
+
+        // Add --headless=old only when headless mode is requested.
+        // This uses the classic Chrome headless flag which works reliably across all
+        // Playwright 1.x versions and does not conflict with the Headless Shell binary.
+        if (headless) {
+            launchArgs.add("--headless=old");
+            logger.info("Launching {} in headless mode via --headless=old (classic Chrome headless).", browserName);
+        } else {
+            logger.info("Launching {} in headed mode (no --headless flag).", browserName);
+        }
+
+        // ── CI/CD no-sandbox flag ─────────────────────────────────────────────────────────────────
+        // In CI/CD environments (Docker, Jenkins, GitHub Actions, etc.) Chromium requires
+        // --no-sandbox because the Linux sandbox requires kernel namespaces which are often
+        // disabled in containerized environments. This flag is safe for test automation.
+        // It is applied in both headed and headless modes when running in a CI environment.
+        // Detection: PTAF checks the CI environment variable (set by most CI systems).
+        String ciEnv = System.getenv("CI");
+        if (ciEnv != null && !ciEnv.trim().isEmpty()) {
+            launchArgs.add("--no-sandbox");
+            launchArgs.add("--disable-setuid-sandbox");
+            logger.info("CI environment detected (CI={}). Adding --no-sandbox flags for {}.", ciEnv, browserName);
+        }
+
         // If ignoring HTTPS errors is requested, add Chromium flags to bypass certificate checks
         if (shouldIgnoreHTTPSErrors) {
             launchArgs.addAll(Arrays.asList("--ignore-certificate-errors", "--allow-insecure-localhost", "--disable-web-security"));
@@ -412,11 +449,42 @@ public final class BrowserFactory {
     /**
      * Retrieve headless mode from the ConfigurationProperties helper and parse it as boolean.
      *
-     * @return true if headless mode is enabled in configuration, false otherwise
+     * <p>Resolution order (first non-null/non-blank value wins):
+     * <ol>
+     *   <li>JVM system property {@code headless} (e.g. {@code -Dheadless=true} on the Maven command line)</li>
+     *   <li>Config key {@code headless} in {@code config.yml}</li>
+     *   <li>Default: {@code false} (headed mode)</li>
+     * </ol>
+     *
+     * <p>Accepts both quoted ({@code "true"}/{@code "false"}) and unquoted YAML boolean values.
+     * Case-insensitive: {@code TRUE}, {@code True}, {@code true} are all treated as {@code true}.
+     *
+     * @return {@code true} if headless mode is enabled, {@code false} otherwise
      */
     private static boolean getHeadlessMode() {
-        String value = ConfigurationProperties.getHeadlessMode();
-        return Boolean.parseBoolean(value);
+        // 1. Check JVM system property first — allows CI/CD or command-line override
+        //    without modifying config.yml (e.g. mvn test -Dheadless=true)
+        String sysProp = System.getProperty("headless");
+        if (sysProp != null && !sysProp.trim().isEmpty()) {
+            boolean headless = Boolean.parseBoolean(sysProp.trim());
+            logger.info("Headless mode resolved from JVM system property -Dheadless={} → headless={}",
+                sysProp.trim(), headless);
+            return headless;
+        }
+
+        // 2. Read from config.yml
+        String configValue = ConfigurationProperties.getHeadlessMode();
+        if (configValue != null && !configValue.trim().isEmpty()) {
+            boolean headless = Boolean.parseBoolean(configValue.trim());
+            logger.info("Headless mode resolved from config.yml headless={} → headless={}",
+                configValue.trim(), headless);
+            return headless;
+        }
+
+        // 3. Default to false (headed) if the key is missing or blank
+        logger.warn("Headless mode config key 'headless' is missing or blank in config.yml. "
+            + "Defaulting to false (headed mode). Add 'headless: \"true\"' to config.yml to enable headless.");
+        return false;
     }
 
     /**

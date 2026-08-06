@@ -342,6 +342,46 @@ public class ActionPerformer {
                     targetLocator.first().screenshot(new Locator.ScreenshotOptions().setPath(Paths.get(value)));
                     return null;
 
+                case "fullscreenshot":
+                case "fullpagescreenshot":
+                    // Captures the entire scrollable page (not just the visible viewport).
+                    // The 'value' parameter is the file path where the PNG will be saved.
+                    // No locator wait is needed because this is a page-level operation.
+                    if (page == null) {
+                        throw new RuntimeException("Cannot take full-page screenshot: page is null or closed.");
+                    }
+                    page.screenshot(new Page.ScreenshotOptions()
+                            .setFullPage(true)
+                            .setPath(Paths.get(value)));
+                    logger.info("Full-page screenshot saved to: {}", value);
+                    return null;
+
+                case "maximize":
+                case "maximizewindow":
+                case "maximisebrowser":
+                    // Maximizes the current browser window / popup to fill the screen.
+                    //
+                    // How it works:
+                    //   - window.moveTo(0, 0)  — moves the window to the top-left corner.
+                    //   - window.resizeTo(screen.width, screen.height)  — resizes to the full
+                    //     screen dimensions reported by the browser.
+                    //
+                    // This is the standard JavaScript approach for maximizing a window and works
+                    // for both the initial page and any popup windows opened during the test.
+                    // It complements the --start-maximized Chromium launch flag and the
+                    // auto-maximize BrowserContext.onPage() listener in Hooks.java.
+                    //
+                    // Usage in a Cucumber step:
+                    //   When we perform action maximize on page homePage locator anyLocator
+                    //
+                    // The locator and value parameters are not used for this action.
+                    if (page == null) {
+                        throw new RuntimeException("Cannot maximize window: page is null or closed.");
+                    }
+                    page.evaluate("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
+                    logger.info("Browser window maximized via JavaScript window.resizeTo(screen.width, screen.height).");
+                    return null;
+
                 case "scroll":
                     waitIfNeededVisible(targetLocator);
                     targetLocator.first().evaluate("element => element.scrollIntoView({ behavior: 'smooth', block: 'center' })");

@@ -109,17 +109,17 @@ Feature: XML Automation — File-based and UI-embedded
   # IMPORTANT: This scenario requires a running application. The page and locator
   # below are examples — replace them with your actual page and locator names.
   # ---------------------------------------------------------------------------
-#  @xml_ui @regression
-#  Scenario: Verify API response XML displayed in a UI text area
-#    # First navigate to the page that shows the XML response
-#    Given I navigate to the application
-#    When I perform action "click" on page "ApiTestPage" locator "sendRequestButton"
-#    Then I should see element on page "ApiTestPage" locator "responseTextArea"
-#
-#    # Load the XML content from the UI element
-#    Given I load XML from UI element on page "ApiTestPage" locator "responseTextArea"
-#
-#    # Now assert values from the XML displayed in the UI
-#    Then XML node "status" equals "SUCCESS"
-#    Then XML node "orderId" exists
-#    Then XML XPath "//response/code" equals "200"
+  @xml_ui @regression
+  Scenario: Verify API response XML displayed in a UI text area
+    # First navigate to the page that shows the XML response
+    Given I navigate to the application
+    When I perform action "click" on page "ApiTestPage" locator "sendRequestButton"
+    Then I should see element on page "ApiTestPage" locator "responseTextArea"
+
+    # Load the XML content from the UI element
+    Given I load XML from UI element on page "ApiTestPage" locator "responseTextArea"
+
+    # Now assert values from the XML displayed in the UI
+    Then XML node "status" equals "SUCCESS"
+    Then XML node "orderId" exists
+    Then XML XPath "//response/code" equals "200"

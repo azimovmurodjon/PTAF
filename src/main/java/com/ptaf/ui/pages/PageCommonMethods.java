@@ -210,6 +210,54 @@ public class PageCommonMethods {
     }
 
     /**
+     * Captures a full-page screenshot of the entire scrollable page content (not just the visible viewport)
+     * and saves it to the specified file path.
+     *
+     * <p>This is different from {@link #screenshot(Page, String, String, String)} which captures only
+     * the element or visible viewport. Use this method when you need to capture the complete page
+     * including content that requires scrolling to see.</p>
+     *
+     * <p>Usage in a Cucumber step:</p>
+     * <pre>
+     *   When we perform action fullscreenshot on page &lt;pageName&gt; locator &lt;locatorName&gt; value test-output/full.png
+     * </pre>
+     *
+     * @param page    The current Playwright Page instance.
+     * @param element The logical element name (used only for locator resolution context; the screenshot is page-level).
+     * @param locator The locator string (used only for context; the screenshot is page-level).
+     * @param value   The file path where the full-page PNG screenshot will be saved.
+     */
+    public void fullscreenshot(Page page, String element, String locator, String value) {
+        // Delegate to ActionPerformer via the standard performAction pipeline.
+        // ActionPerformer handles the page.screenshot(fullPage=true) call.
+        performAction("fullscreenshot", page, element, locator, value);
+    }
+
+    /**
+     * Maximizes the current browser window (or popup window) to fill the screen.
+     *
+     * <p>This is useful when a test opens a popup window (via a link or window.open()) and
+     * needs to ensure it is maximized before interacting with it. It complements the
+     * automatic popup-maximize listener registered in Hooks.java when
+     * {@code maximize_browser: true} is set in config.yml.</p>
+     *
+     * <p>Internally calls {@code window.moveTo(0,0); window.resizeTo(screen.width, screen.height)}
+     * via JavaScript on the current page.</p>
+     *
+     * <p>Usage in a Cucumber step:</p>
+     * <pre>
+     *   When we perform action maximize on page &lt;pageName&gt; locator &lt;locatorName&gt;
+     * </pre>
+     *
+     * @param page    The current Playwright Page instance (the window to maximize).
+     * @param element The logical element name (not used for this action; pass any valid name).
+     * @param locator The locator string (not used for this action; pass any valid name).
+     */
+    public void maximize(Page page, String element, String locator) {
+        performAction("maximize", page, element, locator, null);
+    }
+
+    /**
      * Initiates a file download from the given page by interacting with a specified element
      * and saves the downloaded file to the provided directory with a custom suffix.
      *

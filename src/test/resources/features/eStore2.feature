@@ -1,5 +1,5 @@
 @eStore @LastScenario
-Feature: Consumer Deposit with Payment Switch
+Feature: Consumer Deposit with Payment Switch 2
 
   Scenario Outline: Consumer Deposit End to End Flow with one product verifying Payment Switch
     Given we navigate to HARNESS_PREPROD_STAGE url

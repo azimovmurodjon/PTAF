@@ -71,6 +71,15 @@ public class Hooks {
     private static final ThreadLocal<Boolean> performanceScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final ThreadLocal<Boolean> mobileScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
+    /**
+     * Flag set by the "we close all browsers" step to indicate the browser was closed
+     * intentionally by the test (not due to a failure). When this flag is true, the
+     * @LastScenario teardown logic will NOT mark the feature as failed just because the
+     * browser is gone, and setUp() will create a fresh browser for the next scenario
+     * instead of throwing "Shared browser was closed or lost".
+     */
+    private static final ThreadLocal<Boolean> browserClosedIntentionallyThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     // Feature-level tracking maps to support the @LastScenario optimization.
     // lastScenarioFeatureMap: featureKey -> whether feature uses @LastScenario semantics
     // featureScenarioTotalMap: featureKey -> total number of runnable scenarios in that feature
@@ -102,6 +111,11 @@ public class Hooks {
         // Store current scenario in thread local for step definitions or other helpers.
         scenarioThreadLocal.set(scenario);
 
+        // Reset the intentional-close flag at the start of every scenario so a previous
+        // "we close all browsers" step cannot accidentally suppress failure detection in
+        // a later scenario that did NOT call that step.
+        browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
+
         // Attempt to resolve a stable feature key for tracking. Fall back if resolution fails.
         String featureKey = this.getFeatureKey(scenario);
         if (featureKey == null || featureKey.trim().isEmpty()) {
@@ -121,6 +135,13 @@ public class Hooks {
             performanceScenarioThreadLocal.set(Boolean.FALSE);
             mobileScenarioThreadLocal.set(Boolean.TRUE);
             logger.info("Mobile native scenario detected [{}]. Skipping Playwright browser initialization.", scenario != null ? scenario.getName() : "UNKNOWN");
+        } else if (this.isNonUiScenario(scenario)) {
+            // If this is a non-UI scenario (XML, CSV, API, Database, ZIP) that does not require a browser,
+            // reuse the performanceScenarioThreadLocal flag to skip Playwright browser initialization.
+            // This prevents an unnecessary browser window from opening during data-only test scenarios.
+            performanceScenarioThreadLocal.set(Boolean.TRUE);
+            mobileScenarioThreadLocal.set(Boolean.FALSE);
+            logger.info("Non-UI scenario detected [{}]. Skipping Playwright browser initialization.", scenario != null ? scenario.getName() : "UNKNOWN");
         } else {
             // Regular UI scenario requires Playwright browser. Reset other flags.
             performanceScenarioThreadLocal.set(Boolean.FALSE);
@@ -170,7 +191,17 @@ public class Hooks {
                         return;
                     }
 
-                    // Browser disappeared unexpectedly - mark feature failed and fail remaining scenarios.
+                    // Check whether the browser was closed intentionally by a test step (e.g. "we close all browsers").
+                    // If so, open a fresh browser for this scenario instead of treating it as a failure.
+                    boolean closedIntentionally = Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get());
+                    if (closedIntentionally) {
+                        logger.info("Browser was closed intentionally by a test step in @LastScenario feature [{}]. Creating a fresh browser for scenario [{}].",
+                            featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
+                        this.createBrowserStack(scenario);
+                        return;
+                    }
+
+                    // Browser disappeared unexpectedly (not intentional) - mark feature failed and fail remaining scenarios.
                     featureFailureMap.put(featureKey, true);
                     logger.error("Shared browser/session is no longer available for @LastScenario feature [{}] before scenario [{}]. Failing remaining scenarios and not reopening browser.", featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
                     throw new RuntimeException("Shared browser was closed or lost during @LastScenario execution. Remaining scenarios are failed intentionally.");
@@ -281,10 +312,13 @@ public class Hooks {
                             logger.warn("Scenario [{}] had soft assertion failures in @LastScenario feature [{}]. Browser is still alive — continuing to next scenario.", scenario.getName(), featureKey);
                         }
 
-                        if (!browserAlive) {
-                            // If browser became unavailable, mark the feature failed.
+                        if (!browserAlive && !Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get())) {
+                            // Browser became unavailable unexpectedly (not due to an intentional close step).
                             featureFailureMap.put(featureKey, true);
                             logger.error("Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. Remaining scenarios will fail immediately.", featureKey, scenario.getName());
+                        } else if (!browserAlive) {
+                            // Browser was closed intentionally by a test step — do NOT mark the feature as failed.
+                            logger.info("Browser was closed intentionally in @LastScenario feature [{}] after scenario [{}]. Feature is NOT marked as failed.", featureKey, scenario.getName());
                         }
 
                         // Increment executed counter and log progress. Close resources only after last scenario.
@@ -347,9 +381,11 @@ public class Hooks {
                     logger.warn("Scenario [{}] had soft assertion failures in @LastScenario feature [{}]. Browser is still alive — continuing to next scenario.", scenario.getName(), featureKey);
                 }
 
-                if (!browserAlive) {
+                if (!browserAlive && !Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get())) {
                     featureFailureMap.put(featureKey, true);
                     logger.error("Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. Remaining scenarios will fail immediately.", featureKey, scenario.getName());
+                } else if (!browserAlive) {
+                    logger.info("Browser was closed intentionally in @LastScenario feature [{}] after scenario [{}]. Feature is NOT marked as failed.", featureKey, scenario.getName());
                 }
 
                 AtomicInteger executedCounter = (AtomicInteger)featureScenarioExecutedMap.get(featureKey);
@@ -410,9 +446,11 @@ public class Hooks {
                     logger.warn("Scenario [{}] had soft assertion failures in @LastScenario feature [{}]. Browser is still alive — continuing to next scenario.", scenario.getName(), featureKey);
                 }
 
-                if (!browserAlive) {
+                if (!browserAlive && !Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get())) {
                     featureFailureMap.put(featureKey, true);
                     logger.error("Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. Remaining scenarios will fail immediately.", featureKey, scenario.getName());
+                } else if (!browserAlive) {
+                    logger.info("Browser was closed intentionally in @LastScenario feature [{}] after scenario [{}]. Feature is NOT marked as failed.", featureKey, scenario.getName());
                 }
 
                 AtomicInteger executedCounter = (AtomicInteger)featureScenarioExecutedMap.get(featureKey);
@@ -479,6 +517,41 @@ public class Hooks {
             // Create a context configured for video recording (handled inside BrowserFactory).
             BrowserContext context = BrowserFactory.createContextWithVideo(browser);
             contextThreadLocal.set(context);
+
+            // ── Auto-maximize popup windows ──────────────────────────────────────────────
+            // When maximize_browser=true, any new page (popup) opened by the browser
+            // (e.g. window.open() or target="_blank" links) is automatically maximized via
+            // JavaScript window.resizeTo(). This mirrors the behaviour of the initial window
+            // which is maximized by the --start-maximized Chromium launch flag.
+            // The listener is registered once per context so it covers all popups for the
+            // entire scenario without any extra step definitions.
+            boolean maximizeBrowserEnabled = Boolean.parseBoolean(
+                ConfigurationProperties.getValue("maximize_browser"));
+            boolean headlessMode = Boolean.parseBoolean(
+                ConfigurationProperties.getHeadlessMode());
+            if (maximizeBrowserEnabled && !headlessMode) {
+                context.onPage(newPage -> {
+                    try {
+                        // Wait for the popup to reach at least DOMContentLoaded so the
+                        // window object is available before we try to resize it.
+                        newPage.waitForLoadState(
+                            com.microsoft.playwright.options.LoadState.DOMCONTENTLOADED,
+                            new Page.WaitForLoadStateOptions().setTimeout(10_000));
+                        // Resize the popup window to fill the screen.
+                        // window.resizeTo(screen.width, screen.height) is the standard
+                        // cross-browser JS approach for maximizing a popup.
+                        newPage.evaluate("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
+                        logger.info("Auto-maximized popup window [{}] because maximize_browser=true.",
+                            newPage.url());
+                    } catch (Exception popupEx) {
+                        // Non-fatal: log but do not fail the scenario if the popup
+                        // cannot be resized (e.g. the page closed before load completed).
+                        logger.warn("Could not auto-maximize popup window: {}", popupEx.getMessage());
+                    }
+                });
+                logger.info("Registered auto-maximize listener for popup windows on BrowserContext.");
+            }
+            // ────────────────────────────────────────────────────────────────────────────
 
             // Open a fresh page in the context and store it.
             Page page = context.newPage();
@@ -647,6 +720,8 @@ public class Hooks {
         activeFeatureThreadLocal.remove();
         performanceScenarioThreadLocal.remove();
         mobileScenarioThreadLocal.remove();
+        // Clear the intentional-close flag so it does not bleed into the next scenario.
+        browserClosedIntentionallyThreadLocal.remove();
     }
 
     /**
@@ -729,6 +804,76 @@ public class Hooks {
             String featureKey = this.getFeatureKey(scenario);
             return featureKey != null && featureKey.toLowerCase().contains("performance");
         }
+    }
+
+    /**
+     * Determine if a scenario is a non-UI scenario that does not require a Playwright browser.
+     *
+     * <p>Non-UI scenarios include XML validation, CSV validation, API testing, database testing,
+     * ZIP file processing, and PDF validation — any scenario that operates purely on data or
+     * backend services without needing a browser window.</p>
+     *
+     * <p>Detection is based on scenario tags. If a scenario has ANY of the following tags it is
+     * treated as non-UI and the browser is not started:</p>
+     * <ul>
+     *   <li>{@code @xml_validation}, {@code @xml_example}, {@code @xml} — XML automation scenarios</li>
+     *   <li>{@code @csv_validation}, {@code @csv_example}, {@code @csv} — CSV automation scenarios</li>
+     *   <li>{@code @api}, {@code @api_test} — API testing scenarios</li>
+     *   <li>{@code @database}, {@code @db}, {@code @db_test} — Database testing scenarios</li>
+     *   <li>{@code @zip}, {@code @zip_validation} — ZIP file processing scenarios</li>
+     *   <li>{@code @pdf}, {@code @pdf_validation} — PDF validation scenarios</li>
+     * </ul>
+     *
+     * <p>Additionally, if the feature file path contains keywords such as "xml", "csv", "api",
+     * "database", "db", "zip", or "pdf" (and does NOT contain "ui" or "browser"),
+     * it is also treated as non-UI.</p>
+     *
+     * <p><strong>Important:</strong> If a scenario mixes UI steps with XML/CSV steps (e.g., loading
+     * XML from a UI element), it must NOT have any of the above non-UI tags. The browser will only
+     * be skipped when the scenario is tagged exclusively as a non-UI scenario.</p>
+     *
+     * @param scenario the scenario to inspect
+     * @return {@code true} if the scenario is a non-UI data-only scenario, {@code false} otherwise
+     */
+    private boolean isNonUiScenario(Scenario scenario) {
+        if (scenario == null) {
+            return false;
+        }
+
+        // Check scenario tags for known non-UI tags
+        for (String tag : scenario.getSourceTagNames()) {
+            if (tag == null) continue;
+            String t = tag.toLowerCase();
+            if (t.equals("@xml_validation") || t.equals("@xml_example") || t.equals("@xml")
+                || t.equals("@csv_validation") || t.equals("@csv_example") || t.equals("@csv")
+                || t.equals("@api") || t.equals("@api_test")
+                || t.equals("@database") || t.equals("@db") || t.equals("@db_test")
+                || t.equals("@zip") || t.equals("@zip_validation")
+                || t.equals("@pdf") || t.equals("@pdf_validation")
+                || t.startsWith("@xml_") || t.startsWith("@csv_")
+                || t.startsWith("@api_") || t.startsWith("@db_")
+                || t.startsWith("@database_") || t.startsWith("@zip_")
+                || t.startsWith("@pdf_")) {
+                return true;
+            }
+        }
+
+        // Heuristic: if the feature file path contains non-UI keywords and no UI keywords, treat as non-UI
+        String featureKey = this.getFeatureKey(scenario);
+        if (featureKey != null) {
+            String fk = featureKey.toLowerCase();
+            boolean hasNonUiKeyword = fk.contains("/xml/") || fk.contains("/csv/")
+                || fk.contains("/api/") || fk.contains("/database/")
+                || fk.contains("/db/") || fk.contains("/zip/")
+                || fk.contains("/pdf/");
+            boolean hasUiKeyword = fk.contains("/ui/") || fk.contains("browser")
+                || fk.contains("playwright");
+            if (hasNonUiKeyword && !hasUiKeyword) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1003,6 +1148,19 @@ public class Hooks {
         } else {
             return context;
         }
+    }
+
+    /**
+     * Mark that the browser was closed intentionally by a test step (not due to a failure).
+     *
+     * <p>Call this method from the "we close all browsers" step definition <em>before</em>
+     * calling {@link #closeBrowserResources()}. This prevents the {@code @LastScenario}
+     * teardown logic from treating the missing browser as a failure, and allows
+     * {@link #setUp(Scenario)} to open a fresh browser for the next scenario.</p>
+     */
+    public static void markBrowserClosedIntentionally() {
+        browserClosedIntentionallyThreadLocal.set(Boolean.TRUE);
+        logger.info("Browser will be closed intentionally by test step — @LastScenario feature will NOT be marked as failed.");
     }
 
     /**

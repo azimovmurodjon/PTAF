@@ -41,7 +41,7 @@ ignoreHTTPSErrors: "true"
 
 # Time to wait in seconds.
 # Recommended minimum value is 1.
-time_to_wait_in_seconds: "30"
+time_to_wait_in_seconds: "60"
 
 # Hooks runtime wait setting.
 runtimeWait: 30
@@ -159,7 +159,7 @@ reporting:
   # Set to true to generate one individual Extent HTML report per feature file.
   # Each report is titled with the Feature Name from the feature file's "Feature:" declaration.
   # Set to false (default) to generate only the combined report — no change to current behavior.
-  per_feature_reports_enabled: false
+  per_feature_reports_enabled: true
 
   # Output directory for per-feature HTML reports.
   # Each report is saved as: {output_dir}/{feature_file_name}_{timestamp}.html
@@ -170,6 +170,18 @@ reporting:
   # Requires per_feature_reports_enabled: true to have any effect.
   # Set to false (default) to generate HTML reports only.
   per_feature_pdf_enabled: false
+
+  # Set to true to also generate a Glass-style PDF (via cucumber-pdf-report library) for each
+  # per-feature report. These are written to a SEPARATE directory (per_feature_glass_pdf_output_dir)
+  # so they do not mix with the PTAF direct PDFs from per_feature_pdf_enabled.
+  # Requires per_feature_reports_enabled: true to have any effect.
+  # Note: Glass PDF generation spawns one subprocess per feature (adds ~1-2 seconds per feature).
+  per_feature_glass_pdf_enabled: true
+
+  # Output directory for per-feature Glass-style PDF reports.
+  # Each report is saved as: {output_dir}/{feature_file_name}_{timestamp}.pdf
+  # The directory is created automatically if it does not exist.
+  per_feature_glass_pdf_output_dir: "test-output/per-feature-reports-glass"
 
 # ==================================
 # SOFT ASSERTIONS CONFIGURATION
@@ -200,3 +212,30 @@ soft_assertions:
   # Recommended range: 1 to 10 seconds. Default: 3 seconds.
   # Keep this low — if an element has not appeared in 3 seconds it is almost certainly a real failure.
   retry_seconds: 3
+
+# ==================================
+# ZIP FILE CONFIGURATION
+# ==================================
+#
+# Controls how FNB-ETAF handles ZIP file extraction and file discovery
+# during automated test execution.
+#
+# These settings are used by the ZIP step definitions (ZipSteps.java).
+# All settings default to sensible values if not specified here.
+#
+zip:
+  # Directory where ZIP file contents are extracted during test execution.
+  # Each ZIP is extracted into a subdirectory named after the ZIP file.
+  # Example: "report.zip" is extracted to "test-output/extracted/report/"
+  # The directory is created automatically if it does not exist.
+  extraction_dir: "test-output/extracted"
+
+  # Set to true to automatically delete extracted files at the end of each scenario.
+  # Set to false to keep extracted files for debugging and manual inspection.
+  # Default: true (auto-cleanup enabled)
+  cleanup_after_scenario: true
+
+  # Set to true to recursively extract nested ZIP files found inside the archive.
+  # Set to false to leave nested ZIPs as-is without extracting them.
+  # Default: true (recursive extraction enabled)
+  recursive_unzip: true

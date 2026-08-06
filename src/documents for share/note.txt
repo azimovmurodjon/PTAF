@@ -1,23 +1,56 @@
-Description
+Teams Message (share with your team)
+PTAF Framework Update — Aug 6, 2026
+Several fixes and new features have been merged into the framework. Please pull the latest ZIP and replace your project files.
+Bug Fixes
+Close all browsers + @LastScenario fix — The "Close all browsers" step was incorrectly marking the feature as failed, which caused every subsequent scenario to throw "Shared browser was closed or lost". This is now fixed. Intentional browser closures no longer affect the next scenario's browser setup.
+Headless mode fix — Setting headless: "true" in config.yml was not working reliably on Playwright 1.44+. The browser was opening in headed mode instead. Fixed by controlling headless via the --headless=old Chrome flag exclusively, and always using the regular Chrome binary (not the Headless Shell).
+Per-feature Glass PDF fix — When running multiple feature files, only the first feature's PDF was generated correctly; all others were empty (0 bytes). Root cause: the cucumber-pdf-report library stores font objects in static fields that become invalid after the first PDF is closed. Fixed by running each Glass PDF generation in its own subprocess.
+New Features
+Full-screen capture action — New fullscreenshot / fullpagescreenshot action in ActionPerformer captures the entire scrollable page (not just the visible viewport). Usage: When we perform action fullscreenshot on page homePage locator anyLocator value test-output/full-page.png
+Maximize window action — New maximize / maximizewindow action resizes the current browser window to full screen via JavaScript. Useful after switching to a popup. Usage: When we perform action maximize on page homePage locator anyLocator
+Auto-maximize popup windows — When maximize_browser: true, any new browser window opened by the application (e.g. links with target="_blank") is now automatically maximized. No step definition changes needed.
+Per-feature PDF — two styles, two directories — The per-feature PDF report now generates two separate PDFs per feature file:
+test-output/per-feature-reports/ — PTAF direct PDF (fast, always works)
+test-output/per-feature-reports-glass/ — Glass-style PDF (exact cucumber-pdf-report layout) Enable via config.yml: per_feature_pdf_enabled: true and/or per_feature_glass_pdf_enabled: true
+Headless override from command line — You can now override headless mode without editing config.yml: mvn test -Dheadless=true
+Git Commit Message
+Plain Text
+fix: close-all-browsers, headless, per-feature PDF + new actions
 
-FNB-ETAF (Enterprise Test Automation Framework) Security Architecture Review
+Bug fixes:
+- Fix 'Close all browsers' step breaking @LastScenario navigation
+  Intentional browser close no longer marks feature as failed;
+  next scenario creates a fresh browser instead of throwing.
+  (Hooks.java, PageCommonSteps.java)
 
-The Security Architecture Review (SAR) is requested for the FNB-ETAF Enterprise Test Automation Framework to validate that the solution complies with FNB enterprise security standards and infrastructure requirements. The framework provides automated UI, API, database, mobile, and performance testing capabilities while integrating with Azure DevOps (ADO), internal repositories, SQL Server databases, and enterprise application environments. The review includes assessment of network architecture, authentication, encrypted communications, outbound connectivity, and overall security controls before production use.
+- Fix headless mode not working on Playwright 1.44+
+  Remove conflicting setHeadless()/--headless=old dual invocation;
+  control headless exclusively via --headless=old Chrome flag.
+  Add -Dheadless system property override.
+  (BrowserFactory.java)
 
-⸻
+- Fix per-feature Glass PDF empty (0 bytes) for all features after first
+  Root cause: cucumber-pdf-report stores PDFont in static fields that
+  become invalid after first PDDocument closes. Fix: run each Glass PDF
+  generation in a fresh subprocess via GlassPdfSubprocessGenerator.
+  (PerFeatureReportListener.java, GlassPdfSubprocessGenerator.java)
 
-Business Justification
+New features:
+- Add fullscreenshot / fullpagescreenshot action to ActionPerformer
+  Captures full scrollable page. Value = output file path.
+  (ActionPerformer.java, PageCommonMethods.java)
 
-FNB-ETAF is a strategic enterprise automation framework that standardizes test automation across multiple applications and development teams. Approval is required to ensure the framework meets enterprise security requirements before broader adoption.
+- Add maximize / maximizewindow action to ActionPerformer
+  Resizes current page to screen dimensions via JS.
+  (ActionPerformer.java, PageCommonMethods.java)
 
-The framework provides the following business benefits:
+- Auto-maximize popup windows when maximize_browser=true
+  BrowserContext.onPage() listener resizes every new popup window.
+  (Hooks.java)
 
-* Standardizes automated testing across QA teams.
-* Reduces manual testing effort and accelerates software delivery.
-* Integrates securely with Azure DevOps (ADO) CI/CD pipelines.
-* Supports UI, API, database, mobile, and performance testing from a single framework.
-* Uses only encrypted communications (HTTPS/TLS and encrypted JDBC).
-* Restricts all inbound connectivity; only outbound connections to approved enterprise resources are permitted.
-* Uses Azure DevOps Artifacts for internal dependency management and approved package distribution.
-* Improves release quality while reducing deployment risk and production defects.
-* Aligns with enterprise security, compliance, and secure software development standards.
+- Generate both PTAF direct PDF and Glass-style PDF per feature
+  Two separate output directories controlled by new config keys:
+  per_feature_pdf_enabled, per_feature_glass_pdf_enabled,
+  per_feature_glass_pdf_output_dir.
+  (PerFeatureReportListener.java, ConfigurationProperties.java,
+   GlassPdfSubprocessGenerator.java, config.yml)
