@@ -11,8 +11,29 @@ Feature: Consumer Deposit with Payment Switch
     Then time out for 2 seconds
     And we click on page TestHarness locator createURL_btn
 #    Then we click on page TestHarness locator openURL_btn
+    Then we capture screenshot on page consumer_personal_info locator body name "body"
     Then we click TestHarness locator openURL_btn and switch to popup
     Then time out for 15 seconds
+    And we close all browsers
+
+    Examples:
+      | Email_ID             | Phone_Number | ProductType      | Product_Name                         |
+      | sanjayn@fnb-corp.com | 779-902-2577 | Consumer Deposit | 23901 \| Freestyle Checking \| (DDA) |
+
+  Scenario Outline: Consumer Deposit End to End Flow with one product verifying Payment Switch
+    Given we navigate to HARNESS_PREPROD_STAGE url
+    Given get title of page
+    Then we enter value on page TestHarness locator email_flt value "<Email_ID>"
+    When we enter value on page TestHarness locator phoneNumber_flt value "<Phone_Number>"
+    And we select on page TestHarness locator product_group_flt value "<ProductType>"
+    And we select on page TestHarness locator consumer_deposit_product_name value "<Product_Name>"
+    Then time out for 2 seconds
+    And we click on page TestHarness locator createURL_btn
+#    Then we click on page TestHarness locator openURL_btn
+    Then we capture screenshot on page consumer_personal_info locator body name "body"
+    Then we click TestHarness locator openURL_btn and switch to popup
+    Then time out for 15 seconds
+#    And we close all browsers
 
     Examples:
       | Email_ID             | Phone_Number | ProductType      | Product_Name                         |

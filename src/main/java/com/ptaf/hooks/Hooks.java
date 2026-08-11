@@ -111,11 +111,6 @@ public class Hooks {
         // Store current scenario in thread local for step definitions or other helpers.
         scenarioThreadLocal.set(scenario);
 
-        // Reset the intentional-close flag at the start of every scenario so a previous
-        // "we close all browsers" step cannot accidentally suppress failure detection in
-        // a later scenario that did NOT call that step.
-        browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
-
         // Attempt to resolve a stable feature key for tracking. Fall back if resolution fails.
         String featureKey = this.getFeatureKey(scenario);
         if (featureKey == null || featureKey.trim().isEmpty()) {
@@ -185,9 +180,10 @@ public class Hooks {
 
                 // If we are beyond the first scenario (alreadyExecuted > 0) then we must have a live browser to continue.
                 if (alreadyExecuted > 0) {
-                    if (browserAlive) {
+                if (browserAlive) {
                         // Reuse the existing shared browser - no new initialization required.
                         logger.info("Reusing shared browser for @LastScenario feature [{}], scenario [{}]", featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
+                        browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
                         return;
                     }
 
@@ -198,6 +194,9 @@ public class Hooks {
                         logger.info("Browser was closed intentionally by a test step in @LastScenario feature [{}]. Creating a fresh browser for scenario [{}].",
                             featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
                         this.createBrowserStack(scenario);
+                        // Clear the flag now that we have acted on it — prevents it from
+                        // persisting into subsequent scenarios in the same feature.
+                        browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
                         return;
                     }
 
@@ -210,6 +209,7 @@ public class Hooks {
 
             // Default browser setup for a normal scenario or the initial scenario in a non-shared context.
             this.createBrowserStack(scenario);
+            browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
         }
     }
 
@@ -532,14 +532,23 @@ public class Hooks {
             if (maximizeBrowserEnabled && !headlessMode) {
                 context.onPage(newPage -> {
                     try {
+                        // Only resize top-level browser windows (popups opened by the app).
+                        // The onPage event also fires for pages created by frame navigation
+                        // (e.g. when a step definition switches to an iframe context). Running
+                        // window.resizeTo() on an iframe page causes the frame context to reset
+                        // and breaks subsequent actions on that frame.
+                        // A top-level page has no parent frame; an iframe page does.
+                        boolean isTopLevel = newPage.mainFrame().parentFrame() == null;
+                        if (!isTopLevel) {
+                            logger.debug("Skipping auto-maximize for non-top-level page [{}].", newPage.url());
+                            return;
+                        }
                         // Wait for the popup to reach at least DOMContentLoaded so the
                         // window object is available before we try to resize it.
                         newPage.waitForLoadState(
                             com.microsoft.playwright.options.LoadState.DOMCONTENTLOADED,
                             new Page.WaitForLoadStateOptions().setTimeout(10_000));
                         // Resize the popup window to fill the screen.
-                        // window.resizeTo(screen.width, screen.height) is the standard
-                        // cross-browser JS approach for maximizing a popup.
                         newPage.evaluate("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
                         logger.info("Auto-maximized popup window [{}] because maximize_browser=true.",
                             newPage.url());
@@ -584,7 +593,22 @@ public class Hooks {
             if (runtimeValue != null && !runtimeValue.trim().isEmpty()) {
                 long seconds = Long.parseLong(runtimeValue.trim());
                 if (seconds <= 0L) {
-                    logger.warn("runtimeWait must be greater than 0. Defaulting to 30 seconds.");
+                    // runtimeWait: 0 means "delegate to time_to_wait_in_seconds".
+                    // Use time_to_wait_in_seconds as the page default timeout so there is
+                    // no separate Playwright default that stacks on top of the element wait.
+                    String timeToWait = ConfigurationProperties.getValue("time_to_wait_in_seconds");
+                    if (timeToWait != null && !timeToWait.trim().isEmpty()) {
+                        try {
+                            long ttw = Long.parseLong(timeToWait.trim());
+                            if (ttw > 0) {
+                                logger.info("runtimeWait=0: using time_to_wait_in_seconds={} s = {} ms as page default timeout.",
+                                    ttw, ttw * 1000L);
+                                return ttw * 1000L;
+                            }
+                        } catch (NumberFormatException ignored) {}
+                    }
+                    // Both are 0/missing — use a safe minimum of 30 s.
+                    logger.warn("runtimeWait=0 and time_to_wait_in_seconds is not set. Defaulting to 30 seconds.");
                     return 30000L;
                 } else {
                     long timeoutMillis = seconds * 1000L;
@@ -720,8 +744,11 @@ public class Hooks {
         activeFeatureThreadLocal.remove();
         performanceScenarioThreadLocal.remove();
         mobileScenarioThreadLocal.remove();
-        // Clear the intentional-close flag so it does not bleed into the next scenario.
-        browserClosedIntentionallyThreadLocal.remove();
+        // NOTE: browserClosedIntentionallyThreadLocal is intentionally NOT cleared here.
+        // It must remain set so that tearDown() can read it AFTER closeBrowserResources() returns.
+        // The flag is cleared in setUp() at the start of the next scenario (after the @LastScenario
+        // decision is made), and also in the intentional-close branch of setUp() after a fresh
+        // browser is created. This prevents the flag from being cleared before tearDown reads it.
     }
 
     /**
