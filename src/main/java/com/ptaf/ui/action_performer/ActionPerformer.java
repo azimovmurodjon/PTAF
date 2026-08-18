@@ -554,6 +554,14 @@ public class ActionPerformer {
                     return currentValue;
                 }
 
+                case "equalslisttext": {
+                    waitIfNeededVisible(targetLocator);
+                    List<String> listCurrentValue = targetLocator.allTextContents();
+                    String currentValue = String.join(", ", listCurrentValue);
+                    assertCondition(currentValue.equals(value), "Expected: " + value + ", but found: " + currentValue);
+                    return currentValue;
+                }
+
                 case "order": {
 
                     waitIfNeededVisible(targetLocator);
