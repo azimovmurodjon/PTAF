@@ -41,14 +41,14 @@ public class FrameCommonSteps {
      * This instance is obtained from Hooks.getPage(), which should be initialized in
      * the test setup lifecycle.
      */
-    private final Page page;
+    private Page page;
 
     /**
-     * A separate Page reference used when switching context to a popup/iframe page.
-     * It is static because it may be referenced by other utilities that expect a
-     * global iframe page reference. It is intentionally mutable by switchToIframe().
+     * A scenario-scoped Page reference used when switching context to a popup/iframe page.
+     * It is intentionally not static, so a Page from a deliberately closed browser cannot
+     * leak into the next @LastScenario scenario after a fresh browser is created.
      */
-    private static Page iframePage;
+    private Page iframePage;
 
     /**
      * Primary iframe selector used in most steps. Points to the first-level frame.
@@ -78,7 +78,7 @@ public class FrameCommonSteps {
 
     /**
      * Default constructor that initializes the Playwright Page from Hooks and the
-     * FrameCommonMethods helper.
+     * FrameCommonMethods helper using the fresh page created for this scenario.
      *
      * Hooks.getPage() must return a valid Playwright Page instance created in the test
      * setup. frameCommonMethods receives the iframePage reference which can be updated
@@ -86,7 +86,8 @@ public class FrameCommonSteps {
      */
     public FrameCommonSteps() {
         this.page = Hooks.getPage(); // Retrieve the Page instance from Hooks (test setup)
-        this.frameCommonMethods = new FrameCommonMethods(iframePage); // Initialize helper with current iframePage (may be null for now)
+        this.iframePage = null;
+        this.frameCommonMethods = new FrameCommonMethods(this.page);
     }
 
     /**
@@ -107,11 +108,17 @@ public class FrameCommonSteps {
      *   page.frameLocator("iframe").getByRole(AriaRole.BUTTON, ...).click();
      */
     public void switchToIframe() {
+        // This popup represents a frame/screen transition. Do not resize it through the
+        // global maximize listener because that can reset its context before later steps run.
+        Hooks.suppressNextPopupAutoMaximize();
+        Page currentPage = page;
         // Wait for a popup triggered by clicking the "Continue" button in the iframe.
-        iframePage = page.waitForPopup(() -> {
+        iframePage = currentPage.waitForPopup(() -> {
             // Click the Continue button located within any iframe frame.
-            page.frameLocator("iframe").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Continue")).click();
+            currentPage.frameLocator("iframe").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Continue")).click();
         });
+        // Subsequent frame actions in this scenario must use the popup, not the original page.
+        page = iframePage;
     }
 
     /**

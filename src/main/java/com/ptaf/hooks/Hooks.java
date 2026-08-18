@@ -89,6 +89,12 @@ public class Hooks {
     private static final Map<String, Integer> featureScenarioTotalMap = new ConcurrentHashMap();
     private static final Map<String, AtomicInteger> featureScenarioExecutedMap = new ConcurrentHashMap();
     private static final Map<String, Boolean> featureFailureMap = new ConcurrentHashMap();
+    // Durable feature-level marker for the explicit "we close all browsers" step.
+    // This survives closeBrowserResources(), which clears the active ThreadLocal state.
+    private static final Map<String, Boolean> intentionalBrowserCloseFeatureMap = new ConcurrentHashMap();
+    // Context-level one-shot marker used by frame-switch helpers. It prevents the popup
+    // maximize listener from resizing a popup that represents a frame/screen transition.
+    private static final Map<BrowserContext, Boolean> suppressNextPopupMaximizeContextMap = new ConcurrentHashMap();
 
     // Known performance-related tags. If a scenario uses any of these tags it is considered a performance scenario.
     private static final Set<String> PERFORMANCE_TAGS = Set.of("@performance_testing", "@performance_full_regression", "@performance_get", "@performance_post", "@performance_put", "@performance_delete", "@performance_profile", "@performance_inline_json", "@performance_yaml", "@performance_csv", "@performance_excel", "@performance_auth", "@performance_bearer", "@performance_basic_auth", "@performance_negative", "@performance_expected_failure");
@@ -164,6 +170,7 @@ public class Hooks {
             if (isLastScenarioTaggedFeature) {
                 boolean featureAlreadyFailed = Boolean.TRUE.equals(featureFailureMap.get(featureKey));
                 int alreadyExecuted = featureScenarioExecutedMap.containsKey(featureKey) ? ((AtomicInteger)featureScenarioExecutedMap.get(featureKey)).get() : 0;
+                boolean closedIntentionally = isBrowserClosedIntentionally(featureKey);
 
                 // If the feature was already marked failed due to an earlier scenario, stop further execution by throwing.
                 if (featureAlreadyFailed) {
@@ -184,12 +191,12 @@ public class Hooks {
                         // Reuse the existing shared browser - no new initialization required.
                         logger.info("Reusing shared browser for @LastScenario feature [{}], scenario [{}]", featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
                         browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
+                        intentionalBrowserCloseFeatureMap.remove(featureKey);
                         return;
                     }
 
                     // Check whether the browser was closed intentionally by a test step (e.g. "we close all browsers").
                     // If so, open a fresh browser for this scenario instead of treating it as a failure.
-                    boolean closedIntentionally = Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get());
                     if (closedIntentionally) {
                         logger.info("Browser was closed intentionally by a test step in @LastScenario feature [{}]. Creating a fresh browser for scenario [{}].",
                             featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
@@ -197,6 +204,7 @@ public class Hooks {
                         // Clear the flag now that we have acted on it — prevents it from
                         // persisting into subsequent scenarios in the same feature.
                         browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
+                        intentionalBrowserCloseFeatureMap.remove(featureKey);
                         return;
                     }
 
@@ -210,6 +218,7 @@ public class Hooks {
             // Default browser setup for a normal scenario or the initial scenario in a non-shared context.
             this.createBrowserStack(scenario);
             browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
+            intentionalBrowserCloseFeatureMap.remove(featureKey);
         }
     }
 
@@ -312,7 +321,7 @@ public class Hooks {
                             logger.warn("Scenario [{}] had soft assertion failures in @LastScenario feature [{}]. Browser is still alive — continuing to next scenario.", scenario.getName(), featureKey);
                         }
 
-                        if (!browserAlive && !Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get())) {
+                        if (!browserAlive && !isBrowserClosedIntentionally(featureKey)) {
                             // Browser became unavailable unexpectedly (not due to an intentional close step).
                             featureFailureMap.put(featureKey, true);
                             logger.error("Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. Remaining scenarios will fail immediately.", featureKey, scenario.getName());
@@ -381,7 +390,7 @@ public class Hooks {
                     logger.warn("Scenario [{}] had soft assertion failures in @LastScenario feature [{}]. Browser is still alive — continuing to next scenario.", scenario.getName(), featureKey);
                 }
 
-                if (!browserAlive && !Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get())) {
+                if (!browserAlive && !isBrowserClosedIntentionally(featureKey)) {
                     featureFailureMap.put(featureKey, true);
                     logger.error("Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. Remaining scenarios will fail immediately.", featureKey, scenario.getName());
                 } else if (!browserAlive) {
@@ -402,7 +411,7 @@ public class Hooks {
 
                 // Throw soft assertion summary AFTER browser management is complete.
                 if (softAssertionSummary != null) {
-                    throw new AssertionError("PTAF Soft Assertion Failures detected — see failed steps above for details. Total failures: " + com.ptaf.softassert.SoftAssertionContext.getFailureCount() + ". (set soft_assertions.enabled: false in config.yml to disable)");
+                    throw new AssertionError("PTAF Soft Assertion Failures detected — see failed steps above for details. Total failures: " + SoftAssertionContext.getFailureCount() + ". (set soft_assertions.enabled: false in config.yml to disable)");
                 }
                 return;
             } else {
@@ -413,7 +422,7 @@ public class Hooks {
                 closeBrowserResources();
                 // Throw soft assertion summary AFTER browser resources are closed.
                 if (softAssertionSummary != null) {
-                    throw new AssertionError("PTAF Soft Assertion Failures detected — see failed steps above for details. Total failures: " + com.ptaf.softassert.SoftAssertionContext.getFailureCount() + ". (set soft_assertions.enabled: false in config.yml to disable)");
+                    throw new AssertionError("PTAF Soft Assertion Failures detected — see failed steps above for details. Total failures: " + SoftAssertionContext.getFailureCount() + ". (set soft_assertions.enabled: false in config.yml to disable)");
                 }
                 return;
             }
@@ -446,7 +455,7 @@ public class Hooks {
                     logger.warn("Scenario [{}] had soft assertion failures in @LastScenario feature [{}]. Browser is still alive — continuing to next scenario.", scenario.getName(), featureKey);
                 }
 
-                if (!browserAlive && !Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get())) {
+                if (!browserAlive && !isBrowserClosedIntentionally(featureKey)) {
                     featureFailureMap.put(featureKey, true);
                     logger.error("Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. Remaining scenarios will fail immediately.", featureKey, scenario.getName());
                 } else if (!browserAlive) {
@@ -475,7 +484,7 @@ public class Hooks {
         }
         // Throw soft assertion summary at the very end, after all browser management is complete.
         if (softAssertionSummary != null) {
-            throw new AssertionError("PTAF Soft Assertion Failures detected — see failed steps above for details. Total failures: " + com.ptaf.softassert.SoftAssertionContext.getFailureCount() + ". (set soft_assertions.enabled: false in config.yml to disable)");
+            throw new AssertionError("PTAF Soft Assertion Failures detected — see failed steps above for details. Total failures: " + SoftAssertionContext.getFailureCount() + ". (set soft_assertions.enabled: false in config.yml to disable)");
         }
     }
 
@@ -500,7 +509,7 @@ public class Hooks {
                 logger.info("Mobile browser profile [{}] selected for scenario [{}].", browserName, scenario != null ? scenario.getName() : "UNKNOWN");
             } else {
                 // Map configured browser name to BrowserTypeEnum and create browser via BrowserFactory.
-                BrowserFactory.BrowserTypeEnum browserTypeEnum;
+                BrowserTypeEnum browserTypeEnum;
                 switch (browserName.toUpperCase()) {
                     case "CHROME" -> browserTypeEnum = BrowserTypeEnum.CHROME;
                     case "FIREFOX" -> browserTypeEnum = BrowserTypeEnum.FIREFOX;
@@ -532,6 +541,11 @@ public class Hooks {
             if (maximizeBrowserEnabled && !headlessMode) {
                 context.onPage(newPage -> {
                     try {
+                        if (Boolean.TRUE.equals(suppressNextPopupMaximizeContextMap.remove(context))) {
+                            logger.info("Skipping auto-maximize for popup [{}] opened by a frame/screen switch.",
+                                newPage.url());
+                            return;
+                        }
                         // Only resize top-level browser windows (popups opened by the app).
                         // The onPage event also fires for pages created by frame navigation
                         // (e.g. when a step definition switches to an iframe context). Running
@@ -546,7 +560,7 @@ public class Hooks {
                         // Wait for the popup to reach at least DOMContentLoaded so the
                         // window object is available before we try to resize it.
                         newPage.waitForLoadState(
-                            com.microsoft.playwright.options.LoadState.DOMCONTENTLOADED,
+                            LoadState.DOMCONTENTLOADED,
                             new Page.WaitForLoadStateOptions().setTimeout(10_000));
                         // Resize the popup window to fill the screen.
                         newPage.evaluate("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
@@ -687,6 +701,7 @@ public class Hooks {
         try {
             BrowserContext context = (BrowserContext)contextThreadLocal.get();
             if (context != null) {
+                suppressNextPopupMaximizeContextMap.remove(context);
                 // Close every page in the context first; log any exceptions per-page but proceed with the rest.
                 for(Page page : context.pages()) {
                     try {
@@ -762,6 +777,7 @@ public class Hooks {
             featureScenarioTotalMap.remove(featureKey);
             featureScenarioExecutedMap.remove(featureKey);
             featureFailureMap.remove(featureKey);
+            intentionalBrowserCloseFeatureMap.remove(featureKey);
         } else {
             logger.warn("Skipping feature tracking cleanup because feature key is null or empty.");
         }
@@ -1187,7 +1203,37 @@ public class Hooks {
      */
     public static void markBrowserClosedIntentionally() {
         browserClosedIntentionallyThreadLocal.set(Boolean.TRUE);
+        String featureKey = activeFeatureThreadLocal.get();
+        if (featureKey != null && !featureKey.trim().isEmpty()) {
+            intentionalBrowserCloseFeatureMap.put(featureKey, Boolean.TRUE);
+        }
         logger.info("Browser will be closed intentionally by test step — @LastScenario feature will NOT be marked as failed.");
+    }
+
+    /**
+     * Suppress automatic popup maximization once for the current browser context.
+     * Frame or screen-switch helpers use this immediately before waiting for their popup,
+     * because resizing that transition popup can invalidate its frame context.
+     */
+    public static void suppressNextPopupAutoMaximize() {
+        BrowserContext context = contextThreadLocal.get();
+        if (context != null) {
+            suppressNextPopupMaximizeContextMap.put(context, Boolean.TRUE);
+            logger.debug("The next popup for the current context will not be auto-maximized.");
+        }
+    }
+
+    /**
+     * Determine whether an explicit test step requested browser closure for this feature.
+     * The feature-level map remains available after closeBrowserResources() removes the active
+     * feature ThreadLocal, allowing teardown and the next scenario setup to make the right decision.
+     *
+     * @param featureKey the feature currently being executed
+     * @return {@code true} only for an intentional browser close
+     */
+    private static boolean isBrowserClosedIntentionally(String featureKey) {
+        return Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get())
+            || (featureKey != null && Boolean.TRUE.equals(intentionalBrowserCloseFeatureMap.get(featureKey)));
     }
 
     /**
