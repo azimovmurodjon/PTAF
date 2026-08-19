@@ -10,7 +10,6 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.HttpCredentials;
-import com.microsoft.playwright.options.ViewportSize;
 import com.ptaf.ui.mobilebrowser.MobileBrowserExecutionConfig;
 import com.ptaf.ui.mobilebrowser.MobileBrowserProfile;
 import com.ptaf.ui.mobilebrowser.MobileBrowserProfileRepository;
@@ -290,8 +289,9 @@ public final class BrowserFactory {
         boolean maximizeBrowser = getMaximizeBrowser();
         boolean headless = getHeadlessMode();
         Browser.NewContextOptions contextOptions = (new Browser.NewContextOptions()).setIgnoreHTTPSErrors(shouldIgnoreHTTPSErrors);
-        // For headed desktop Chromium runs with maximize_browser=true, set viewport to null so the
-        // OS window size controls the effective viewport (Selenium-style maximize behavior).
+        // Keep the automation viewport stable even when the physical Chromium window is started
+        // maximized. Frame-driven applications can recalculate or replace iframe documents when
+        // a responsive viewport changes during startup.
         applySeleniumStyleMaximizeViewportIfConfigured(contextOptions, maximizeBrowser, headless, mobileBrowser);
         // Apply mobile profile settings (viewport, device scale, user agent, etc.) if available
         applyMobileBrowserProfileIfAvailable(contextOptions);
@@ -328,10 +328,11 @@ public final class BrowserFactory {
     /**
      * Applies Selenium-style browser maximize behavior for headed desktop Playwright runs.
      *
-     * <p>Playwright normally manages viewport size independently from the OS browser window.
-     * Setting viewport to {@code null} allows the context viewport to follow the actual
-     * maximized browser window size, which mirrors Selenium's
-     * {@code driver.manage().window().maximize()} behavior.</p>
+     * <p>The physical Chromium window is maximized at launch through {@code --start-maximized}.
+     * This method deliberately keeps Playwright's default desktop viewport instead of setting it
+     * to {@code null}. A null viewport makes the effective automation viewport follow the OS
+     * window dimensions, which can trigger responsive application changes and invalidate frame
+     * contexts during an Argo screen switch.</p>
      *
      * <p>This method is a no-op when:
      * - maximize_browser is false (default)
@@ -357,12 +358,7 @@ public final class BrowserFactory {
             logger.info("maximize_browser=true ignored for mobile browser emulation context because profile viewport must remain profile-controlled.");
             return;
         }
-        
-        // Setting viewport to null tells Playwright to use the actual OS window size.
-        // This is required for true maximize behavior. If this breaks UI tests, the tests
-        // may be relying on a fixed viewport size (e.g., 1280x720) rather than responsive design.
-        contextOptions.setViewportSize((ViewportSize) null);
-        logger.info("Playwright context viewport disabled so headed browser window can use Selenium-style maximized size.");
+        logger.info("maximize_browser=true: Chromium window is maximized while Playwright keeps its stable desktop viewport for frame compatibility.");
     }
 
     /**
