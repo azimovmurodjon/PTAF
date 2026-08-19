@@ -7,6 +7,7 @@ import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.MouseButton;
 import com.microsoft.playwright.options.WaitForSelectorState;
+import com.ptaf.hooks.Hooks;
 import com.ptaf.utils.ConfigurationProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -359,27 +360,14 @@ public class ActionPerformer {
                 case "maximize":
                 case "maximizewindow":
                 case "maximisebrowser":
-                    // Maximizes the current browser window / popup to fill the screen.
-                    //
-                    // How it works:
-                    //   - window.moveTo(0, 0)  — moves the window to the top-left corner.
-                    //   - window.resizeTo(screen.width, screen.height)  — resizes to the full
-                    //     screen dimensions reported by the browser.
-                    //
-                    // This is the standard JavaScript approach for maximizing a window and works
-                    // for both the initial page and any popup windows opened during the test.
-                    // It complements the --start-maximized Chromium launch flag and the
-                    // auto-maximize BrowserContext.onPage() listener in Hooks.java.
-                    //
-                    // Usage in a Cucumber step:
-                    //   When we perform action maximize on page homePage locator anyLocator
-                    //
-                    // The locator and value parameters are not used for this action.
+                    // Maximize the native browser window rather than resizing the document with
+                    // JavaScript. This leaves frame documents and manual viewport sizing intact.
                     if (page == null) {
                         throw new RuntimeException("Cannot maximize window: page is null or closed.");
                     }
-                    page.evaluate("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
-                    logger.info("Browser window maximized via JavaScript window.resizeTo(screen.width, screen.height).");
+                    if (!Hooks.maximizeBrowserWindow(page)) {
+                        logger.warn("Native browser maximization is unavailable for the current browser page.");
+                    }
                     return null;
 
                 case "scroll":
