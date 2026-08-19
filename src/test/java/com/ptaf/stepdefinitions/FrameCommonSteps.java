@@ -71,8 +71,8 @@ public class FrameCommonSteps {
 
     /**
      * Helper instance that contains common methods to interact with elements inside frames.
-     * It is constructed with iframePage (which may be null initially). FrameCommonMethods
-     * implementations should handle a null page reference gracefully if needed.
+     * The helper resolves Hooks' current page at action time, so its public step APIs remain
+     * valid after navigation or a popup/frame switch.
      */
     private final FrameCommonMethods frameCommonMethods;
 
@@ -85,7 +85,7 @@ public class FrameCommonSteps {
      * later (for example by switchToIframe()).
      */
     public FrameCommonSteps() {
-        this.page = Hooks.getPage(); // Retrieve the Page instance from Hooks (test setup)
+        this.page = Hooks.getPage();
         this.iframePage = null;
         this.frameCommonMethods = new FrameCommonMethods(this.page);
     }
@@ -108,19 +108,24 @@ public class FrameCommonSteps {
      *   page.frameLocator("iframe").getByRole(AriaRole.BUTTON, ...).click();
      */
     public void switchToIframe() {
-        // This popup represents a frame/screen transition. Do not resize it through the
-        // global maximize listener because that can reset its context before later steps run.
+        Page currentPage = requireActivePage();
         Hooks.suppressNextPopupAutoMaximize();
-        Page currentPage = page;
-        // Wait for a popup triggered by clicking the "Continue" button in the iframe.
-        iframePage = currentPage.waitForPopup(() -> {
-            // Click the Continue button located within any iframe frame.
-            currentPage.frameLocator("iframe").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Continue")).click();
-        });
-        // Keep both this scenario's helper and Hooks in sync with the popup. This matches
-        // NewPageCommonSteps and ensures any later step definition retrieves the same active page.
-        page = iframePage;
-        Hooks.setPage(iframePage);
+        try {
+            // Wait for the navigator/frame transition popup and retain it as this scenario's
+            // active page. The suppression applies only to this popup, not normal new windows.
+            Page switchedPage = currentPage.waitForPopup(() ->
+                currentPage.frameLocator("iframe")
+                    .getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Continue"))
+                    .click()
+            );
+            switchedPage.waitForLoadState(com.microsoft.playwright.options.LoadState.DOMCONTENTLOADED);
+            this.iframePage = switchedPage;
+            this.page = switchedPage;
+            Hooks.setPage(switchedPage);
+        } catch (RuntimeException exception) {
+            Hooks.cancelNextPopupAutoMaximizeSuppression();
+            throw exception;
+        }
     }
 
     /**
@@ -132,12 +137,29 @@ public class FrameCommonSteps {
      */
     @Given("^we navigate to (.*?) url$")
     public void weNavigateToURL(String URL) {
+        this.page = requireActivePage();
+        this.iframePage = this.page;
         // Use the project's configuration helper to get the full base URL.
         page.navigate(ConfigurationProperties.getBaseUrl(URL));
         // Optional: viewport configuration and iframe switching are commented out to avoid
         // altering test flow by default. Uncomment if needed for particular tests.
         // page.setViewportSize(1920, 1080);
         // switchToIframe();
+    }
+
+    /**
+     * Retrieves the page currently owned by Hooks and rejects a missing or closed page before
+     * a frame operation starts. This avoids reusing a Page from a deliberately closed browser.
+     */
+    private Page requireActivePage() {
+        Page activePage = Hooks.getPage();
+        if (activePage == null || activePage.isClosed()) {
+            throw new IllegalStateException(
+                "No active Playwright page is available for this frame action. " +
+                "Navigate or complete the popup switch before continuing."
+            );
+        }
+        return activePage;
     }
 
     /**

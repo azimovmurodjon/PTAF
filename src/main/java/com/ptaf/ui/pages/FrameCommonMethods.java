@@ -881,8 +881,9 @@ public class FrameCommonMethods {
      * @param value    Any additional value needed for the action, if required.
      */
     private void performAction(String action, Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator, String value) {
+        Page activePage = resolveActivePage(page);
         executeStep(() -> {
-            boolean actionStatus = elementAction.performActionPageFrame(page, iFrame, iFrame_2, iFrame_3, action, element, locator, value, null);
+            boolean actionStatus = elementAction.performActionPageFrame(activePage, iFrame, iFrame_2, iFrame_3, action, element, locator, value, null);
             if (!actionStatus) {
                 if (com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
                     // SOFT ASSERTION MODE: throw a simple exception WITHOUT closing the browser.
@@ -891,7 +892,7 @@ public class FrameCommonMethods {
                     throw new RuntimeException("Action '" + action + "' failed on element '" + element + "', skipping further steps");
                 } else {
                     // NORMAL MODE: call handleFailure which closes the browser and throws.
-                    handleFailure(page, action, element);
+                    handleFailure(activePage, action, element);
                 }
             }
         });
@@ -912,9 +913,10 @@ public class FrameCommonMethods {
      */
     private String getStringValue(String action, Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator, String value) {
         final String[] result = {null};
+        Page activePage = resolveActivePage(page);
         executeStep(() -> {
             // Perform the action and capture the result
-            result[0] = elementAction.performActionPageFrameWithReturn(page, iFrame, iFrame_2, iFrame_3, action, element, locator, value, null);
+            result[0] = elementAction.performActionPageFrameWithReturn(activePage, iFrame, iFrame_2, iFrame_3, action, element, locator, value, null);
 
             // Handle failure if result is expected but null
             if (result[0] == null && actionRequiresResult(action)) {
@@ -922,13 +924,29 @@ public class FrameCommonMethods {
                     // SOFT ASSERTION MODE: throw without closing the browser
                     throw new RuntimeException("Action '" + action + "' failed on element '" + element + "', skipping further steps");
                 } else {
-                    handleFailure(page, action, element);
+                    handleFailure(activePage, action, element);
                 }
             } else if (result[0] != null && !result[0].isEmpty()) {
                 logger.info("Action '{}' returned result: {}", action, result[0]);
             }
         });
         return result[0];
+    }
+
+    /**
+     * Uses the page currently owned by Hooks whenever it is available. This preserves every
+     * existing FrameCommonMethods signature while ensuring actions after a popup switch target
+     * the newly active page rather than a page reference captured before the switch.
+     */
+    private Page resolveActivePage(Page suppliedPage) {
+        Page hooksPage = Hooks.getPage();
+        if (hooksPage != null && !hooksPage.isClosed()) {
+            return hooksPage;
+        }
+        if (suppliedPage != null && !suppliedPage.isClosed()) {
+            return suppliedPage;
+        }
+        throw new IllegalStateException("No usable Playwright page is available for the requested frame action.");
     }
 
     /**
@@ -1075,7 +1093,7 @@ public class FrameCommonMethods {
                 logger.warn("PTAF Soft Assert | Frame step failed: [{}]. Capturing screenshot and continuing.", e.getMessage());
                 String screenshotNote = null;
                 try {
-                    com.ptaf.utils.ScenarioUtil.handleScenarioTeardownFailier(getCurrentScenario(), page, "SoftFail");
+                    ScenarioUtil.handleScenarioTeardownFailier(getCurrentScenario(), page, "SoftFail");
                     screenshotNote = "captured (see report)";
                 } catch (Exception screenshotEx) {
                     logger.warn("PTAF Soft Assert | Could not capture failure screenshot: {}", screenshotEx.getMessage());

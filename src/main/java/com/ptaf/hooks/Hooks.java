@@ -5,8 +5,10 @@
 
 package com.ptaf.hooks;
 
+import com.google.gson.JsonObject;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
+import com.microsoft.playwright.CDPSession;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.LoadState;
 import com.ptaf.ui.pages.PageCommonMethods;
@@ -71,15 +73,6 @@ public class Hooks {
     private static final ThreadLocal<Boolean> performanceScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final ThreadLocal<Boolean> mobileScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
-    /**
-     * Flag set by the "we close all browsers" step to indicate the browser was closed
-     * intentionally by the test (not due to a failure). When this flag is true, the
-     * @LastScenario teardown logic will NOT mark the feature as failed just because the
-     * browser is gone, and setUp() will create a fresh browser for the next scenario
-     * instead of throwing "Shared browser was closed or lost".
-     */
-    private static final ThreadLocal<Boolean> browserClosedIntentionallyThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
-
     // Feature-level tracking maps to support the @LastScenario optimization.
     // lastScenarioFeatureMap: featureKey -> whether feature uses @LastScenario semantics
     // featureScenarioTotalMap: featureKey -> total number of runnable scenarios in that feature
@@ -92,8 +85,6 @@ public class Hooks {
     // Durable feature-level marker for the explicit "we close all browsers" step.
     // This survives closeBrowserResources(), which clears the active ThreadLocal state.
     private static final Map<String, Boolean> intentionalBrowserCloseFeatureMap = new ConcurrentHashMap();
-    /** JVM-wide marker shared when common steps and Hooks load from separate dependency artifacts. */
-    private static final String INTENTIONAL_CLOSE_PROPERTY_PREFIX = "com.ptaf.intentionalBrowserClose.";
     // Context-level one-shot marker used by frame-switch helpers. It prevents the popup
     // maximize listener from resizing a popup that represents a frame/screen transition.
     private static final Map<BrowserContext, Boolean> suppressNextPopupMaximizeContextMap = new ConcurrentHashMap();
@@ -174,18 +165,10 @@ public class Hooks {
                 int alreadyExecuted = featureScenarioExecutedMap.containsKey(featureKey) ? ((AtomicInteger)featureScenarioExecutedMap.get(featureKey)).get() : 0;
                 boolean closedIntentionally = isBrowserClosedIntentionally(featureKey);
 
-                // If the feature was already marked failed due to an earlier scenario, stop further execution by throwing.
-                if (featureAlreadyFailed && !closedIntentionally) {
+                // A real failed scenario stops the remaining scenarios in the shared browser feature.
+                if (featureAlreadyFailed) {
                     logger.error("Skipping scenario [{}] because @LastScenario feature [{}] is already marked as failed.", scenario != null ? scenario.getName() : "UNKNOWN", featureKey);
                     throw new RuntimeException("Previous scenario failed in @LastScenario feature. Remaining scenarios are failed intentionally.");
-                }
-
-                if (featureAlreadyFailed) {
-                    // An explicit close is authoritative, including when the marker originated
-                    // in a separately loaded test-jar copy of the framework common steps.
-                    logger.warn("Recovering @LastScenario feature [{}] after an explicitly requested browser close. Creating a fresh browser for scenario [{}].",
-                        featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
-                    featureFailureMap.put(featureKey, Boolean.FALSE);
                 }
 
                 // If this is the first scenario in the feature and no usable browser is present, create the shared browser.
@@ -197,10 +180,9 @@ public class Hooks {
 
                 // If we are beyond the first scenario (alreadyExecuted > 0) then we must have a live browser to continue.
                 if (alreadyExecuted > 0) {
-                if (browserAlive) {
+                    if (browserAlive) {
                         // Reuse the existing shared browser - no new initialization required.
                         logger.info("Reusing shared browser for @LastScenario feature [{}], scenario [{}]", featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
-                        browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
                         intentionalBrowserCloseFeatureMap.remove(featureKey);
                         return;
                     }
@@ -211,11 +193,8 @@ public class Hooks {
                         logger.info("Browser was closed intentionally by a test step in @LastScenario feature [{}]. Creating a fresh browser for scenario [{}].",
                             featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
                         this.createBrowserStack(scenario);
-                        // Clear the flag now that we have acted on it — prevents it from
-                        // persisting into subsequent scenarios in the same feature.
-                        browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
+                        // The fresh browser has consumed the one-time feature marker.
                         intentionalBrowserCloseFeatureMap.remove(featureKey);
-                        clearIntentionalCloseSystemProperty(featureKey);
                         return;
                     }
 
@@ -228,7 +207,6 @@ public class Hooks {
 
             // Default browser setup for a normal scenario or the initial scenario in a non-shared context.
             this.createBrowserStack(scenario);
-            browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
             intentionalBrowserCloseFeatureMap.remove(featureKey);
         }
     }
@@ -573,8 +551,22 @@ public class Hooks {
                         newPage.waitForLoadState(
                             LoadState.DOMCONTENTLOADED,
                             new Page.WaitForLoadStateOptions().setTimeout(10_000));
-                        // Resize the popup window to fill the screen.
-                        newPage.evaluate("window.moveTo(0, 0); window.resizeTo(screen.width, screen.height);");
+                        // Maximize the native Chromium window. This avoids JavaScript resizing,
+                        // which changes responsive viewport geometry and can break frame flows.
+                        CDPSession cdpSession = context.newCDPSession(newPage);
+                        try {
+                            JsonObject windowInfo = cdpSession.send("Browser.getWindowForTarget");
+                            if (windowInfo.has("windowId")) {
+                                JsonObject bounds = new JsonObject();
+                                bounds.addProperty("windowState", "maximized");
+                                JsonObject parameters = new JsonObject();
+                                parameters.addProperty("windowId", windowInfo.get("windowId").getAsInt());
+                                parameters.add("bounds", bounds);
+                                cdpSession.send("Browser.setWindowBounds", parameters);
+                            }
+                        } finally {
+                            cdpSession.detach();
+                        }
                         logger.info("Auto-maximized popup window [{}] because maximize_browser=true.",
                             newPage.url());
                     } catch (Exception popupEx) {
@@ -770,11 +762,6 @@ public class Hooks {
         activeFeatureThreadLocal.remove();
         performanceScenarioThreadLocal.remove();
         mobileScenarioThreadLocal.remove();
-        // NOTE: browserClosedIntentionallyThreadLocal is intentionally NOT cleared here.
-        // It must remain set so that tearDown() can read it AFTER closeBrowserResources() returns.
-        // The flag is cleared in setUp() at the start of the next scenario (after the @LastScenario
-        // decision is made), and also in the intentional-close branch of setUp() after a fresh
-        // browser is created. This prevents the flag from being cleared before tearDown reads it.
     }
 
     /**
@@ -789,7 +776,6 @@ public class Hooks {
             featureScenarioExecutedMap.remove(featureKey);
             featureFailureMap.remove(featureKey);
             intentionalBrowserCloseFeatureMap.remove(featureKey);
-            clearIntentionalCloseSystemProperty(featureKey);
         } else {
             logger.warn("Skipping feature tracking cleanup because feature key is null or empty.");
         }
@@ -1214,11 +1200,11 @@ public class Hooks {
      * {@link #setUp(Scenario)} to open a fresh browser for the next scenario.</p>
      */
     public static void markBrowserClosedIntentionally() {
-        browserClosedIntentionallyThreadLocal.set(Boolean.TRUE);
         String featureKey = activeFeatureThreadLocal.get();
         if (featureKey != null && !featureKey.trim().isEmpty()) {
             intentionalBrowserCloseFeatureMap.put(featureKey, Boolean.TRUE);
-            System.setProperty(intentionalCloseSystemPropertyName(featureKey), Boolean.TRUE.toString());
+        } else {
+            logger.warn("Could not mark browser close as intentional because no active feature key is available.");
         }
         logger.info("Browser will be closed intentionally by test step — @LastScenario feature will NOT be marked as failed.");
     }
@@ -1237,6 +1223,17 @@ public class Hooks {
     }
 
     /**
+     * Cancels a pending frame-transition maximize suppression when the expected popup was not
+     * created. This prevents an unrelated later popup from being skipped accidentally.
+     */
+    public static void cancelNextPopupAutoMaximizeSuppression() {
+        BrowserContext context = contextThreadLocal.get();
+        if (context != null) {
+            suppressNextPopupMaximizeContextMap.remove(context);
+        }
+    }
+
+    /**
      * Determine whether an explicit test step requested browser closure for this feature.
      * The feature-level map remains available after closeBrowserResources() removes the active
      * feature ThreadLocal, allowing teardown and the next scenario setup to make the right decision.
@@ -1245,21 +1242,7 @@ public class Hooks {
      * @return {@code true} only for an intentional browser close
      */
     private static boolean isBrowserClosedIntentionally(String featureKey) {
-        return Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get())
-            || (featureKey != null && Boolean.TRUE.equals(intentionalBrowserCloseFeatureMap.get(featureKey)))
-            || (featureKey != null && Boolean.parseBoolean(System.getProperty(intentionalCloseSystemPropertyName(featureKey), Boolean.FALSE.toString())));
-    }
-
-    /** Builds the per-feature JVM property key used across main/test-jar classloader boundaries. */
-    private static String intentionalCloseSystemPropertyName(String featureKey) {
-        return INTENTIONAL_CLOSE_PROPERTY_PREFIX + Integer.toUnsignedString(featureKey.hashCode(), 16);
-    }
-
-    /** Clears the cross-artifact marker after it has been consumed or the feature ends. */
-    private static void clearIntentionalCloseSystemProperty(String featureKey) {
-        if (featureKey != null && !featureKey.trim().isEmpty()) {
-            System.clearProperty(intentionalCloseSystemPropertyName(featureKey));
-        }
+        return featureKey != null && Boolean.TRUE.equals(intentionalBrowserCloseFeatureMap.get(featureKey));
     }
 
     /**
