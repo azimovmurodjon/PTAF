@@ -117,8 +117,10 @@ public class FrameCommonSteps {
             // Click the Continue button located within any iframe frame.
             currentPage.frameLocator("iframe").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Continue")).click();
         });
-        // Subsequent frame actions in this scenario must use the popup, not the original page.
+        // Keep both this scenario's helper and Hooks in sync with the popup. This matches
+        // NewPageCommonSteps and ensures any later step definition retrieves the same active page.
         page = iframePage;
+        Hooks.setPage(iframePage);
     }
 
     /**
