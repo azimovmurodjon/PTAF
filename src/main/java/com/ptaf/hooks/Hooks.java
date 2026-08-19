@@ -92,6 +92,8 @@ public class Hooks {
     // Durable feature-level marker for the explicit "we close all browsers" step.
     // This survives closeBrowserResources(), which clears the active ThreadLocal state.
     private static final Map<String, Boolean> intentionalBrowserCloseFeatureMap = new ConcurrentHashMap();
+    /** JVM-wide marker shared when common steps and Hooks load from separate dependency artifacts. */
+    private static final String INTENTIONAL_CLOSE_PROPERTY_PREFIX = "com.ptaf.intentionalBrowserClose.";
     // Context-level one-shot marker used by frame-switch helpers. It prevents the popup
     // maximize listener from resizing a popup that represents a frame/screen transition.
     private static final Map<BrowserContext, Boolean> suppressNextPopupMaximizeContextMap = new ConcurrentHashMap();
@@ -173,9 +175,17 @@ public class Hooks {
                 boolean closedIntentionally = isBrowserClosedIntentionally(featureKey);
 
                 // If the feature was already marked failed due to an earlier scenario, stop further execution by throwing.
-                if (featureAlreadyFailed) {
+                if (featureAlreadyFailed && !closedIntentionally) {
                     logger.error("Skipping scenario [{}] because @LastScenario feature [{}] is already marked as failed.", scenario != null ? scenario.getName() : "UNKNOWN", featureKey);
                     throw new RuntimeException("Previous scenario failed in @LastScenario feature. Remaining scenarios are failed intentionally.");
+                }
+
+                if (featureAlreadyFailed) {
+                    // An explicit close is authoritative, including when the marker originated
+                    // in a separately loaded test-jar copy of the framework common steps.
+                    logger.warn("Recovering @LastScenario feature [{}] after an explicitly requested browser close. Creating a fresh browser for scenario [{}].",
+                        featureKey, scenario != null ? scenario.getName() : "UNKNOWN");
+                    featureFailureMap.put(featureKey, Boolean.FALSE);
                 }
 
                 // If this is the first scenario in the feature and no usable browser is present, create the shared browser.
@@ -205,6 +215,7 @@ public class Hooks {
                         // persisting into subsequent scenarios in the same feature.
                         browserClosedIntentionallyThreadLocal.set(Boolean.FALSE);
                         intentionalBrowserCloseFeatureMap.remove(featureKey);
+                        clearIntentionalCloseSystemProperty(featureKey);
                         return;
                     }
 
@@ -778,6 +789,7 @@ public class Hooks {
             featureScenarioExecutedMap.remove(featureKey);
             featureFailureMap.remove(featureKey);
             intentionalBrowserCloseFeatureMap.remove(featureKey);
+            clearIntentionalCloseSystemProperty(featureKey);
         } else {
             logger.warn("Skipping feature tracking cleanup because feature key is null or empty.");
         }
@@ -1206,6 +1218,7 @@ public class Hooks {
         String featureKey = activeFeatureThreadLocal.get();
         if (featureKey != null && !featureKey.trim().isEmpty()) {
             intentionalBrowserCloseFeatureMap.put(featureKey, Boolean.TRUE);
+            System.setProperty(intentionalCloseSystemPropertyName(featureKey), Boolean.TRUE.toString());
         }
         logger.info("Browser will be closed intentionally by test step — @LastScenario feature will NOT be marked as failed.");
     }
@@ -1233,7 +1246,20 @@ public class Hooks {
      */
     private static boolean isBrowserClosedIntentionally(String featureKey) {
         return Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get())
-            || (featureKey != null && Boolean.TRUE.equals(intentionalBrowserCloseFeatureMap.get(featureKey)));
+            || (featureKey != null && Boolean.TRUE.equals(intentionalBrowserCloseFeatureMap.get(featureKey)))
+            || (featureKey != null && Boolean.parseBoolean(System.getProperty(intentionalCloseSystemPropertyName(featureKey), Boolean.FALSE.toString())));
+    }
+
+    /** Builds the per-feature JVM property key used across main/test-jar classloader boundaries. */
+    private static String intentionalCloseSystemPropertyName(String featureKey) {
+        return INTENTIONAL_CLOSE_PROPERTY_PREFIX + Integer.toUnsignedString(featureKey.hashCode(), 16);
+    }
+
+    /** Clears the cross-artifact marker after it has been consumed or the feature ends. */
+    private static void clearIntentionalCloseSystemProperty(String featureKey) {
+        if (featureKey != null && !featureKey.trim().isEmpty()) {
+            System.clearProperty(intentionalCloseSystemPropertyName(featureKey));
+        }
     }
 
     /**
