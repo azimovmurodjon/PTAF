@@ -60,6 +60,9 @@ import org.slf4j.LoggerFactory;
  */
 public class Hooks {
     private static final Logger logger = LoggerFactory.getLogger(Hooks.class);
+    // An unreadable feature must never be treated as a one-scenario feature. That fallback
+    // closes the shared @LastScenario browser after every scenario in dependency-based runs.
+    private static final int UNKNOWN_SCENARIO_TOTAL = Integer.MAX_VALUE;
 
     // ThreadLocal storage so parallel scenarios (threads) do not interfere with each other.
     private static final ThreadLocal<Browser> browserThreadLocal = new ThreadLocal();
@@ -123,6 +126,16 @@ public class Hooks {
             logger.warn("Unable to resolve feature key for scenario [{}]. Using fallback feature key [{}].", scenario != null ? scenario.getName() : "UNKNOWN", featureKey);
         }
 
+        // If a prior @LastScenario feature could not be read from its URI, retain its browser
+        // only while Cucumber continues that same feature. Close it as soon as a new feature starts.
+        String previousFeatureKey = activeFeatureThreadLocal.get();
+        if (previousFeatureKey != null
+            && !previousFeatureKey.equals(featureKey)
+            && Boolean.TRUE.equals(lastScenarioFeatureMap.get(previousFeatureKey))) {
+            logger.info("New feature started after @LastScenario feature [{}]. Closing its retained browser.", previousFeatureKey);
+            closeBrowserResources();
+            clearFeatureTracking(previousFeatureKey);
+        }
         activeFeatureThreadLocal.set(featureKey);
 
         // If this is a performance scenario, flag it and skip UI browser initialization.
@@ -336,13 +349,15 @@ public class Hooks {
                         // Increment executed counter and log progress. Close resources only after last scenario.
                         AtomicInteger executedCounter = (AtomicInteger)featureScenarioExecutedMap.get(featureKey);
                         int executed = executedCounter != null ? executedCounter.incrementAndGet() : 1;
-                        int total = (Integer)featureScenarioTotalMap.getOrDefault(featureKey, 1);
+                        int total = (Integer)featureScenarioTotalMap.getOrDefault(featureKey, UNKNOWN_SCENARIO_TOTAL);
                         logger.info("Feature [{}] progress: {}/{}", new Object[]{featureKey, executed, total});
-                        if (executed >= total) {
+                        if (total != UNKNOWN_SCENARIO_TOTAL && executed >= total) {
                             // Last scenario reached: close shared browser resources and cleanup feature trackers.
                             logger.info("Last scenario reached for feature [{}]. Closing browser resources.", featureKey);
                             closeBrowserResources();
                             clearFeatureTracking(featureKey);
+                        } else if (total == UNKNOWN_SCENARIO_TOTAL) {
+                            logger.warn("Scenario total is unavailable for @LastScenario feature [{}]. Keeping its browser until Cucumber starts the next feature.", featureKey);
                         } else {
                             // Keep browser alive for next scenario in the same feature.
                             logger.info("Keeping browser state unchanged for next scenario in @LastScenario feature [{}].", featureKey);
@@ -402,12 +417,14 @@ public class Hooks {
 
                 AtomicInteger executedCounter = (AtomicInteger)featureScenarioExecutedMap.get(featureKey);
                 int executed = executedCounter != null ? executedCounter.incrementAndGet() : 1;
-                int total = (Integer)featureScenarioTotalMap.getOrDefault(featureKey, 1);
+                int total = (Integer)featureScenarioTotalMap.getOrDefault(featureKey, UNKNOWN_SCENARIO_TOTAL);
                 logger.info("Feature [{}] progress: {}/{}", new Object[]{featureKey, executed, total});
-                if (executed >= total) {
+                if (total != UNKNOWN_SCENARIO_TOTAL && executed >= total) {
                     logger.info("Last scenario reached for feature [{}]. Closing browser resources.", featureKey);
                     closeBrowserResources();
                     clearFeatureTracking(featureKey);
+                } else if (total == UNKNOWN_SCENARIO_TOTAL) {
+                    logger.warn("Scenario total is unavailable for @LastScenario feature [{}]. Keeping its browser until Cucumber starts the next feature.", featureKey);
                 } else {
                     logger.info("Keeping browser state unchanged for next scenario in @LastScenario feature [{}].", featureKey);
                 }
@@ -467,12 +484,14 @@ public class Hooks {
 
                 AtomicInteger executedCounter = (AtomicInteger)featureScenarioExecutedMap.get(featureKey);
                 int executed = executedCounter != null ? executedCounter.incrementAndGet() : 1;
-                int total = (Integer)featureScenarioTotalMap.getOrDefault(featureKey, 1);
+                int total = (Integer)featureScenarioTotalMap.getOrDefault(featureKey, UNKNOWN_SCENARIO_TOTAL);
                 logger.info("Feature [{}] progress: {}/{}", new Object[]{featureKey, executed, total});
-                if (executed >= total) {
+                if (total != UNKNOWN_SCENARIO_TOTAL && executed >= total) {
                     logger.info("Last scenario reached for feature [{}]. Closing browser resources.", featureKey);
                     closeBrowserResources();
                     clearFeatureTracking(featureKey);
+                } else if (total == UNKNOWN_SCENARIO_TOTAL) {
+                    logger.warn("Scenario total is unavailable for @LastScenario feature [{}]. Keeping its browser until Cucumber starts the next feature.", featureKey);
                 } else {
                     logger.info("Keeping browser state unchanged for next scenario in @LastScenario feature [{}].", featureKey);
                 }
@@ -976,18 +995,18 @@ public class Hooks {
      * - "Scenario:" lines count as 1 scenario each.
      * - "Scenario Outline:" or "Scenario Template:" combined with "Examples:" will count one scenario per example row.
      * - Example table headers (first row) are skipped; blank lines, comments (#) and tag lines (@) are ignored.
-     * - If parsing fails or yields zero, defaults to 1 so tests still run.
+     * - If parsing fails or yields zero, preserves the shared browser until Cucumber begins a different feature.
      * </p>
      *
      * @param scenario the scenario whose feature file to inspect
-     * @return number of runnable scenarios discovered (minimum 1)
+     * @return number of runnable scenarios discovered, or an unknown-count sentinel
      */
     private int countScenariosInFeatureFile(Scenario scenario) {
         try {
             URI uri = scenario.getUri();
             if (uri == null) {
-                logger.warn("Scenario URI is null. Defaulting scenario count to 1.");
-                return 1;
+                logger.warn("Scenario URI is null. Preserving the @LastScenario browser until the next feature begins.");
+                return UNKNOWN_SCENARIO_TOTAL;
             } else {
                 // Open the feature file (supports file: and classpath: URIs).
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(this.openFeatureStream(uri)))) {
@@ -1046,14 +1065,18 @@ public class Hooks {
                         total += Math.max(outlineExampleRows, 1);
                     }
 
-                    logger.info("Detected [{}] runnable scenarios in feature [{}]", total, uri);
-                    return total > 0 ? total : 1;
+                    if (total > 0) {
+                        logger.info("Detected [{}] runnable scenarios in feature [{}]", total, uri);
+                        return total;
+                    }
+                    logger.warn("No scenarios could be counted in feature [{}]. Preserving the @LastScenario browser until the next feature begins.", uri);
+                    return UNKNOWN_SCENARIO_TOTAL;
                 }
             }
         } catch (Exception e) {
-            // Fail safe: if anything goes wrong, treat feature as having a single scenario.
-            logger.warn("Unable to count scenarios in feature file. Defaulting scenario count to 1. Reason: {}", e.getMessage());
-            return 1;
+            // Never downgrade an unavailable multi-scenario resource to one scenario.
+            logger.warn("Unable to count scenarios in feature file. Preserving the @LastScenario browser until the next feature begins. Reason: {}", e.getMessage());
+            return UNKNOWN_SCENARIO_TOTAL;
         }
     }
 
@@ -1087,6 +1110,9 @@ public class Hooks {
             }
 
             InputStream inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
+            if (inputStream == null && Hooks.class.getClassLoader() != null) {
+                inputStream = Hooks.class.getClassLoader().getResourceAsStream(path);
+            }
             if (inputStream == null) {
                 throw new IllegalStateException("Unable to load feature file from URI: " + String.valueOf(uri));
             } else {
