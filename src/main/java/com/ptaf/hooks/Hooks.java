@@ -94,6 +94,9 @@ public class Hooks {
     // separate classloaders and therefore do not share static maps or ThreadLocals.
     private static final String INTENTIONAL_CLOSE_PROPERTY_PREFIX = "com.ptaf.intentionalBrowserClose.";
     private static final String INTENTIONAL_CLOSE_THREAD_PROPERTY_PREFIX = "com.ptaf.intentionalBrowserClose.thread.";
+    // A feature-name marker bridges dependency classloaders when their URI representations differ
+    // between Scenario Outline executions (for example file: versus classpath: resource URIs).
+    private static final String INTENTIONAL_CLOSE_FEATURE_NAME_PROPERTY = "com.ptaf.intentionalBrowserClose.featureName";
     // Context-level one-shot marker used by frame-switch helpers. It prevents the popup
     // maximize listener from resizing a popup that represents a frame/screen transition.
     private static final Map<BrowserContext, Boolean> suppressNextPopupMaximizeContextMap = new ConcurrentHashMap();
@@ -1208,6 +1211,7 @@ public class Hooks {
         if (featureKey != null && !featureKey.trim().isEmpty()) {
             intentionalBrowserCloseFeatureMap.put(featureKey, Boolean.TRUE);
             System.setProperty(intentionalCloseSystemPropertyName(featureKey), Boolean.TRUE.toString());
+            System.setProperty(INTENTIONAL_CLOSE_FEATURE_NAME_PROPERTY, featureIdentity(featureKey));
         }
         // A per-thread JVM property still works when this call came from a common step
         // definition loaded by a different test-jar classloader with no shared feature map.
@@ -1251,7 +1255,22 @@ public class Hooks {
         return Boolean.TRUE.equals(browserClosedIntentionallyThreadLocal.get())
             || (featureKey != null && Boolean.TRUE.equals(intentionalBrowserCloseFeatureMap.get(featureKey)))
             || (featureKey != null && Boolean.parseBoolean(System.getProperty(intentionalCloseSystemPropertyName(featureKey), Boolean.FALSE.toString())))
+            || (featureKey != null && featureIdentity(featureKey).equals(System.getProperty(INTENTIONAL_CLOSE_FEATURE_NAME_PROPERTY)))
             || Boolean.parseBoolean(System.getProperty(intentionalCloseThreadPropertyName(), Boolean.FALSE.toString()));
+    }
+
+    /**
+     * Produces a URI-format-independent identity for a feature resource. This lets a close step
+     * loaded from a framework test-jar hand its intent to Hooks loaded by a consuming project
+     * even when each classloader reports the same feature with a different URI prefix.
+     */
+    private static String featureIdentity(String featureKey) {
+        if (featureKey == null || featureKey.trim().isEmpty()) {
+            return "UNKNOWN_FEATURE";
+        }
+        String normalized = featureKey.replace('\\', '/').toLowerCase(java.util.Locale.ROOT);
+        int lastSeparator = normalized.lastIndexOf('/');
+        return lastSeparator >= 0 ? normalized.substring(lastSeparator + 1) : normalized;
     }
 
     /** Create a classloader-neutral JVM property name for a specific feature. */
@@ -1270,6 +1289,9 @@ public class Hooks {
         if (featureKey != null && !featureKey.trim().isEmpty()) {
             intentionalBrowserCloseFeatureMap.remove(featureKey);
             System.clearProperty(intentionalCloseSystemPropertyName(featureKey));
+            if (featureIdentity(featureKey).equals(System.getProperty(INTENTIONAL_CLOSE_FEATURE_NAME_PROPERTY))) {
+                System.clearProperty(INTENTIONAL_CLOSE_FEATURE_NAME_PROPERTY);
+            }
         }
         System.clearProperty(intentionalCloseThreadPropertyName());
     }
