@@ -221,6 +221,16 @@ public final class BrowserFactory {
 
         List<String> launchArgs = new ArrayList<>();
 
+        // Microsoft Edge can immediately exit on some Windows builds when Playwright starts it
+        // through --remote-debugging-pipe. This Edge-only compatibility argument prevents the
+        // browser's compatibility-layer relaunch from discarding Playwright's pipe handles.
+        // It is intentionally restricted to the desktop "msedge" channel: Chrome, Firefox,
+        // WebKit, and every mobile browser profile continue through their existing paths.
+        if ("msedge".equalsIgnoreCase(channel)) {
+            launchArgs.add("--edge-skip-compat-layer-relaunch");
+            logger.info("Applying the Microsoft Edge remote-debugging compatibility launch argument.");
+        }
+
         // Add --headless=old only when headless mode is requested.
         // This uses the classic Chrome headless flag which works reliably across all
         // Playwright 1.x versions and does not conflict with the Headless Shell binary.
