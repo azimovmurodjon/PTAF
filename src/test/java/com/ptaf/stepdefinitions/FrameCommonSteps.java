@@ -1,606 +1,1585 @@
 package com.ptaf.stepdefinitions;
 
-import com.microsoft.playwright.FrameLocator;
-import com.microsoft.playwright.Page;
+import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.AriaRole;
+import com.microsoft.playwright.options.LoadState;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.ui.pages.FrameCommonMethods;
+import com.ptaf.ui.pages.PageCommonMethods;
 import com.ptaf.utils.ConfigurationProperties;
+import com.ptaf.utils.ExcelReader;
+import com.ptaf.utils.ExcelWriter;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
+import java.util.Random;
 
-/**
- * Step definitions for interacting with elements inside iframes using Playwright.
- *
- * <p>
- * This class maps Cucumber/Gherkin steps to actions implemented in FrameCommonMethods.
- * It centralizes common iframe identifiers and delegates most interactions to the
- * FrameCommonMethods helper. These steps are intended to be used by testers writing
- * feature files and allow common operations such as click, fill, select, hover,
- * verify visibility/existence/state, take screenshots, and keyboard actions on elements
- * that live inside one or nested iframes.
- * </p>
- *
- * Notes for testers:
- * - iFrame is set to the selector "#frame1" by default (most single-frame scenarios).
- * - iFrame_2 is set to "iframe" to represent a nested/secondary frame when needed.
- * - iFrame_3 is declared but intentionally left null (reserved for future use).
- * - Many methods accept "element" and "locator" strings which are passed through to
- *   FrameCommonMethods. The exact meaning/format of those depends on the project's
- *   locator conventions (e.g., CSS, XPath, test ids).
- *
- * Important:
- * - Do NOT change method signatures or logic in this class. This file only contains
- *   step-to-action wiring and comments for clarity.
- */
 public class FrameCommonSteps {
-    /**
-     * Playwright Page instance used for top-level navigation and interactions.
-     * This instance is obtained from Hooks.getPage(), which should be initialized in
-     * the test setup lifecycle.
-     */
-    private Page page;
+    private final Random rand = new Random();
+    private static final String filePath = ConfigurationProperties.getExcelDocumentLocation();
+    private static final String iFrame = "iframe[name='iframeApplicationContent']";
+    private static final String iFrame_2 = "iframe[name='iframeContent']";
+    private static final String iFrame_5 = "iframe[name='DueDiligenceForm']";
+    private static final String iFrame_3 = "iframe[name='iframeProductsContent']";
+    private static final String iFrame_4 = "iframe[name='DueDiligenceForm']";
+    private static final String Teller_Frame = "iframe[name='iframeTellerContent']";
+    private static final String pop_up = "(//iframe[starts-with(@name,'iframeWindowModal') and not(@style='display:none')])[last()]";
+    private final String warning_box = null;
+    private final String header = null;
+    private final BrowserContext context = Hooks.getContext();
 
-    /**
-     * A scenario-scoped Page reference used when switching context to a popup/iframe page.
-     * It is intentionally not static, so a Page from a deliberately closed browser cannot
-     * leak into the next @LastScenario scenario after a fresh browser is created.
-     */
-    private Page iframePage;
-
-    /**
-     * Primary iframe selector used in most steps. Points to the first-level frame.
-     * Default value: "#frame1"
-     */
-    private final String iFrame = "#frame1";
-
-    /**
-     * Secondary/nested iframe selector. Used to indicate a nested frame when invoking
-     * FrameCommonMethods for elements inside a child frame.
-     *
-     * Default value: "iframe"
-     */
-    private final String iFrame_2 = "iframe";
-
-    /**
-     * Reserved tertiary iframe selector for potential future use. Currently null.
-     */
-    private final String iFrame_3 = null;
-
-    /**
-     * Helper instance that contains common methods to interact with elements inside frames.
-     * It is constructed with iframePage (which may be null initially). FrameCommonMethods
-     * implementations should handle a null page reference gracefully if needed.
-     */
-    private final FrameCommonMethods frameCommonMethods;
-
-    /**
-     * Default constructor that initializes the Playwright Page from Hooks and the
-     * FrameCommonMethods helper using the fresh page created for this scenario.
-     *
-     * Hooks.getPage() must return a valid Playwright Page instance created in the test
-     * setup. frameCommonMethods receives the iframePage reference which can be updated
-     * later (for example by switchToIframe()).
-     */
     public FrameCommonSteps() {
-        this.page = Hooks.getPage(); // Retrieve the Page instance from Hooks (test setup)
-        this.iframePage = null;
-        this.frameCommonMethods = new FrameCommonMethods(this.page);
     }
 
-    /**
-     * Example helper to switch context to an iframe popup.
-     *
-     * <p>
-     * This method waits for a popup to open as a result of clicking a button that is
-     * inside an iframe. It uses Playwright's waitForPopup to capture the new Page.
-     * The implementation clicks a button with accessible name "Continue" inside any
-     * "iframe" frame. The resulting popup Page reference is stored in the static
-     * iframePage field for use by FrameCommonMethods (if those methods make use of it).
-     * </p>
-     *
-     * WARNING:
-     * - This method performs a waitForPopup and is therefore blocking until the popup
-     *   appears or the default Playwright timeout is reached.
-     * - The selector and role used in this helper are specific to a particular flow:
-     *   page.frameLocator("iframe").getByRole(AriaRole.BUTTON, ...).click();
-     */
-    public void switchToIframe() {
-        Page currentPage = page;
-        // Wait for a popup triggered by clicking the "Continue" button in the iframe.
-        iframePage = currentPage.waitForPopup(() -> {
-            // Click the Continue button located within any iframe frame.
-            currentPage.frameLocator("iframe").getByRole(AriaRole.BUTTON, new FrameLocator.GetByRoleOptions().setName("Continue")).click();
-        });
-        // Keep both this scenario's helper and Hooks in sync with the popup. This matches
-        // NewPageCommonSteps and ensures any later step definition retrieves the same active page.
-        page = iframePage;
-        Hooks.setPage(iframePage);
+    private Page getActivePage() {
+        Page activePage = Hooks.getPage();
+        if (activePage == null || activePage.isClosed()) {
+            throw new IllegalStateException(
+                    "No active Playwright page is available. Start or navigate the fresh browser before running this frame step."
+            );
+        }
+        return activePage;
     }
 
-    /**
-     * Navigate the top-level page to a URL key defined in ConfigurationProperties.
-     *
-     * Example Gherkin: Given we navigate to "home" url
-     *
-     * @param URL key or partial URL passed from the feature file which is resolved via ConfigurationProperties.getBaseUrl(URL)
-     */
+    private FrameCommonMethods getFrameCommonMethods() {
+        return new FrameCommonMethods(getActivePage());
+    }
+
+    private PageCommonMethods getPageCommonMethods() {
+        return new PageCommonMethods(getActivePage());
+    }
+
+    @Then("^we switch to popup (.*?) locator (.*?)$")
+    public void weSwitchToPopupLocator(String element, String locator) {
+        Page currentPage = getActivePage();
+        PageCommonMethods pageCommonMethods = getPageCommonMethods();
+        FrameCommonMethods frameCommonMethods = getFrameCommonMethods();
+//
+        Page popupPage = currentPage.waitForPopup(() ->
+                frameCommonMethods.click(currentPage, "iframe", null, null, element, locator)
+
+        );
+//        popupPage.setViewportSize(1920, 1080);
+        popupPage.waitForLoadState(LoadState.DOMCONTENTLOADED);
+        Hooks.setPage(popupPage);
+    }
+
     @Given("^we navigate to (.*?) url$")
     public void weNavigateToURL(String URL) {
-        // Use the project's configuration helper to get the full base URL.
-        page.navigate(ConfigurationProperties.getBaseUrl(URL));
-        // Optional: viewport configuration and iframe switching are commented out to avoid
-        // altering test flow by default. Uncomment if needed for particular tests.
-        // page.setViewportSize(1920, 1080);
-        // switchToIframe();
+        Page activePage = getActivePage();
+        activePage.navigate(ConfigurationProperties.getBaseUrl(URL));
+        activePage.setViewportSize(1920, 1080);
+//        switchToIframe();
     }
 
-    /**
-     * Click an element located inside the primary iframe.
-     *
-     * @param element logical element name used by FrameCommonMethods
-     * @param locator locator string passed to FrameCommonMethods
-     */
-    @Then("^we click on frame (.*?) locator (.*?)$")
-    public void weClickActionOnPage(String element, String locator) {
-        frameCommonMethods.click(page, iFrame, null, null, element, locator);
+    @Then("^we click on main frame (.*?) locator (.*?)$")
+    public void weClickActionOnMainFrame(String element, String locator) throws InterruptedException {
+        getFrameCommonMethods().click(getActivePage(), iFrame, null, null, element, locator);
+        Thread.sleep(1000);
     }
 
-    /**
-     * Double-click an element inside the primary iframe.
-     *
-     * @param element logical element name
-     * @param locator selector/locator for the element
-     */
-    @Then("^we double click on frame (.*?) locator (.*?)$")
-    public void weDoubleClickActionOnPage(String element, String locator) {
-        frameCommonMethods.dblclick(page, iFrame, null, null, element, locator);
+    @Then("^we report list of selection on main frame (.*?) locator (.*?)$")
+    public void weReportListOfSelectionOnMainFrameLocator(String element, String locator) {
+        getFrameCommonMethods().reportListOfDropdown(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Fill (enter) a value into an input located inside the primary iframe.
-     *
-     * @param element logical element name
-     * @param locator selector for the element
-     * @param value value to input
-     */
-    @Then("^we enter value on frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weEnterValueOnPage(String element, String locator, String value) {
-        frameCommonMethods.fill(page, iFrame, null, null,element, locator, value);
+    @Then("^we double click on main frame (.*?) locator (.*?)$")
+    public void weDoubleClickActionOnMainFrame(String element, String locator) {
+        getFrameCommonMethods().dblclick(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Select an option or choose a value inside a select element in the primary iframe.
-     *
-     * @param element logical element name
-     * @param locator selector for the select element
-     * @param value option or value to select
-     */
-    @Then("^we select on frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weSelectValueOnPage(String element, String locator, String value) {
-        frameCommonMethods.select(page, iFrame, null, null, element, locator, value);
+    @Then("^we enter value on main frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterValueOnMainFrame(String element, String locator, String value) {
+        getFrameCommonMethods().fill(getActivePage(), iFrame, null, null, element, locator, value);
     }
 
-    /**
-     * Check a checkbox/radio inside the primary iframe.
-     *
-     * @param element logical element name
-     * @param locator selector for the checkbox/radio
-     */
-    @Then("^we check on frame (.*?) locator (.*?)$")
-    public void weCheckActionOnPage(String element, String locator) {
-        frameCommonMethods.check(page, iFrame, null, null, element, locator);
+    @Then("^we enter random value on main frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterRandomValueOnMainFrame(String element, String locator, String value) {
+        int randomVal = rand.nextInt(9999999);
+        String new_value = value + randomVal;
+        getFrameCommonMethods().fill(getActivePage(), iFrame, null, null, element, locator, new_value);
     }
 
-    /**
-     * Uncheck action for a checkbox inside the primary iframe.
-     *
-     * Note: This method currently delegates to frameCommonMethods.check(...) which might
-     * represent a bug or an implementation where 'check' toggles state. Verify FrameCommonMethods
-     * behavior if unchecking is not occurring as expected.
-     *
-     * @param element logical name
-     * @param locator selector for the checkbox
-     */
-    @Then("^we uncheck on frame (.*?) locator (.*?)$")
-    public void weUncheckActionOnPage(String element, String locator) {
-        // Intentionally calls check to preserve current logic.
-        frameCommonMethods.check(page, iFrame, null, null, element, locator);
+    @Then("^we select on main frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weSelectValueOnMainFrame(String element, String locator, String value) {
+        getFrameCommonMethods().select(getActivePage(), iFrame, null, null, element, locator, value);
     }
 
-    /**
-     * Hover the mouse over an element inside the primary iframe.
-     *
-     * @param element logical element name
-     * @param locator selector for the element to hover
-     */
-    @Then("^we hover on frame (.*?) locator (.*?)$")
-    public void weHoverActionOnPage(String element, String locator) {
-        frameCommonMethods.hover(page, iFrame, null, null, element, locator);
+    @Then("^we check on main frame (.*?) locator (.*?)$")
+    public void weCheckActionOnMainFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Send low-level typing (character by character) to an element inside the primary iframe.
-     *
-     * @param element logical name
-     * @param locator selector for target element
-     * @param value string to type
-     */
-    @Then("^we type on frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weTypeValueOnPage(String element, String locator, String value) {
-        frameCommonMethods.type(page, iFrame, null, null, element, locator, value);
+    @Then("^we uncheck on main frame (.*?) locator (.*?)$")
+    public void weUncheckActionOnMainFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Scroll to the element inside the primary iframe.
-     *
-     * @param element logical name
-     * @param locator selector for the element to scroll into view
-     */
-    @Then("^we scroll on frame (.*?) locator (.*?)$")
-    public void weScrollToLocatorOnPage(String element, String locator) {
-        frameCommonMethods.scroll(page, iFrame, null, null, element, locator);
+    @Then("^we hover on main frame (.*?) locator (.*?)$")
+    public void weHoverActionOnMainFrame(String element, String locator) {
+        getFrameCommonMethods().hover(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Clear the value of an input inside the primary iframe.
-     *
-     * @param element logical element name
-     * @param locator selector for the input to clear
-     */
-    @Then("^we clear value on frame (.*?) locator (.*?) value \"(.*?)\"$")
-    public void weClearValueOnPage(String element, String locator) {
-        frameCommonMethods.clear(page, iFrame, null, null, element, locator);
+    @Then("^we type on main frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weTypeValueOnMainFrame(String element, String locator, String value) {
+        getFrameCommonMethods().type(getActivePage(), iFrame, null, null, element, locator, value);
     }
 
-    /**
-     * Verify that an element in the primary iframe is visible.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
-    @Then("^we verify on frame (.*?) of locator (.*?) is visible$")
-    public void weVerifyOnPageLocatorIsVisible(String element, String locator) {
-        frameCommonMethods.isvisible(page, iFrame, null, null, element, locator);
+    @Then("^we scroll on main frame (.*?) locator (.*?)$")
+    public void weScrollToLocatorOnMainFrame(String element, String locator) {
+        getFrameCommonMethods().scroll(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Verify that a checkbox/radio inside the primary iframe is checked.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
-    @Then("^we verify on frame (.*?) of locator (.*?) is checked$")
-    public void weVerifyOnPageLocatorIsChecked(String element, String locator) {
-        frameCommonMethods.ischecked(page, iFrame, null, null, element, locator);
+    @Then("^we clear value on main frame (.*?) locator (.*?)$")
+    public void weClearValueOnMainFrame(String element, String locator) {
+        getFrameCommonMethods().clear(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Verify that an element inside the primary iframe is enabled (not disabled).
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
-    @Then("^we verify on frame (.*?) of locator (.*?) is enabled")
-    public void weVerifyOnPageLocatorIsEnabled(String element, String locator) {
-        frameCommonMethods.isenabled(page, iFrame, null, null, element, locator);
+    @Then("^we verify on main frame (.*?) of locator (.*?) is visible$")
+    public void weVerifyOnMainFrameLocatorIsVisible(String element, String locator) {
+        getFrameCommonMethods().isvisible(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Verify that an element exists in the DOM inside the primary iframe.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
-    @Then("^we verify on frame (.*?) of locator (.*?) is existed")
-    public void weVerifyOnPageLocatorIsExisted(String element, String locator) {
-        frameCommonMethods.exists(page, iFrame, null, null, element, locator);
+    @Then("^we verify on main frame (.*?) of locator (.*?) is checked$")
+    public void weVerifyOnMainFrameLocatorIsChecked(String element, String locator) {
+        getFrameCommonMethods().ischecked(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Verify that an element contains the expected text/value inside the primary iframe.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     * @param value expected substring or value to assert contains
-     */
-    @Then("^we contain on frame (.*?) of locator (.*?) value \"(.*?)\"$")
-    public void weContainOnPageLocatorValue(String element, String locator, String value) {
-        frameCommonMethods.contain(page, iFrame, null, null, element, locator, value);
+    @Then("^we verify on main frame (.*?) of locator (.*?) is enabled")
+    public void weVerifyOnMainFrameLocatorIsEnabled(String element, String locator) {
+        getFrameCommonMethods().isenabled(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Get text from an element inside the primary iframe and print it to the console.
-     *
-     * Useful for quick debugging or logging values during test runs.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
-    @Then("^we get text on frame (.*?) locator (.*?)$")
-    public void weGetTextOnPage(String element, String locator) {
-        String value = frameCommonMethods.gettext(page, iFrame, null, null, element, locator);
-        // Print returned text to standard output to make it visible in test logs.
-        System.out.println("Value: " + value);
+    @Then("^we verify on main frame (.*?) of locator (.*?) is existed")
+    public void weVerifyOnMainFrameLocatorIsExisted(String element, String locator) {
+        getFrameCommonMethods().exists(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Assert that an element has the exact value attribute (or underlying value) inside the primary iframe.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     * @param value expected value to assert
-     */
-    @Then("^we has value on frame (.*?) of locator (.*?) value \"(.*?)\"$")
-    public void weHasValueOnNewPageLocatorValue(String element, String locator, String value) {
-        frameCommonMethods.hasvalue(page, iFrame, null, null, element, locator, value);
+    @Then("^we contain on main frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weContainOnMainFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().contain(getActivePage(), iFrame, null, null, element, locator, value);
     }
 
-    /**
-     * Retrieve text for list of elements inside the primary iframe. Delegates to gettext which
-     * may return concatenated or first-match text depending on implementation.
-     *
-     * @param element logical name representing the list
-     * @param locator selector that matches multiple elements
-     */
-    @Then("^we get list of elements on frame (.*?) locator (.*?)$")
-    public void weGetListOfElementsOnNewPage(String element, String locator) {
-        frameCommonMethods.gettext(page, iFrame, null, null, element, locator);
+    @Then("^we get text on main frame (.*?) locator (.*?)$")
+    public void weGetTextOnMainFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, null, null, element, locator);
     }
 
-    /**
-     * Click a radio button inside the primary iframe using a helper specialized for radio lists.
-     *
-     * @param element logical name for the radio list
-     * @param locator selector to identify the specific radio items
-     */
-    @When("we click radio on frame (.*?) list locator (.*?)$")
-    public void clickRadioOnNewPage(String element, String locator) {
-        frameCommonMethods.clickRadioButton(page, iFrame, element, locator);
+    @Then("^we has value on main frame (.*?) of locator (.*?)$")
+    public void weHasValueOnMainFrameLocatorValue(String element, String locator) {
+        getFrameCommonMethods().hasvalue(getActivePage(), iFrame, null, null, element, locator, null);
     }
 
-    /**
-     * Capture a screenshot of an element inside the primary iframe and save it to test-output/screenshots.
-     *
-     * @param element logical element name
-     * @param locator selector for the element to capture
-     * @param name desired name of screenshot file (without extension)
-     */
-    @And("^we capture screenshot on frame (.*?) locator (.*?) name \"(.*?)\"$")
-    public void weCaptureScreenshotOnPage(String element, String locator, String name) {
+    @Then("^we get value of elements on main frame (.*?) locator (.*?)$")
+    public void weGetValueOfElementsOnMainFrame(String element, String locator) {
+        getFrameCommonMethods().getvalue(getActivePage(), iFrame, null, null, element, locator);
+    }
+
+    @Then("^we get list of elements on main frame (.*?) locator (.*?)$")
+    public void weGetListOfElementsOnMainFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, null, null, element, locator);
+    }
+
+    @When("we click radio on main frame (.*?) list locator (.*?)$")
+    public void clickRadioOnMainFrame(String element, String locator) {
+        getFrameCommonMethods().clickRadioButton(getActivePage(), iFrame, element, locator);
+    }
+
+    @And("^we capture screenshot on main frame (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnMainFrame(String element, String locator, String name) {
         String filePath = "test-output/screenshots/" + name + ".png";
-        frameCommonMethods.screenshot(page, iFrame, null, null, element, locator, filePath);
+        getFrameCommonMethods().screenshot(getActivePage(), iFrame, null, null, element, locator, filePath);
     }
 
-    /**
-     * Press a keyboard key on a target element inside the primary iframe.
-     *
-     * Example of key values: "Enter", "Tab", "ArrowDown".
-     *
-     * @param element logical element name
-     * @param locator selector for the element
-     * @param value key name to press
-     */
-    @And("^we press on frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
-    public void wePressOnPageKey(String element, String locator, String value) {
-        frameCommonMethods.press(page, iFrame, null, null, element, locator, value);
+    @And("^we press on main frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
+    public void wePressOnMainFrameKey(String element, String locator, String value) {
+        getFrameCommonMethods().press(getActivePage(), iFrame, null, null, element, locator, value);
     }
 
-    /**
-     * Click an element inside a nested/secondary frame (iFrame -> iFrame_2).
-     *
-     * @param element logical name
-     * @param locator selector inside the nested frame
-     */
+    @Then("^we enter using excel data on testCase (.*?) main frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCaseMainFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
+        System.out.println(finalValue);
+        getFrameCommonMethods().fill(getActivePage(), iFrame, null, null, element, locator, finalValue);
+    }
+
+    @Then("^we write to excel for testCase (.*?) column \"(.*?)\" main frame element (.*?) locator (.*?)$")
+    public void weWriteToExcelForTestCaseOnMainFrame(String testCaseId, String columnName, String element, String locator) {
+        String valueToWrite = getFrameCommonMethods().gettext(getActivePage(), iFrame, null, null, element, locator);
+        ExcelWriter.writeData(filePath, testCaseId, columnName, valueToWrite);
+    }
+
+    @Then("^we get text and contain on main frame (.*?) of locator (.*?)$")
+    public void weGetTextAndContainOnMainFrameLocatorValue(String element, String locator) {
+        // Calls the contain method from getFrameCommonMethods() to check if the specified element
+        // contains the expected value in its text or attributes, as identified by the locator in the second iframe.
+        getFrameCommonMethods().get_and_contain_text(getActivePage(), iFrame, null, null, element, locator);
+    }
+
+    @And("^we download on main frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
+    public void weDownloadOnMainFrame(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        String fileType = ".pdf";
+        getFrameCommonMethods().download(getActivePage(), iFrame, null, null, element, locator, filePath + fileType);
+    }
+
+    @Then("^we select file: (.*?) for main frame (.*?) locator (.*?)$")
+    public void weSelectFileForMainFrameLocator(String fileName, String element, String locator) {
+        String filePath = "documents/" + fileName;
+        getFrameCommonMethods().selectFile(getActivePage(),iFrame, null,null, element, locator, filePath);
+    }
+
+//      ________________________________________________________________________________________________________________
+
     @Then("^we click on second frame (.*?) locator (.*?)$")
     public void weClickActionOnSecondFrame(String element, String locator) {
-        frameCommonMethods.click(page, iFrame, iFrame_2, null, element, locator);
+        getFrameCommonMethods().click(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Double-click an element inside the nested secondary frame.
-     *
-     * @param element logical name
-     * @param locator selector for the element inside the nested frame
-     */
+    @Then("^we report list of selection on second frame (.*?) locator (.*?)$")
+    public void weReportListOfSelectionOnSecondFrameLocator(String element, String locator) {
+        getFrameCommonMethods().reportListOfDropdown(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
     @Then("^we double click on second frame (.*?) locator (.*?)$")
     public void weDoubleClickActionOnSecondFrame(String element, String locator) {
-        frameCommonMethods.dblclick(page, iFrame, iFrame_2, null, element, locator);
+        getFrameCommonMethods().dblclick(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Fill a value into an input inside the nested secondary frame.
-     *
-     * @param element logical element name
-     * @param locator selector inside nested frame
-     * @param value text to enter
-     */
     @Then("^we enter value on second frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weEnterValueOnSecondFrame(String element, String locator, String value) {
-        frameCommonMethods.fill(page, iFrame, iFrame_2, null,element, locator, value);
+        getFrameCommonMethods().fill(getActivePage(), iFrame, iFrame_2, null, element, locator, value);
     }
 
-    /**
-     * Select a value inside a select element located in the nested secondary frame.
-     *
-     * @param element logical name for the select
-     * @param locator selector for the select element
-     * @param value option/value to select
-     */
     @Then("^we select on second frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weSelectValueOnSecondFrame(String element, String locator, String value) {
-        frameCommonMethods.select(page, iFrame, iFrame_2, null, element, locator, value);
+        getFrameCommonMethods().select(getActivePage(), iFrame, iFrame_2, null, element, locator, value);
     }
 
-    /**
-     * Check a checkbox inside the nested secondary frame.
-     *
-     * @param element logical name
-     * @param locator selector for the checkbox
-     */
     @Then("^we check on second frame (.*?) locator (.*?)$")
     public void weCheckActionOnSecondFrame(String element, String locator) {
-        frameCommonMethods.check(page, iFrame, iFrame_2, null, element, locator);
+        getFrameCommonMethods().check(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Uncheck a checkbox inside the nested secondary frame.
-     *
-     * Note: Similar to the single-frame uncheck, this method calls check(...). Verify
-     * FrameCommonMethods behavior if unchecking is required and not occurring.
-     *
-     * @param element logical name
-     * @param locator selector for the checkbox
-     */
     @Then("^we uncheck on second frame (.*?) locator (.*?)$")
     public void weUncheckActionOnSecondFrame(String element, String locator) {
-        // Intentionally calls check to preserve existing behavior.
-        frameCommonMethods.check(page, iFrame, iFrame_2, null, element, locator);
+        getFrameCommonMethods().check(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Hover an element inside the nested secondary frame.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
     @Then("^we hover on second frame (.*?) locator (.*?)$")
     public void weHoverActionOnSecondFrame(String element, String locator) {
-        frameCommonMethods.hover(page, iFrame, iFrame_2, null, element, locator);
+        getFrameCommonMethods().hover(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Type characters into an element inside the nested secondary frame.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     * @param value text to type
-     */
     @Then("^we type on second frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weTypeValueOnSecondFrame(String element, String locator, String value) {
-        frameCommonMethods.type(page, iFrame, iFrame_2, null, element, locator, value);
+        getFrameCommonMethods().type(getActivePage(), iFrame, iFrame_2, null, element, locator, value);
     }
 
-    /**
-     * Scroll to an element inside the nested secondary frame.
-     *
-     * NOTE: This call delegates to frameCommonMethods.scroll with the second frame combination
-     * intentionally using iFrame for the frame path. Confirm the correct frame path if scrolling
-     * does not reach the intended element.
-     *
-     * @param element logical name
-     * @param locator selector for the element to scroll to
-     */
     @Then("^we scroll on second frame (.*?) locator (.*?)$")
     public void weScrollToLocatorOnSecondFrame(String element, String locator) {
-        // Intentionally calls scroll with iFrame and null for nested frame (matches original code).
-        frameCommonMethods.scroll(page, iFrame, null, null, element, locator);
+        getFrameCommonMethods().scroll(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Clear an input inside the nested secondary frame.
-     *
-     * @param element logical name
-     * @param locator selector for the input to clear
-     */
     @Then("^we clear value on second frame (.*?) locator (.*?) value \"(.*?)\"$")
     public void weClearValueOnSecondFrame(String element, String locator) {
-        frameCommonMethods.clear(page, iFrame, iFrame_2, null, element, locator);
+        getFrameCommonMethods().clear(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Verify visibility of an element inside the nested secondary frame.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
     @Then("^we verify on second frame (.*?) of locator (.*?) is visible$")
     public void weVerifyOnSecondFrameLocatorIsVisible(String element, String locator) {
-        frameCommonMethods.isvisible(page, iFrame, iFrame_2, null, element, locator);
+        getFrameCommonMethods().isvisible(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Verify checked state of a checkbox/radio inside the nested secondary frame.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
     @Then("^we verify on second frame (.*?) of locator (.*?) is checked$")
     public void weVerifyOnSecondFrameLocatorIsChecked(String element, String locator) {
-        frameCommonMethods.ischecked(page, iFrame, iFrame_2, null, element, locator);
+        getFrameCommonMethods().ischecked(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Verify that an element inside the nested secondary frame is enabled.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
     @Then("^we verify on second frame (.*?) of locator (.*?) is enabled")
     public void weVerifyOnSecondFrameLocatorIsEnabled(String element, String locator) {
-        frameCommonMethods.isenabled(page, iFrame, iFrame_2, null, element, locator);
+        getFrameCommonMethods().isenabled(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Verify existence of an element inside the nested secondary frame.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
     @Then("^we verify on second frame (.*?) of locator (.*?) is existed")
     public void weVerifyOnSecondFrameLocatorIsExisted(String element, String locator) {
-        frameCommonMethods.exists(page, iFrame, iFrame_2, null, element, locator);
+        getFrameCommonMethods().exists(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Verify that an element contains the expected text/value inside the nested secondary frame.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     * @param value substring/value expected to be present
-     */
     @Then("^we contain on second frame (.*?) of locator (.*?) value \"(.*?)\"$")
     public void weContainOnSecondFrameLocatorValue(String element, String locator, String value) {
-        frameCommonMethods.contain(page, iFrame, iFrame_2, null, element, locator, value);
+        getFrameCommonMethods().contain(getActivePage(), iFrame, null, null, element, locator, value);
     }
 
-    /**
-     * Get text from an element inside the nested secondary frame and print it to the console.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     */
     @Then("^we get text on second frame (.*?) locator (.*?)$")
     public void weGetTextOnSecondFrame(String element, String locator) {
-        String value = frameCommonMethods.gettext(page, iFrame, iFrame_2, null, element, locator);
-        // Print the retrieved value for diagnostic purposes.
-        System.out.println("Value: " + value);
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, iFrame_2, null, element, locator);
     }
 
-    /**
-     * Capture a screenshot of an element inside the nested secondary frame and save it to disk.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     * @param name desired filename for the screenshot (no extension)
-     */
+    @Then("^we has value on second frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weHasValueOnSecondFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().hasvalue(getActivePage(), iFrame, iFrame_2, null, element, locator, value);
+    }
+
+    @Then("^we get value of elements on second frame (.*?) locator (.*?)$")
+    public void weGetValueOfElementsOnSecondFrame(String element, String locator) {
+        getFrameCommonMethods().getvalue(getActivePage(), iFrame, iFrame_2, null, element, locator);
+    }
+
+    @Then("^we get list of elements on second frame (.*?) locator (.*?)$")
+    public void weGetListOfElementsOnSecondFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, iFrame_2, null, element, locator);
+    }
+
+    @When("we click radio on second frame (.*?) list locator (.*?)$")
+    public void clickRadioOnSecondFrame(String element, String locator) {
+        getFrameCommonMethods().clickRadioButton(getActivePage(), iFrame, element, locator);
+    }
+
     @And("^we capture screenshot on second frame (.*?) locator (.*?) name \"(.*?)\"$")
     public void weCaptureScreenshotOnSecondFrame(String element, String locator, String name) {
         String filePath = "test-output/screenshots/" + name + ".png";
-        frameCommonMethods.screenshot(page, iFrame, iFrame_2, null, element, locator, filePath);
+        getFrameCommonMethods().screenshot(getActivePage(), iFrame, iFrame_2, null, element, locator, filePath);
     }
 
-    /**
-     * Press a key on a target element located inside the nested secondary frame.
-     *
-     * @param element logical name
-     * @param locator selector for the element
-     * @param value key name to press (e.g., "Enter", "Tab")
-     */
     @And("^we press on second frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
     public void wePressOnSecondFrameKey(String element, String locator, String value) {
-        frameCommonMethods.press(page, iFrame, iFrame_2, null, element, locator, value);
+        getFrameCommonMethods().press(getActivePage(), iFrame, iFrame_2, null, element, locator, value);
+    }
+
+    @And("^we download on second frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
+    public void weDownloadOnSecondFrame(String element, String locator, String fileType) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        String finalFileType = "." + fileType;
+        getFrameCommonMethods().download(getActivePage(), iFrame, iFrame_2, null, element, locator, filePath + finalFileType);
+    }
+
+    @Then("^we enter using excel data on testCase (.*?) second frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCaseSecondFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
+        getFrameCommonMethods().fill(getActivePage(), iFrame, iFrame_2, null, element, locator, finalValue);
+    }
+
+    @Then("^we write to excel for testCase (.*?) column \"(.*?)\" second frame element (.*?) locator (.*?)$")
+    public void weWriteToExcelForTestCaseOnSecondFrame(String testCaseId, String columnName, String element, String locator) {
+        String valueToWrite = getFrameCommonMethods().gettext(getActivePage(), iFrame, iFrame_2, null, element, locator);
+//        String valueToWrite = getFrameCommonMethods().getStringValue(getActivePage(), iFrame, iFrame_2, null, element, locator);
+        System.out.println(valueToWrite);
+        ExcelWriter.writeData(filePath, testCaseId, columnName, valueToWrite);
+    }
+
+    @Then("^we get text and contain on second frame (.*?) of locator (.*?)$")
+    public void weGetTextAndContainOnSecondFrameLocatorValue(String element, String locator) {
+        // Calls the contain method from getFrameCommonMethods() to check if the specified element
+        // contains the expected value in its text or attributes, as identified by the locator in the second iframe.
+        getFrameCommonMethods().get_and_contain_text(getActivePage(), iFrame, iFrame_2, null, element, locator);
+    }
+
+    @Then("^we select file: (.*?) for second frame (.*?) locator (.*?)$")
+    public void weSelectFileForSecondFrameLocator(String fileName, String element, String locator) {
+        String filePath = "documents/" + fileName;
+        getFrameCommonMethods().selectFile(getActivePage(),iFrame, iFrame_2,null, element, locator, filePath);
+    }
+    //    __________________________________________________________________________________________________________________
+    @Then("^we click on teller frame (.*?) locator (.*?)$")
+    public void weClickActionOnTellerFrame(String element, String locator) {
+        getFrameCommonMethods().click(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we report list of selection on teller frame (.*?) locator (.*?)$")
+    public void weReportListOfSelectionOnTellerLocator(String element, String locator) {
+        getFrameCommonMethods().reportListOfDropdown(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we double click on teller frame (.*?) locator (.*?)$")
+    public void weDoubleClickActionOnTellerFrame(String element, String locator) {
+        getFrameCommonMethods().dblclick(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we enter value on teller frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterValueOnTellerFrame(String element, String locator, String value) {
+        getFrameCommonMethods().fill(getActivePage(), iFrame, Teller_Frame, null, element, locator, value);
+    }
+
+    @Then("^we select on teller frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weSelectValueOnTellerFrame(String element, String locator, String value) {
+        getFrameCommonMethods().select(getActivePage(), iFrame, Teller_Frame, null, element, locator, value);
+    }
+
+    @Then("^we check on teller frame (.*?) locator (.*?)$")
+    public void weCheckActionOnTellerFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we uncheck on teller frame (.*?) locator (.*?)$")
+    public void weUncheckActionOnTellerFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we hover on teller frame (.*?) locator (.*?)$")
+    public void weHoverActionOnTellerFrame(String element, String locator) {
+        getFrameCommonMethods().hover(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we type on teller frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weTypeValueOnTellerFrame(String element, String locator, String value) {
+        getFrameCommonMethods().type(getActivePage(), iFrame, Teller_Frame, null, element, locator, value);
+    }
+
+    @Then("^we scroll on teller frame (.*?) locator (.*?)$")
+    public void weScrollToLocatorOnTellerFrame(String element, String locator) {
+        getFrameCommonMethods().scroll(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we clear value on teller frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weClearValueOnTellerFrame(String element, String locator) {
+        getFrameCommonMethods().clear(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we verify on teller frame (.*?) of locator (.*?) is visible$")
+    public void weVerifyOnTellerFrameLocatorIsVisible(String element, String locator) {
+        getFrameCommonMethods().isvisible(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we verify on teller frame (.*?) of locator (.*?) is checked$")
+    public void weVerifyOnTellerFrameLocatorIsChecked(String element, String locator) {
+        getFrameCommonMethods().ischecked(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we verify on teller frame (.*?) of locator (.*?) is enabled")
+    public void weVerifyOnTellerFrameLocatorIsEnabled(String element, String locator) {
+        getFrameCommonMethods().isenabled(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we verify on teller frame (.*?) of locator (.*?) is existed")
+    public void weVerifyOnTellerFrameLocatorIsExisted(String element, String locator) {
+        getFrameCommonMethods().exists(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we contain on teller frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weContainOnTellerFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().contain(getActivePage(), iFrame, Teller_Frame, null, element, locator, value);
+    }
+
+    @Then("^we get text on teller frame (.*?) locator (.*?)$")
+    public void weGetTextOnTellerFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @Then("^we has value on teller frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weHasValueOnTellerFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().hasvalue(getActivePage(), iFrame, Teller_Frame, null, element, locator, value);
+    }
+
+    @Then("^we get list of elements on teller frame (.*?) locator (.*?)$")
+    public void weGetListOfElementsOnTellerFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @When("we click radio on teller frame (.*?) list locator (.*?)$")
+    public void clickRadioOnTellerFrame(String element, String locator) {
+        getFrameCommonMethods().clickRadioButton(getActivePage(), Teller_Frame, element, locator);
+    }
+
+    @And("^we capture screenshot on teller frame (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnTellerFrame(String element, String locator, String name) {
+        String filePath = "test-output/screenshots/" + name + ".png";
+        getFrameCommonMethods().screenshot(getActivePage(), iFrame, Teller_Frame, null, element, locator, filePath);
+    }
+
+    @And("^we press on teller frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
+    public void wePressOnTellerFrameKey(String element, String locator, String value) {
+        getFrameCommonMethods().press(getActivePage(), iFrame, Teller_Frame, null, element, locator, value);
+    }
+
+    @Then("^we enter using excel data on testCase (.*?) teller frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCaseTellerFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
+        getFrameCommonMethods().fill(getActivePage(), iFrame, Teller_Frame, null, element, locator, finalValue);
+    }
+
+    @Then("^we get text and contain on teller frame (.*?) of locator (.*?)$")
+    public void weGetTextAndContainOnWarningTellerFrameLocatorValue(String element, String locator) {
+        // Calls the contain method from getFrameCommonMethods() to check if the specified element
+        // contains the expected value in its text or attributes, as identified by the locator in the second iframe.
+        getFrameCommonMethods().get_and_contain_text(getActivePage(), iFrame, Teller_Frame, null, element, locator);
+    }
+
+    @And("^we download on teller frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
+    public void weDownloadOnTellerFrame(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        String fileType = ".pdf";
+        getFrameCommonMethods().download(getActivePage(), iFrame, Teller_Frame, null, element, locator, filePath + fileType);
+    }
+
+    @Then("^we select file: (.*?) for teller frame (.*?) locator (.*?)$")
+    public void weSelectFileForTellerFrameLocator(String fileName, String element, String locator) {
+        String filePath = "documents/" + fileName;
+        getFrameCommonMethods().selectFile(getActivePage(),iFrame, Teller_Frame,null, element, locator, filePath);
+    }
+
+    //    __________________________________________________________________________________________________________________
+    @Then("^we click on DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weClickActionOnDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().click(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we report list of selection on  DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weReportListOfSelectionOnDueDiligenceFormFrameLocator(String element, String locator) {
+        getFrameCommonMethods().reportListOfDropdown(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we double click on DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weDoubleClickActionOnDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().dblclick(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we enter value on DueDiligenceForm frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterValueOnDueDiligenceFormFrame(String element, String locator, String value) {
+        getFrameCommonMethods().fill(getActivePage(), iFrame, iFrame_5, null, element, locator, value);
+    }
+
+    @Then("^we select on DueDiligenceForm frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weSelectValueOnDueDiligenceFormFrame(String element, String locator, String value) {
+        getFrameCommonMethods().select(getActivePage(), iFrame, iFrame_5, null, element, locator, value);
+    }
+
+    @Then("^we check on DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weCheckActionOnDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we uncheck on DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weUncheckActionOnDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we hover on DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weHoverActionOnDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().hover(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we type on DueDiligenceForm frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weTypeValueOnDueDiligenceFormFrame(String element, String locator, String value) {
+        getFrameCommonMethods().type(getActivePage(), iFrame, iFrame_5, null, element, locator, value);
+    }
+
+    @Then("^we scroll on DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weScrollToLocatorOnDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().scroll(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we clear value on DueDiligenceForm frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weClearValueOnDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().clear(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we verify on DueDiligenceForm frame (.*?) of locator (.*?) is visible$")
+    public void weVerifyOnDueDiligenceFormFrameLocatorIsVisible(String element, String locator) {
+        getFrameCommonMethods().isvisible(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we verify on DueDiligenceForm frame (.*?) of locator (.*?) is checked$")
+    public void weVerifyOnDueDiligenceFormFrameLocatorIsChecked(String element, String locator) {
+        getFrameCommonMethods().ischecked(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we verify on DueDiligenceForm frame (.*?) of locator (.*?) is enabled")
+    public void weVerifyOnDueDiligenceFormFrameLocatorIsEnabled(String element, String locator) {
+        getFrameCommonMethods().isenabled(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we verify on DueDiligenceForm frame (.*?) of locator (.*?) is disabled")
+    public void weVerifyOnDueDiligenceFormFrameLocatorIsDisabled(String element, String locator) {
+        getFrameCommonMethods().isdisabled(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we verify on DueDiligenceForm frame (.*?) of locator (.*?) is existed")
+    public void weVerifyOnDueDiligenceFormFrameLocatorIsExisted(String element, String locator) {
+        getFrameCommonMethods().exists(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we get text on DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weGetTextOnDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we has value on DueDiligenceForm frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weHasValueOnDueDiligenceFormFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().hasvalue(getActivePage(), iFrame, iFrame_5, null, element, locator, value);
+    }
+
+    @Then("^we get list of elements on DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weGetListOfElementsOnDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @And("^we capture screenshot on DueDiligenceForm frame (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnDueDiligenceFormFrame(String element, String locator, String name) {
+        String filePath = "test-output/screenshots/" + name + ".png";
+        getFrameCommonMethods().screenshot(getActivePage(), iFrame, iFrame_5, null, element, locator, filePath);
+    }
+
+    @And("^we press on DueDiligenceForm frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
+    public void wePressOnDueDiligenceFormFrameKey(String element, String locator, String value) {
+        getFrameCommonMethods().press(getActivePage(), iFrame, iFrame_5, null, element, locator, value);
+    }
+
+    @Then("^we enter using excel data on testCase (.*?) DueDiligenceForm frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCaseDueDiligenceFormFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
+        getFrameCommonMethods().fill(getActivePage(), iFrame, iFrame_5, null, element, locator, finalValue);
+    }
+
+    @Then("^we get text and contain on DueDiligenceForm frame (.*?) of locator (.*?)$")
+    public void weGetTextAndContainOnWarningDueDiligenceFormFrameLocatorValue(String element, String locator) {
+        // Calls the contain method from getFrameCommonMethods() to check if the specified element
+        // contains the expected value in its text or attributes, as identified by the locator in the second iframe.
+        getFrameCommonMethods().get_and_contain_text(getActivePage(), iFrame, iFrame_5, null, element, locator);
+    }
+
+    @And("^we download on DueDiligenceForm frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
+    public void weDownloadOnDueDiligenceFormFrame(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        String fileType = ".pdf";
+        getFrameCommonMethods().download(getActivePage(), iFrame, iFrame_5, null, element, locator, filePath + fileType);
+    }
+
+    @Then("^we select file: (.*?) for DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weSelectFileForDueDiligenceFormFrameLocator(String fileName, String element, String locator) {
+        String filePath = "documents/" + fileName;
+        getFrameCommonMethods().selectFile(getActivePage(),iFrame, iFrame_5,null, element, locator, filePath);
+
+    }
+
+    //   ___________________________________________________________________________________________________________________
+    @Then("^we click on pop-up DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weClickActionOnPopUpDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().click(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we report list of selection on pop-up DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weReportListOfSelectionOnPopUpDueDiligenceFormFrameLocator(String element, String locator) {
+        getFrameCommonMethods().reportListOfDropdown(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we double click on pop-up DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weDoubleClickActionOnPopUpDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().dblclick(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we enter value on pop-up DueDiligenceForm frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterValueOnPopUpDueDiligenceFormFrame(String element, String locator, String value) {
+        getFrameCommonMethods().fill(getActivePage(), pop_up, iFrame_5, null, element, locator, value);
+    }
+
+    @Then("^we select on pop-up DueDiligenceForm frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weSelectValueOnPopUpDueDiligenceFormFrame(String element, String locator, String value) {
+        getFrameCommonMethods().select(getActivePage(), pop_up, iFrame_5, null, element, locator, value);
+    }
+
+    @Then("^we check on pop-up DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weCheckActionOnPopUpDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we uncheck on pop-up DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weUncheckActionOnPopUpDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we hover on pop-up DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weHoverActionOnPopUpDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().hover(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we type on pop-up DueDiligenceForm frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weTypeValueOnPopUpDueDiligenceFormFrame(String element, String locator, String value) {
+        getFrameCommonMethods().type(getActivePage(), pop_up, iFrame_5, null, element, locator, value);
+    }
+
+    @Then("^we scroll on pop-up DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weScrollToLocatorOnPopUpDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().scroll(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we clear value on pop-up DueDiligenceForm frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weClearValueOnPopUpDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().clear(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we verify on pop-up DueDiligenceForm frame (.*?) of locator (.*?) is visible$")
+    public void weVerifyOnPopUpDueDiligenceFormFrameLocatorIsVisible(String element, String locator) {
+        getFrameCommonMethods().isvisible(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we verify on pop-up DueDiligenceForm frame (.*?) of locator (.*?) is checked$")
+    public void weVerifyOnPopUpDueDiligenceFormFrameLocatorIsChecked(String element, String locator) {
+        getFrameCommonMethods().ischecked(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we verify on pop-up DueDiligenceForm frame (.*?) of locator (.*?) is enabled")
+    public void weVerifyOnPopUpDueDiligenceFormFrameLocatorIsEnabled(String element, String locator) {
+        getFrameCommonMethods().isenabled(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we verify on pop-up DueDiligenceForm frame (.*?) of locator (.*?) is disabled")
+    public void weVerifyOnPopUpDueDiligenceFormFrameLocatorIsDisabled(String element, String locator) {
+        getFrameCommonMethods().isdisabled(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we verify on pop-up DueDiligenceForm frame (.*?) of locator (.*?) is existed")
+    public void weVerifyOnPopUpDueDiligenceFormFrameLocatorIsExisted(String element, String locator) {
+        getFrameCommonMethods().exists(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we get text on pop-up DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weGetTextOnPopUpDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @Then("^we has value on pop-up DueDiligenceForm frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weHasValueOnPopUpDueDiligenceFormFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().hasvalue(getActivePage(), pop_up, iFrame_5, null, element, locator, value);
+    }
+
+    @Then("^we get list of elements on pop-up DueDiligenceForm frame (.*?) locator (.*?)$")
+    public void weGetListOfElementsOnPopUpDueDiligenceFormFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @And("^we capture screenshot on pop-up DueDiligenceForm frame (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnPopUpDueDiligenceFormFrame(String element, String locator, String name) {
+        String filePath = "test-output/screenshots/" + name + ".png";
+        getFrameCommonMethods().screenshot(getActivePage(), pop_up, iFrame_5, null, element, locator, filePath);
+    }
+
+    @And("^we press on pop-up DueDiligenceForm frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
+    public void wePressOnPopUpDueDiligenceFormFrameKey(String element, String locator, String value) {
+        getFrameCommonMethods().press(getActivePage(), pop_up, iFrame_5, null, element, locator, value);
+    }
+
+    @Then("^we enter using excel data on testCase (.*?) pop-up DueDiligenceForm frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCasePopUpDueDiligenceFormFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
+        getFrameCommonMethods().fill(getActivePage(), pop_up, iFrame_5, null, element, locator, finalValue);
+    }
+
+    @Then("^we get text and contain on pop-up DueDiligenceForm frame (.*?) of locator (.*?)$")
+    public void weGetTextAndContainOnWarningPopUpDueDiligenceFormFrameLocatorValue(String element, String locator) {
+        // Calls the contain method from getFrameCommonMethods() to check if the specified element
+        // contains the expected value in its text or attributes, as identified by the locator in the second iframe.
+        getFrameCommonMethods().get_and_contain_text(getActivePage(), pop_up, iFrame_5, null, element, locator);
+    }
+
+    @And("^we download on pop-up DueDiligenceForm frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
+    public void weDownloadOnPopUpDueDiligenceFormFrame(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        String fileType = ".pdf";
+        getFrameCommonMethods().download(getActivePage(), pop_up, iFrame_5, null, element, locator, filePath + fileType);
+    }
+
+    @Then("^we select file: (.*?) for pop-up DueDiligenceForm (.*?) locator (.*?)$")
+    public void weSelectFileForPopUpDueDiligenceFormFrameLocator(String fileName, String element, String locator) {
+        String filePath = "documents/" + fileName;
+        getFrameCommonMethods().selectFile(getActivePage(),pop_up, iFrame_5,null, element, locator, filePath);
+    }
+
+    //______________________________________________________________________________________________________________________
+    @Then("^we click on warning-box frame (.*?) locator (.*?)$")
+    public void weClickActionOnWarning_BoxFrame(String element, String locator) {
+        getFrameCommonMethods().click(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we report list of selection on warning-box frame (.*?) locator (.*?)$")
+    public void weReportListOfSelectionOnWarningBoxFrameLocator(String element, String locator) {
+        getFrameCommonMethods().reportListOfDropdown(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we double click on warning-box frame (.*?) locator (.*?)$")
+    public void weDoubleClickActionOnWarning_BoxFrame(String element, String locator) {
+        getFrameCommonMethods().dblclick(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we enter value on warning-box frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterValueOnWarning_BoxFrame(String element, String locator, String value) {
+        getFrameCommonMethods().fill(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we select on warning-box frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weSelectValueOnWarning_BoxFrame(String element, String locator, String value) {
+        getFrameCommonMethods().select(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we check on warning-box frame (.*?) locator (.*?)$")
+    public void weCheckActionOnWarning_BoxFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we uncheck on warning-box frame (.*?) locator (.*?)$")
+    public void weUncheckActionOnWarning_BoxFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we hover on warning-box frame (.*?) locator (.*?)$")
+    public void weHoverActionOnWarning_BoxFrame(String element, String locator) {
+        getFrameCommonMethods().hover(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we type on warning-box frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weTypeValueOnWarning_BoxFrame(String element, String locator, String value) {
+        getFrameCommonMethods().type(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we scroll on warning-box frame (.*?) locator (.*?)$")
+    public void weScrollToLocatorOnWarning_BoxFrame(String element, String locator) {
+        getFrameCommonMethods().scroll(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we clear value on warning-box frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weClearValueOnWarning_BoxFrame(String element, String locator) {
+        getFrameCommonMethods().clear(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we verify on warning-box frame (.*?) of locator (.*?) is visible$")
+    public void weVerifyOnWarning_BoxFrameLocatorIsVisible(String element, String locator) {
+        getFrameCommonMethods().isvisible(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we verify on warning-box frame (.*?) of locator (.*?) is checked$")
+    public void weVerifyOnWarning_BoxFrameLocatorIsChecked(String element, String locator) {
+        getFrameCommonMethods().ischecked(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we verify on warning-box frame (.*?) of locator (.*?) is enabled")
+    public void weVerifyOnWarning_BoxFrameLocatorIsEnabled(String element, String locator) {
+        getFrameCommonMethods().isenabled(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we verify on warning-box frame (.*?) of locator (.*?) is existed")
+    public void weVerifyOnWarning_BoxFrameLocatorIsExisted(String element, String locator) {
+        getFrameCommonMethods().exists(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we contain on warning-box frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weContainOnWarning_BoxFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().contain(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we get text on warning-box frame (.*?) locator (.*?)$")
+    public void weGetTextOnWarning_BoxFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we has value on warning-box frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weHasValueOnWarning_BoxFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().hasvalue(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we get list of elements on warning-box frame (.*?) locator (.*?)$")
+    public void weGetListOfElementsOnWarning_BoxFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), null, null, null, element, locator);
+    }
+
+    @When("we click radio on warning-box frame (.*?) list locator (.*?)$")
+    public void clickRadioOnWarning_BoxFrame(String element, String locator) {
+        getFrameCommonMethods().clickRadioButton(getActivePage(), null, element, locator);
+    }
+
+    @And("^we capture screenshot on warning-box frame (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnWarning_BoxFrame(String element, String locator, String name) {
+        String filePath = "test-output/screenshots/" + name + ".png";
+        getFrameCommonMethods().screenshot(getActivePage(), null, null, null, element, locator, filePath);
+    }
+
+    @And("^we press on warning-box frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
+    public void wePressOnWarning_BoxFrameKey(String element, String locator, String value) {
+        getFrameCommonMethods().press(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we enter using excel data on testCase (.*?) warning-box frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCaseWarningBoxFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
+        getFrameCommonMethods().fill(getActivePage(), null, null, null, element, locator, finalValue);
+    }
+
+    @Then("^we get text and contain on warning-box frame (.*?) of locator (.*?)$")
+    public void weGetTextAndContainOnWarningBoxUpFrameLocatorValue(String element, String locator) {
+        // Calls the contain method from getFrameCommonMethods() to check if the specified element
+        // contains the expected value in its text or attributes, as identified by the locator in the second iframe.
+        getFrameCommonMethods().get_and_contain_text(getActivePage(), null, null, null, element, locator);
+    }
+
+    @And("^we download on warning-box frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
+    public void weDownloadOnWarningBox(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        String fileType = ".pdf";
+        getFrameCommonMethods().download(getActivePage(), null, null, null, element, locator, filePath + fileType);
+    }
+
+    @Then("^we select file: (.*?) for warning-box frame (.*?) locator (.*?)$")
+    public void weSelectFileForWarningBoxFrameLocator(String fileName, String element, String locator) {
+        String filePath = "documents/" + fileName;
+        getFrameCommonMethods().selectFile(getActivePage(),null, null,null, element, locator, filePath);
+    }
+
+//______________________________________________________________________________________________________________________
+
+    @Then("^we click on pop-up frame (.*?) locator (.*?)$")
+    public void weClickActionOnPop_UpFrame(String element, String locator) {
+        getFrameCommonMethods().click(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we report list of selection on pop-up frame (.*?) locator (.*?)$")
+    public void weReportListOfSelectionOnPopUpFrameLocator(String element, String locator) {
+        getFrameCommonMethods().reportListOfDropdown(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we write to excel for testCase (.*?) column \"(.*?)\" pop-up frame element (.*?) locator (.*?)$")
+    public void weWriteToExcelForTestCaseOnPop_UpFrame(String testCaseId, String columnName, String element, String locator) {
+        String valueToWrite = getFrameCommonMethods().gettext(getActivePage(), pop_up, null, null, element, locator);
+        ExcelWriter.writeData(filePath, testCaseId, columnName, valueToWrite);
+
+    }
+
+    @Then("^we double click on pop-up frame (.*?) locator (.*?)$")
+    public void weDoubleClickActionOnPop_UpFrame(String element, String locator) {
+        getFrameCommonMethods().dblclick(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we enter value on pop-up frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterValueOnPop_UpFrame(String element, String locator, String value) {
+        getFrameCommonMethods().fill(getActivePage(), pop_up, null, null, element, locator, value);
+    }
+
+    @Then("^we select on pop-up frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weSelectValueOnPop_UpFrame(String element, String locator, String value) {
+        getFrameCommonMethods().select(getActivePage(), pop_up, null, null, element, locator, value);
+    }
+
+    @Then("^we check on pop-up frame (.*?) locator (.*?)$")
+    public void weCheckActionOnPop_UpFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we uncheck on pop-up frame (.*?) locator (.*?)$")
+    public void weUncheckActionOnPop_UpFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we hover on pop-up frame (.*?) locator (.*?)$")
+    public void weHoverActionOnPop_UpFrame(String element, String locator) {
+        getFrameCommonMethods().hover(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we type on pop-up frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weTypeValueOnPop_UpFrame(String element, String locator, String value) {
+        getFrameCommonMethods().type(getActivePage(), pop_up, null, null, element, locator, value);
+    }
+
+    @Then("^we scroll on pop-up frame (.*?) locator (.*?)$")
+    public void weScrollToLocatorOnPop_UpFrame(String element, String locator) {
+        getFrameCommonMethods().scroll(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we clear value on pop-up frame (.*?) locator (.*?)$")
+    public void weClearValueOnPop_UpFrame(String element, String locator) {
+        getFrameCommonMethods().clear(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we verify on pop-up frame (.*?) of locator (.*?) is visible$")
+    public void weVerifyOnPop_UpFrameLocatorIsVisible(String element, String locator) {
+        getFrameCommonMethods().isvisible(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we verify on pop-up frame (.*?) of locator (.*?) is checked$")
+    public void weVerifyOnPop_UpFrameLocatorIsChecked(String element, String locator) {
+        getFrameCommonMethods().ischecked(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we verify on pop-up frame (.*?) of locator (.*?) is enabled")
+    public void weVerifyOnPop_UpFrameLocatorIsEnabled(String element, String locator) {
+        getFrameCommonMethods().isenabled(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we verify on pop-up frame (.*?) of locator (.*?) is existed")
+    public void weVerifyOnPop_UpFrameLocatorIsExisted(String element, String locator) {
+        getFrameCommonMethods().exists(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we contain on pop-up frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weContainOnPop_UpFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().contain(getActivePage(), pop_up, null, null, element, locator, value);
+    }
+
+    @Then("^we get text on pop-up frame (.*?) locator (.*?)$")
+    public void weGetTextOnPop_UpFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we has value on pop-up frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weHasValueOnPop_UpFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().hasvalue(getActivePage(), pop_up, null, null, element, locator, value);
+    }
+
+    @Then("^we get list of elements on pop-up frame (.*?) locator (.*?)$")
+    public void weGetListOfElementsOnPop_UpFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @When("we click radio on pop-up frame (.*?) list locator (.*?)$")
+    public void clickRadioOnPop_UpFrame(String element, String locator) {
+        getFrameCommonMethods().clickRadioButton(getActivePage(), pop_up, element, locator);
+    }
+
+    @And("^we capture screenshot on pop-up frame (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnPop_UpFrame(String element, String locator, String name) {
+        String filePath = "test-output/screenshots/" + name + ".png";
+        getFrameCommonMethods().screenshot(getActivePage(), pop_up, null, null, element, locator, filePath);
+    }
+
+    @And("^we press on pop-up frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
+    public void wePressOnPop_UpFrameKey(String element, String locator, String value) {
+        getFrameCommonMethods().press(getActivePage(), pop_up, null, null, element, locator, value);
+    }
+
+    @Then("^we enter using excel data on testCase (.*?) pop-up frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCasePopUpFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
+        getFrameCommonMethods().fill(getActivePage(), pop_up, null, null, element, locator, finalValue);
+    }
+
+    @Then("^we get text and contain on pop-up frame (.*?) of locator (.*?)$")
+    public void weGetTextAndContainOnPopUpFrameLocatorValue(String element, String locator) {
+        // Calls the contain method from getFrameCommonMethods() to check if the specified element
+        // contains the expected value in its text or attributes, as identified by the locator in the second iframe.
+        getFrameCommonMethods().get_and_contain_text(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @And("^we download on pop-up frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
+    public void weDownloadOnPopUpFrame(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        String fileType = ".pdf";
+        getFrameCommonMethods().download(getActivePage(), pop_up, null, null, element, locator, filePath + fileType);
+    }
+
+    @Then("^we select file: (.*?) for pop-up frame (.*?) locator (.*?)$")
+    public void weSelectFileForPopUpFrameLocator(String fileName, String element, String locator) {
+        String filePath = "documents/" + fileName;
+        getFrameCommonMethods().selectFile(getActivePage(), pop_up, null,null, element, locator, filePath);
+    }
+//    __________________________________________________________________________________________________________________
+
+    @Then("^we click on third frame (.*?) locator (.*?)$")
+    public void weClickActionOnThirdFrame(String element, String locator) {
+        getFrameCommonMethods().click(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we report list of selection on third frame (.*?) locator (.*?)$")
+    public void weReportListOfSelectionOnThirdFrameLocator(String element, String locator) {
+        getFrameCommonMethods().reportListOfDropdown(getActivePage(), pop_up, null, null, element, locator);
+    }
+
+    @Then("^we double click on third frame (.*?) locator (.*?)$")
+    public void weDoubleClickActionOnThirdFrame(String element, String locator) {
+        getFrameCommonMethods().dblclick(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we enter value on third frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterValueOnThirdFrame(String element, String locator, String value) {
+        getFrameCommonMethods().fill(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator, value);
+    }
+
+    @Then("^we select on third frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weSelectValueOnThirdFrame(String element, String locator, String value) {
+        getFrameCommonMethods().select(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator, value);
+    }
+
+    @Then("^we check on third frame (.*?) locator (.*?)$")
+    public void weCheckActionOnThirdFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we uncheck on third frame (.*?) locator (.*?)$")
+    public void weUncheckActionOnThirdFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we hover on third frame (.*?) locator (.*?)$")
+    public void weHoverActionOnThirdFrame(String element, String locator) {
+        getFrameCommonMethods().hover(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we type on third frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weTypeValueOnThirdFrame(String element, String locator, String value) {
+        getFrameCommonMethods().type(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator, value);
+    }
+
+    @Then("^we scroll on third frame (.*?) locator (.*?)$")
+    public void weScrollToLocatorOnThirdFrame(String element, String locator) {
+        getFrameCommonMethods().scroll(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we clear value on third frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weClearValueOnThirdFrame(String element, String locator) {
+        getFrameCommonMethods().clear(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we verify on third frame (.*?) of locator (.*?) is visible$")
+    public void weVerifyOnThirdFrameLocatorIsVisible(String element, String locator) {
+        getFrameCommonMethods().isvisible(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we verify on third frame (.*?) of locator (.*?) is checked$")
+    public void weVerifyOnThirdFrameLocatorIsChecked(String element, String locator) {
+        getFrameCommonMethods().ischecked(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we verify on third frame (.*?) of locator (.*?) is enabled")
+    public void weVerifyOnThirdFrameLocatorIsEnabled(String element, String locator) {
+        getFrameCommonMethods().isenabled(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we verify on third frame (.*?) of locator (.*?) is existed")
+    public void weVerifyOnThirdFrameLocatorIsExisted(String element, String locator) {
+        getFrameCommonMethods().exists(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we contain on third frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weContainOnThirdFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().contain(getActivePage(), iFrame, element, null, null, locator, value);
+    }
+
+    @Then("^we get text on third frame (.*?) locator (.*?)$")
+    public void weGetTextOnThirdFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @Then("^we has value on third frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weHasValueOnThirdFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().hasvalue(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator, value);
+    }
+
+    @Then("^we get list of elements on third frame (.*?) locator (.*?)$")
+    public void weGetListOfElementsOnThirdFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @When("we click radio on third frame (.*?) list locator (.*?)$")
+    public void clickRadioOnThirdFrame(String element, String locator) {
+        getFrameCommonMethods().clickRadioButton(getActivePage(), iFrame, element, locator);
+    }
+
+    @And("^we capture screenshot on third frame (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnThirdFrame(String element, String locator, String name) {
+        String filePath = "test-output/screenshots/" + name + ".png";
+        getFrameCommonMethods().screenshot(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator, filePath);
+    }
+
+    @And("^we press on third frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
+    public void wePressOnThirdFrameKey(String element, String locator, String value) {
+        getFrameCommonMethods().press(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator, value);
+    }
+
+    @Then("^we enter using excel data on testCase (.*?) third frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCaseThirdFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
+        getFrameCommonMethods().fill(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator, finalValue);
+    }
+
+    @Then("^we write to excel for testCase (.*?) column \"(.*?)\" third frame element (.*?) locator (.*?)$")
+    public void weWriteToExcelForTestCaseOnThirdFrame(String testCaseId, String columnName, String element, String locator) {
+        String valueToWrite = getFrameCommonMethods().get_frame_element_string_value(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+        System.out.println(valueToWrite);
+        ExcelWriter.writeData(filePath, testCaseId, columnName, valueToWrite);
+    }
+
+    @Then("^we get text and contain on third frame (.*?) of locator (.*?)$")
+    public void weGetTextAndContainOnThirdFrameLocatorValue(String element, String locator) {
+        // Calls the contain method from getFrameCommonMethods() to check if the specified element
+        // contains the expected value in its text or attributes, as identified by the locator in the second iframe.
+        getFrameCommonMethods().get_and_contain_text(getActivePage(), iFrame, iFrame_2, iFrame_3, element, locator);
+    }
+
+    @And("^we download on third frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
+    public void weDownloadOnThirdFrame(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        String fileType = ".pdf";
+        getFrameCommonMethods().download(getActivePage(), iFrame, iFrame_2, iFrame_5, element, locator, filePath + fileType);
+    }
+
+    @Then("^we select file: (.*?) for third frame (.*?) locator (.*?)$")
+    public void weSelectFileForThirdFrameLocator(String fileName, String element, String locator) {
+        String filePath = "documents/" + fileName;
+        getFrameCommonMethods().selectFile(getActivePage(),iFrame, iFrame_2,iFrame_5, element, locator, filePath);
+    }
+//    __________________________________________________________________________________________________________________
+
+    @Then("^we click on header frame (.*?) locator (.*?)$")
+    public void weClickActionOnHeaderFrame(String element, String locator) {
+        getFrameCommonMethods().click(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we report list of selection on header frame (.*?) locator (.*?)$")
+    public void weReportListOfSelectionOnHeaderFrameLocator(String element, String locator) {
+        getFrameCommonMethods().reportListOfDropdown(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we double click on header frame (.*?) locator (.*?)$")
+    public void weDoubleClickActionOnHeaderFrame(String element, String locator) {
+        getFrameCommonMethods().dblclick(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we enter value on header frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterValueOnHeaderFrame(String element, String locator, String value) {
+        getFrameCommonMethods().fill(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we select on header frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weSelectValueOnHeaderFrame(String element, String locator, String value) {
+        getFrameCommonMethods().select(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we check on header frame (.*?) locator (.*?)$")
+    public void weCheckActionOnHeaderFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we uncheck on header frame (.*?) locator (.*?)$")
+    public void weUncheckActionOnHeaderFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we hover on header frame (.*?) locator (.*?)$")
+    public void weHoverActionOnHeaderFrame(String element, String locator) {
+        getFrameCommonMethods().hover(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we type on header frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weTypeValueOnHeaderFrame(String element, String locator, String value) {
+        getFrameCommonMethods().type(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we scroll on header frame (.*?) locator (.*?)$")
+    public void weScrollToLocatorOnHeaderFrame(String element, String locator) {
+        getFrameCommonMethods().scroll(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we clear value on header frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weClearValueOnHeaderFrame(String element, String locator) {
+        getFrameCommonMethods().clear(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we verify on header frame (.*?) of locator (.*?) is visible$")
+    public void weVerifyOnHeaderFrameLocatorIsVisible(String element, String locator) {
+        getFrameCommonMethods().isvisible(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we verify on header frame (.*?) of locator (.*?) is checked$")
+    public void weVerifyOnHeaderFrameLocatorIsChecked(String element, String locator) {
+        getFrameCommonMethods().ischecked(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we verify on header frame (.*?) of locator (.*?) is enabled")
+    public void weVerifyOnHeaderFrameLocatorIsEnabled(String element, String locator) {
+        getFrameCommonMethods().isenabled(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we verify on header frame (.*?) of locator (.*?) is existed")
+    public void weVerifyOnHeaderFrameLocatorIsExisted(String element, String locator) {
+        getFrameCommonMethods().exists(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we contain on header frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weContainOnHeaderFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().contain(getActivePage(), null, element, null, null, locator, value);
+    }
+
+    @Then("^we get text on header frame (.*?) locator (.*?)$")
+    public void weGetTextOnHeaderFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), null, null, null, element, locator);
+    }
+
+    @Then("^we has value on header frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weHasValueOnHeaderFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().hasvalue(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we get list of elements on header frame (.*?) locator (.*?)$")
+    public void weGetListOfElementsOnHeaderFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), null, null, null, element, locator);
+    }
+
+    @When("we click radio on header frame (.*?) list locator (.*?)$")
+    public void clickRadioOnHeaderFrame(String element, String locator) {
+        getFrameCommonMethods().clickRadioButton(getActivePage(), null, element, locator);
+    }
+
+    @And("^we capture screenshot on header frame (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnHeaderFrame(String element, String locator, String name) {
+        String filePath = "test-output/screenshots/" + name + ".png";
+        getFrameCommonMethods().screenshot(getActivePage(), null, null, null, element, locator, filePath);
+    }
+
+    @And("^we press on header frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
+    public void wePressOnHeaderFrameKey(String element, String locator, String value) {
+        getFrameCommonMethods().press(getActivePage(), null, null, null, element, locator, value);
+    }
+
+    @Then("^we enter using excel data on testCase (.*?) header frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCaseHeaderFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
+        getFrameCommonMethods().fill(getActivePage(), null, null, null, element, locator, finalValue);
+    }
+
+    @Then("^we get text and contain on header frame (.*?) of locator (.*?)$")
+    public void weGetTextAndContainOnHeaderFrameLocatorValue(String element, String locator) {
+        // Calls the contain method from getFrameCommonMethods() to check if the specified element
+        // contains the expected value in its text or attributes, as identified by the locator in the second iframe.
+        getFrameCommonMethods().get_and_contain_text(getActivePage(), null, null, null, element, locator);
+    }
+
+    @And("^we download on header frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
+    public void weDownloadOnHeaderFrame(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        String fileType = ".pdf";
+        getFrameCommonMethods().download(getActivePage(), null, null, null, element, locator, filePath + fileType);
+    }
+
+    @Then("^we select file: (.*?) for header frame (.*?) locator (.*?)$")
+    public void weSelectFileForHeaderFrameLocator(String fileName, String element, String locator) {
+        String filePath = "documents/" + fileName;
+        getFrameCommonMethods().selectFile(getActivePage(),null, null,null, element, locator, filePath);
+    }
+//    __________________________________________________________________________________________________________________
+
+    @Then("^we click on form frame (.*?) locator (.*?)$")
+    public void weClickActionOnFormFrame(String element, String locator) {
+        getFrameCommonMethods().click(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we report list of selection on form frame (.*?) locator (.*?)$")
+    public void weReportListOfSelectionOnFormFrameLocator(String element, String locator) {
+        getFrameCommonMethods().reportListOfDropdown(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we double click on form frame (.*?) locator (.*?)$")
+    public void weDoubleClickActionOnFormFrame(String element, String locator) {
+        getFrameCommonMethods().dblclick(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we enter value on form frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterValueOnFormFrame(String element, String locator, String value) {
+        getFrameCommonMethods().fill(getActivePage(), iFrame, iFrame_4, null, element, locator, value);
+    }
+
+    @Then("^we select on form frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weSelectValueOnFormFrame(String element, String locator, String value) {
+        getFrameCommonMethods().select(getActivePage(), iFrame, iFrame_4, null, element, locator, value);
+    }
+
+    @Then("^we check on form frame (.*?) locator (.*?)$")
+    public void weCheckActionOnFormFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we uncheck on form frame (.*?) locator (.*?)$")
+    public void weUncheckActionOnFormFrame(String element, String locator) {
+        getFrameCommonMethods().check(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we hover on form frame (.*?) locator (.*?)$")
+    public void weHoverActionOnFormFrame(String element, String locator) {
+        getFrameCommonMethods().hover(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we type on form frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weTypeValueOnFormFrame(String element, String locator, String value) {
+        getFrameCommonMethods().type(getActivePage(), iFrame, iFrame_4, null, element, locator, value);
+    }
+
+    @Then("^we scroll on form frame (.*?) locator (.*?)$")
+    public void weScrollToLocatorOnFormFrame(String element, String locator) {
+        getFrameCommonMethods().scroll(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we clear value on form frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weClearValueOnFormFrame(String element, String locator) {
+        getFrameCommonMethods().clear(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we verify on form frame (.*?) of locator (.*?) is visible$")
+    public void weVerifyOnFormFrameLocatorIsVisible(String element, String locator) {
+        getFrameCommonMethods().isvisible(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we verify on form frame (.*?) of locator (.*?) is checked$")
+    public void weVerifyOnFormFrameLocatorIsChecked(String element, String locator) {
+        getFrameCommonMethods().ischecked(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we verify on form frame (.*?) of locator (.*?) is enabled")
+    public void weVerifyOnFormFrameLocatorIsEnabled(String element, String locator) {
+        getFrameCommonMethods().isenabled(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we verify on form frame (.*?) of locator (.*?) is existed")
+    public void weVerifyOnFormFrameLocatorIsExisted(String element, String locator) {
+        getFrameCommonMethods().exists(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we contain on form frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weContainOnFormFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().contain(getActivePage(), iFrame, element, null, null, locator, value);
+    }
+
+    @Then("^we get text on form frame (.*?) locator (.*?)$")
+    public void weGetTextOnFormFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @Then("^we has value on form frame (.*?) of locator (.*?) value \"(.*?)\"$")
+    public void weHasValueOnFormFrameLocatorValue(String element, String locator, String value) {
+        getFrameCommonMethods().hasvalue(getActivePage(), iFrame, iFrame_4, null, element, locator, value);
+    }
+
+    @Then("^we get list of elements on form frame (.*?) locator (.*?)$")
+    public void weGetListOfElementsOnFormFrame(String element, String locator) {
+        getFrameCommonMethods().gettext(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @When("we click radio on form frame (.*?) list locator (.*?)$")
+    public void clickRadioOnFormFrame(String element, String locator) {
+        getFrameCommonMethods().clickRadioButton(getActivePage(), iFrame, element, locator);
+    }
+
+    @And("^we capture screenshot on form frame (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnFormFrame(String element, String locator, String name) {
+        String filePath = "test-output/screenshots/" + name + ".png";
+        getFrameCommonMethods().screenshot(getActivePage(), iFrame, iFrame_4, null, element, locator, filePath);
+    }
+
+    @And("^we press on form frame (.*?) locator (.*?) key \"(.*?)\" keyboard$")
+    public void wePressOnFormFrameKey(String element, String locator, String value) {
+        getFrameCommonMethods().press(getActivePage(), iFrame, iFrame_4, null, element, locator, value);
+    }
+
+    @Then("^we enter using excel data on testCase (.*?) form frame (.*?) locator (.*?) value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCaseFormFrameLocatorValue(String testCaseId, String element, String locator, String value) {
+        String finalValue = ExcelReader.getData(filePath, testCaseId, value);
+        getFrameCommonMethods().fill(getActivePage(), iFrame, iFrame_4, null, element, locator, finalValue);
+    }
+
+    @Then("^we get text and contain on Form frame (.*?) of locator (.*?)$")
+    public void weGetTextAndContainOnFormFrameLocatorValue(String element, String locator) {
+        // Calls the contain method from getFrameCommonMethods() to check if the specified element
+        // contains the expected value in its text or attributes, as identified by the locator in the second iframe.
+        getFrameCommonMethods().get_and_contain_text(getActivePage(), iFrame, iFrame_4, null, element, locator);
+    }
+
+    @And("^we download on form frame (.*?) locator (.*?) and file type is \"(.*?)\"$")
+    public void weDownloadOnFormFrame(String element, String locator) {
+        String filePath = ConfigurationProperties.getValue("downloadDocument");
+        String fileType = ".pdf";
+        getFrameCommonMethods().download(getActivePage(), iFrame, iFrame_4, null, element, locator, filePath + fileType);
+    }
+
+    @Then("^we select file: (.*?) for Form frame (.*?) locator (.*?)$")
+    public void weSelectFileForFormFrameLocator(String fileName, String element, String locator) {
+        String filePath = "documents/" + fileName;
+        getFrameCommonMethods().selectFile(getActivePage(),iFrame, iFrame_4,null, element, locator, filePath);
+    }
+
+    //    __________________________________________________________________________________________________________________
+
+    @And("^we capture screenshot on FNB-Online page (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnFNBOnline(String element, String locator, String name) {
+        String filePath = "test-output/screenshots/" + name + ".png";
+        Page page1 = getActivePage().waitForPopup(() -> {
+            getActivePage().frameLocator(pop_up).getByRole(AriaRole.LINK, new FrameLocator.GetByRoleOptions().setName("fnb-online.com")).click();
+        });
+        getFrameCommonMethods().screenshot(page1, null, null, null, element, locator, filePath);
+        page1.close();
+    }
+
+    @And("^we capture screenshot on Harland Clarke page (.*?) locator (.*?) name \"(.*?)\"$")
+    public void weCaptureScreenshotOnHarlandClarke(String element, String locator, String name) {
+        String filePath = "test-output/screenshots/" + name + ".png";
+        Page page1 = getActivePage().waitForPopup(() -> {
+                    getActivePage().frameLocator(pop_up).getByRole(AriaRole.LINK, new FrameLocator.GetByRoleOptions().setName("Harland Clarke"));
+        });
+        getFrameCommonMethods().screenshot(page1, null, null, null, element, locator, filePath);
+        page1.close();
+    }
+
+    //    __________________________________________________________________________________________________________________
+
+    @Then("we navigate to Vault page locator (.*?) and capture screenshot$")
+    public void weNavigateToVaultPageAndCaptureScreenshot(String locator) throws InterruptedException {
+        Page vault_page = getActivePage().waitForPopup(() -> {
+            getActivePage().frameLocator(iFrame).locator(locator).click();
+        });
+        getFrameCommonMethods().fill(vault_page, null, null, null, "vault_page", "user_name_flt", "azimovm@fnb-corp.com" );
+        getFrameCommonMethods().click(vault_page, null, null, null, "vault_page", "next_btn");
+        getFrameCommonMethods().fill(vault_page, null, null, null, "vault_page", "password_flt", "Damir2020?" );
+        getFrameCommonMethods().press(vault_page, null,null,null, "vault_page", "password_flt", "Enter");
+        timeOutFoSeconds("3");
+        getFrameCommonMethods().screenshot(vault_page, null, null, null, "vault_page", "body", "body");
+
+        vault_page.close();
+    }
+
+    @Then("we navigate to Vault page from pop-up locator and capture screenshot$")
+    public void weNavigateToVaultPagePopUpAndCaptureScreenshot() throws InterruptedException {
+        Page vault_page = getActivePage().waitForPopup(() -> {
+            getActivePage().locator(pop_up).contentFrame().getByText("?", new FrameLocator.GetByTextOptions().setExact(true)).click();
+        });
+        getFrameCommonMethods().fill(vault_page, null, null, null, "vault_page", "user_name_flt", "azimovm@fnb-corp.com" );
+        getFrameCommonMethods().click(vault_page, null, null, null, "vault_page", "next_btn");
+        getFrameCommonMethods().fill(vault_page, null, null, null, "vault_page", "password_flt", "Damir2020?" );
+        getFrameCommonMethods().press(vault_page, null,null,null, "vault_page", "password_flt", "Enter");
+        timeOutFoSeconds("8");
+        getFrameCommonMethods().screenshot(vault_page, null, null, null, "vault_page", "body", "body");
+
+        vault_page.close();
+    }
+
+    //    __________________________________________________________________________________________________________________
+    @Given("^get title of page$")
+    public void getTitleOfPage() {
+        String title = getActivePage().title();
+        System.out.println("Page title: " + title);
+    }
+
+    @And("^time out for (.*?) seconds$")
+    public void timeOutFoSeconds(String time_to_wait) throws InterruptedException {
+        // Convert the string to an integer representing seconds
+        int seconds = Integer.parseInt(time_to_wait);
+
+        // Wait for the specified number of seconds (converted to milliseconds)
+        Thread.sleep(seconds * 1000L);
+    }
+
+    @And("^time out for (.*?) minutes$")
+    public void timeOutForMinutes(String time_to_wait) throws InterruptedException {
+        // Convert the string to an integer representing minutes
+        int minutes = Integer.parseInt(time_to_wait);
+
+        // Convert minutes to seconds and then to milliseconds
+        long milliseconds = minutes * 60 * 1000L;
+
+        // Wait for the specified number of minutes (converted to milliseconds)
+        Thread.sleep(milliseconds);
+    }
+
+    @And("^we wait for some time$")
+    public void weWaitForSomeTime() throws InterruptedException {
+        Thread.sleep(3000);
+    }
+
+    @Then("^we enter using excel data on testCase \"(.*?)\" column name \"(.*?)\" value \"(.*?)\"$")
+    public void weEnterUsingExcelDataOnTestCaseMainFrameLocatorValue(String testCaseId, String columnName, String value) {
+        ExcelWriter.writeData(filePath, testCaseId, columnName, value);
     }
 }
