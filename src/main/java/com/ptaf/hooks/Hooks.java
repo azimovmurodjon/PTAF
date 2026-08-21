@@ -65,6 +65,7 @@ public class Hooks {
      * @LastScenario scenario can create a fresh browser, context, and page.
      */
     private static final Map<String, Boolean> intentionalBrowserCloseFeatureMap = new ConcurrentHashMap<>();
+    private static final String INTENTIONAL_CLOSE_PROPERTY_PREFIX = "com.ptaf.lastScenario.intentionalClose.";
 
     /**
      * Performance-related tags that should never initialize UI browser stack.
@@ -184,7 +185,7 @@ public class Hooks {
                     );
                     featureFailureMap.put(featureKey, false);
                     createBrowserStack(scenario);
-                    intentionalBrowserCloseFeatureMap.remove(featureKey);
+                    clearIntentionalBrowserCloseMarker(featureKey);
                     return;
                 } else {
                     featureFailureMap.put(featureKey, true);
@@ -483,7 +484,7 @@ public class Hooks {
         featureScenarioTotalMap.remove(featureKey);
         featureScenarioExecutedMap.remove(featureKey);
         featureFailureMap.remove(featureKey);
-        intentionalBrowserCloseFeatureMap.remove(featureKey);
+        clearIntentionalBrowserCloseMarker(featureKey);
     }
 
     /** Marks the current @LastScenario feature's close operation as deliberate. */
@@ -494,12 +495,35 @@ public class Hooks {
             return;
         }
         intentionalBrowserCloseFeatureMap.put(featureKey, Boolean.TRUE);
+        System.setProperty(intentionalClosePropertyName(featureKey), Boolean.TRUE.toString());
         logger.info("Browser close was marked as intentional for @LastScenario feature [{}].", featureKey);
     }
 
     /** Returns whether the current feature explicitly requested browser cleanup. */
     private static boolean isBrowserClosedIntentionally(String featureKey) {
-        return featureKey != null && Boolean.TRUE.equals(intentionalBrowserCloseFeatureMap.get(featureKey));
+        return featureKey != null
+                && (Boolean.TRUE.equals(intentionalBrowserCloseFeatureMap.get(featureKey))
+                || Boolean.parseBoolean(System.getProperty(intentionalClosePropertyName(featureKey), Boolean.FALSE.toString())));
+    }
+
+    /**
+     * Builds the same marker name for a feature whether the consumer reports it as a file URI,
+     * classpath URI, or a dependency-resource URI.
+     */
+    private static String intentionalClosePropertyName(String featureKey) {
+        String normalized = featureKey.replace('\\', '/').toLowerCase(java.util.Locale.ROOT);
+        int lastSeparator = normalized.lastIndexOf('/');
+        String featureName = lastSeparator >= 0 ? normalized.substring(lastSeparator + 1) : normalized;
+        return INTENTIONAL_CLOSE_PROPERTY_PREFIX + featureName;
+    }
+
+    /** Clears local and JVM-visible close intent after it is consumed or the feature ends. */
+    private static void clearIntentionalBrowserCloseMarker(String featureKey) {
+        if (featureKey == null || featureKey.trim().isEmpty()) {
+            return;
+        }
+        intentionalBrowserCloseFeatureMap.remove(featureKey);
+        System.clearProperty(intentionalClosePropertyName(featureKey));
     }
 
     private void clearPerformanceScenarioStateOnly() {
