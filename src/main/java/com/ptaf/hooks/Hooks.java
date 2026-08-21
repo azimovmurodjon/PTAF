@@ -433,6 +433,15 @@ public class Hooks {
     }
 
     public static void closeBrowserResources() {
+        // This public method is the framework's explicit browser-cleanup API. When a test calls
+        // it while an @LastScenario feature is active, the close is deliberate even if the
+        // consuming project does not invoke PageCommonSteps' marker method first. Recording the
+        // intent here guarantees that the next scenario is allowed to create a new page.
+        String activeFeatureKey = activeFeatureThreadLocal.get();
+        if (activeFeatureKey != null && Boolean.TRUE.equals(lastScenarioFeatureMap.get(activeFeatureKey))) {
+            markBrowserClosedIntentionally();
+        }
+
         try {
             BrowserContext context = contextThreadLocal.get();
 
