@@ -1,7 +1,9 @@
 package com.ptaf.hooks;
 
+import com.google.gson.JsonObject;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
+import com.microsoft.playwright.CDPSession;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.LoadState;
 import com.ptaf.ui.pages.PageCommonMethods;
@@ -57,6 +59,13 @@ public class Hooks {
      * Once true, all next scenarios in that feature must fail immediately.
      */
     private static final Map<String, Boolean> featureFailureMap = new ConcurrentHashMap<>();
+
+    /**
+     * Records an explicit close step separately from an unexpected browser failure so the next
+     * @LastScenario scenario can create a fresh browser, context, and page.
+     */
+    private static final Map<String, Boolean> intentionalBrowserCloseFeatureMap = new ConcurrentHashMap<>();
+    private static final String INTENTIONAL_CLOSE_PROPERTY_PREFIX = "com.ptaf.lastScenario.intentionalClose.";
 
     /**
      * Performance-related tags that should never initialize UI browser stack.
@@ -134,11 +143,12 @@ public class Hooks {
 
         if (isLastScenarioTaggedFeature) {
             boolean featureAlreadyFailed = Boolean.TRUE.equals(featureFailureMap.get(featureKey));
+            boolean browserClosedIntentionally = isBrowserClosedIntentionally(featureKey);
             int alreadyExecuted = featureScenarioExecutedMap.containsKey(featureKey)
                     ? featureScenarioExecutedMap.get(featureKey).get()
                     : 0;
 
-            if (featureAlreadyFailed) {
+            if (featureAlreadyFailed && !browserClosedIntentionally) {
                 logger.error(
                         "Skipping scenario [{}] because @LastScenario feature [{}] is already marked as failed.",
                         scenario != null ? scenario.getName() : "UNKNOWN",
@@ -166,6 +176,16 @@ public class Hooks {
                             featureKey,
                             scenario != null ? scenario.getName() : "UNKNOWN"
                     );
+                    return;
+                } else if (browserClosedIntentionally) {
+                    logger.info(
+                            "Browser was closed intentionally in @LastScenario feature [{}]. Creating a fresh browser for scenario [{}].",
+                            featureKey,
+                            scenario != null ? scenario.getName() : "UNKNOWN"
+                    );
+                    featureFailureMap.put(featureKey, false);
+                    createBrowserStack(scenario);
+                    clearIntentionalBrowserCloseMarker(featureKey);
                     return;
                 } else {
                     featureFailureMap.put(featureKey, true);
@@ -209,6 +229,7 @@ public class Hooks {
                     featureKey != null && Boolean.TRUE.equals(lastScenarioFeatureMap.get(featureKey));
 
             if (isLastScenarioFeature) {
+                boolean browserClosedIntentionally = isBrowserClosedIntentionally(featureKey);
                 Browser browser = browserThreadLocal.get();
                 BrowserContext context = contextThreadLocal.get();
                 Page page = pageThreadLocal.get();
@@ -228,13 +249,18 @@ public class Hooks {
                     );
                 }
 
-                if (!browserAlive) {
+                if (!browserAlive && !browserClosedIntentionally) {
                     featureFailureMap.put(featureKey, true);
                     logger.error(
                             "Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. " +
                                     "Remaining scenarios will fail immediately.",
                             featureKey,
                             scenario.getName()
+                    );
+                } else if (!browserAlive) {
+                    logger.info(
+                            "Browser was closed intentionally in @LastScenario feature [{}]. The next scenario will create a fresh browser stack.",
+                            featureKey
                     );
                 }
 
@@ -407,6 +433,15 @@ public class Hooks {
     }
 
     public static void closeBrowserResources() {
+        // This public method is the framework's explicit browser-cleanup API. When a test calls
+        // it while an @LastScenario feature is active, the close is deliberate even if the
+        // consuming project does not invoke PageCommonSteps' marker method first. Recording the
+        // intent here guarantees that the next scenario is allowed to create a new page.
+        String activeFeatureKey = activeFeatureThreadLocal.get();
+        if (activeFeatureKey != null && Boolean.TRUE.equals(lastScenarioFeatureMap.get(activeFeatureKey))) {
+            markBrowserClosedIntentionally();
+        }
+
         try {
             BrowserContext context = contextThreadLocal.get();
 
@@ -458,6 +493,46 @@ public class Hooks {
         featureScenarioTotalMap.remove(featureKey);
         featureScenarioExecutedMap.remove(featureKey);
         featureFailureMap.remove(featureKey);
+        clearIntentionalBrowserCloseMarker(featureKey);
+    }
+
+    /** Marks the current @LastScenario feature's close operation as deliberate. */
+    public static void markBrowserClosedIntentionally() {
+        String featureKey = activeFeatureThreadLocal.get();
+        if (featureKey == null || featureKey.trim().isEmpty()) {
+            logger.warn("Unable to mark browser close as intentional because no active feature key is available.");
+            return;
+        }
+        intentionalBrowserCloseFeatureMap.put(featureKey, Boolean.TRUE);
+        System.setProperty(intentionalClosePropertyName(featureKey), Boolean.TRUE.toString());
+        logger.info("Browser close was marked as intentional for @LastScenario feature [{}].", featureKey);
+    }
+
+    /** Returns whether the current feature explicitly requested browser cleanup. */
+    private static boolean isBrowserClosedIntentionally(String featureKey) {
+        return featureKey != null
+                && (Boolean.TRUE.equals(intentionalBrowserCloseFeatureMap.get(featureKey))
+                || Boolean.parseBoolean(System.getProperty(intentionalClosePropertyName(featureKey), Boolean.FALSE.toString())));
+    }
+
+    /**
+     * Builds the same marker name for a feature whether the consumer reports it as a file URI,
+     * classpath URI, or a dependency-resource URI.
+     */
+    private static String intentionalClosePropertyName(String featureKey) {
+        String normalized = featureKey.replace('\\', '/').toLowerCase(java.util.Locale.ROOT);
+        int lastSeparator = normalized.lastIndexOf('/');
+        String featureName = lastSeparator >= 0 ? normalized.substring(lastSeparator + 1) : normalized;
+        return INTENTIONAL_CLOSE_PROPERTY_PREFIX + featureName;
+    }
+
+    /** Clears local and JVM-visible close intent after it is consumed or the feature ends. */
+    private static void clearIntentionalBrowserCloseMarker(String featureKey) {
+        if (featureKey == null || featureKey.trim().isEmpty()) {
+            return;
+        }
+        intentionalBrowserCloseFeatureMap.remove(featureKey);
+        System.clearProperty(intentionalClosePropertyName(featureKey));
     }
 
     private void clearPerformanceScenarioStateOnly() {
@@ -653,6 +728,42 @@ public class Hooks {
         }
 
         return inputStream;
+    }
+
+    /**
+     * Retains compatibility with the framework's explicit maximize action without changing
+     * browser lifecycle behavior. Unsupported browsers simply return false.
+     */
+    public static boolean maximizeBrowserWindow(Page page) {
+        if (page == null || page.isClosed()) {
+            return false;
+        }
+        CDPSession cdpSession = null;
+        try {
+            cdpSession = page.context().newCDPSession(page);
+            JsonObject windowInfo = cdpSession.send("Browser.getWindowForTarget");
+            if (!windowInfo.has("windowId")) {
+                return false;
+            }
+            JsonObject bounds = new JsonObject();
+            bounds.addProperty("windowState", "maximized");
+            JsonObject parameters = new JsonObject();
+            parameters.addProperty("windowId", windowInfo.get("windowId").getAsInt());
+            parameters.add("bounds", bounds);
+            cdpSession.send("Browser.setWindowBounds", parameters);
+            return true;
+        } catch (Exception exception) {
+            logger.debug("Native browser maximization is unavailable: {}", exception.getMessage());
+            return false;
+        } finally {
+            if (cdpSession != null) {
+                try {
+                    cdpSession.detach();
+                } catch (Exception ignored) {
+                    // The browser can close while a window command is in progress.
+                }
+            }
+        }
     }
 
     public static Page getPage() {
