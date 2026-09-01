@@ -9,9 +9,11 @@ import com.microsoft.playwright.options.MouseButton;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.utils.ConfigurationProperties;
+import com.ptaf.utils.FeatureArtifactNameResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -428,14 +430,13 @@ public class ActionPerformer {
                     // Wait for a download to be emitted as a result of clicking the locator.
                     Download download = page.waitForDownload(() -> targetLocator.first().click());
 
-                    // Build a timestamped unique filename to avoid collisions
-                    String timestamp = java.time.LocalDateTime.now()
-                            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
-
-                    String originalFileName = download.suggestedFilename();
-                    String uniqueFilename = timestamp + "-" + originalFileName;
-
-                    Path savePath = Paths.get(value, uniqueFilename);
+                    // Keep the original extension, but name the downloaded artifact after the
+                    // declared Feature: title so it aligns with per-feature report naming.
+                    Path downloadDirectory = Paths.get(value);
+                    Path featureDownloadDirectory = FeatureArtifactNameResolver.createFeatureDirectory(
+                            downloadDirectory, Hooks.getCurrentScenario());
+                    Path savePath = FeatureArtifactNameResolver.buildArtifactPath(
+                            featureDownloadDirectory, Hooks.getCurrentScenario(), download.suggestedFilename());
                     download.saveAs(savePath);
 
                     logger.info("File downloaded successfully and saved to: {}", savePath);
@@ -457,11 +458,11 @@ public class ActionPerformer {
                                 () -> targetLocator.first().click()
                         );
 
-                        String timestampOpt = java.time.LocalDateTime.now()
-                                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
-
-                        String uniqueFilename = timestampOpt + "-" + downloadOpt.suggestedFilename();
-                        Path savePathOpt = Paths.get(value, uniqueFilename);
+                        Path downloadDirectory = Paths.get(value);
+                        Path featureDownloadDirectory = FeatureArtifactNameResolver.createFeatureDirectory(
+                                downloadDirectory, Hooks.getCurrentScenario());
+                        Path savePathOpt = FeatureArtifactNameResolver.buildArtifactPath(
+                                featureDownloadDirectory, Hooks.getCurrentScenario(), downloadOpt.suggestedFilename());
                         downloadOpt.saveAs(savePathOpt);
 
                         logger.info("Optional download success -> {}", savePathOpt);

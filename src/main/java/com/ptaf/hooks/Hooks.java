@@ -5,11 +5,13 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.CDPSession;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.Video;
 import com.microsoft.playwright.options.LoadState;
 import com.ptaf.ui.pages.PageCommonMethods;
 import com.ptaf.utils.BrowserFactory;
 import com.ptaf.utils.BrowserFactory.BrowserTypeEnum;
 import com.ptaf.utils.ConfigurationProperties;
+import com.ptaf.utils.FeatureArtifactNameResolver;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.Scenario;
@@ -22,7 +24,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,7 +45,8 @@ public class Hooks {
     private static final ThreadLocal<Scenario> scenarioThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<PageCommonMethods> pageCommonMethodsThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<String> activeFeatureThreadLocal = new ThreadLocal<>();
-    private static final ThreadLocal<Boolean> performanceScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    /** Tracks scenarios that deliberately run without a Playwright browser stack. */
+    private static final ThreadLocal<Boolean> browserlessScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     /**
      * Feature has @LastScenario tag.
@@ -89,6 +97,26 @@ public class Hooks {
             "@performance_expected_failure"
     );
 
+    /** Tags that start an Appium native-app or real mobile-browser session, not Playwright. */
+    private static final Set<String> APPIUM_MOBILE_TAGS = Set.of(
+            "@mobile",
+            "@android",
+            "@ios",
+            "@cross_platform",
+            "@appium_browser",
+            "@mobile_browser_real"
+    );
+
+    /** Tags that identify file, database, or document scenarios that do not require a UI. */
+    private static final Set<String> NON_UI_DATA_TAGS = Set.of(
+            "@xml_file",
+            "@csv_file",
+            "@db",
+            "@database",
+            "@zip",
+            "@pdf"
+    );
+
     public Hooks() {
     }
 
@@ -109,16 +137,18 @@ public class Hooks {
 
         activeFeatureThreadLocal.set(featureKey);
 
-        if (isPerformanceScenario(scenario)) {
-            performanceScenarioThreadLocal.set(Boolean.TRUE);
+        String browserlessScenarioType = getBrowserlessScenarioType(scenario);
+        if (browserlessScenarioType != null) {
+            browserlessScenarioThreadLocal.set(Boolean.TRUE);
             logger.info(
-                    "Performance scenario detected [{}]. Skipping Playwright browser initialization.",
+                    "Non-UI {} scenario detected [{}]. Skipping Playwright browser initialization.",
+                    browserlessScenarioType,
                     scenario != null ? scenario.getName() : "UNKNOWN"
             );
             return;
         }
 
-        performanceScenarioThreadLocal.set(Boolean.FALSE);
+        browserlessScenarioThreadLocal.set(Boolean.FALSE);
 
         boolean isLastScenarioTaggedFeature =
                 scenario != null && scenario.getSourceTagNames().contains("@LastScenario");
@@ -210,7 +240,7 @@ public class Hooks {
         String featureKey = getSafeFeatureKeyForTearDown(scenario);
 
         try {
-            if (!Boolean.TRUE.equals(performanceScenarioThreadLocal.get()) && scenario.getStatus() == Status.PASSED) {
+            if (!Boolean.TRUE.equals(browserlessScenarioThreadLocal.get()) && scenario.getStatus() == Status.PASSED) {
                 PageCommonMethods pageCommonMethods = pageCommonMethodsThreadLocal.get();
                 if (pageCommonMethods != null) {
                     pageCommonMethods.finalizeScenario();
@@ -219,9 +249,9 @@ public class Hooks {
         } catch (Exception e) {
             logger.error("Error during scenario teardown: {}", e.getMessage(), e);
         } finally {
-            if (Boolean.TRUE.equals(performanceScenarioThreadLocal.get())) {
-                clearPerformanceScenarioStateOnly();
-                logger.info("Performance scenario teardown completed without UI browser cleanup requirement.");
+            if (Boolean.TRUE.equals(browserlessScenarioThreadLocal.get())) {
+                clearBrowserlessScenarioStateOnly();
+                logger.info("Non-UI scenario teardown completed without UI browser cleanup requirement.");
                 return;
             }
 
@@ -442,12 +472,17 @@ public class Hooks {
             markBrowserClosedIntentionally();
         }
 
+        // Video paths become available only once their pages/context are closed. Capture the
+        // Video handles before cleanup, then rename the finalized .webm files afterwards.
+        Scenario artifactScenario = scenarioThreadLocal.get();
+        List<Video> recordedVideos = new ArrayList<>();
         try {
             BrowserContext context = contextThreadLocal.get();
 
             if (context != null) {
                 for (Page page : context.pages()) {
                     try {
+                        rememberRecordedVideo(page, recordedVideos);
                         if (page != null && !page.isClosed()) {
                             page.close();
                         }
@@ -465,6 +500,8 @@ public class Hooks {
             contextThreadLocal.remove();
         }
 
+        renameRecordedVideos(recordedVideos, artifactScenario);
+
         try {
             Browser browser = browserThreadLocal.get();
             if (browser != null) {
@@ -480,7 +517,54 @@ public class Hooks {
         pageCommonMethodsThreadLocal.remove();
         scenarioThreadLocal.remove();
         activeFeatureThreadLocal.remove();
-        performanceScenarioThreadLocal.remove();
+        browserlessScenarioThreadLocal.remove();
+    }
+
+    /**
+     * Stores a Playwright video handle before a page closes. A video handle is null when browser
+     * recording is disabled, so this method is a no-op for normal non-recording runs.
+     */
+    private static void rememberRecordedVideo(Page page, List<Video> recordedVideos) {
+        if (page == null || recordedVideos == null) {
+            return;
+        }
+        try {
+            Video video = page.video();
+            if (video != null && !recordedVideos.contains(video)) {
+                recordedVideos.add(video);
+            }
+        } catch (Exception exception) {
+            logger.debug("Unable to obtain Playwright video handle before page close: {}", exception.getMessage());
+        }
+    }
+
+    /**
+     * Renames finalized Playwright recordings from Playwright's anonymous .webm name to the
+     * declared Feature title plus timestamp. Failure to rename evidence is non-fatal and does
+     * not affect browser teardown or scenario status.
+     */
+    private static void renameRecordedVideos(List<Video> recordedVideos, Scenario scenario) {
+        if (recordedVideos == null || recordedVideos.isEmpty()) {
+            return;
+        }
+
+        for (Video video : recordedVideos) {
+            try {
+                Path source = video.path();
+                if (source == null || !Files.exists(source)) {
+                    logger.debug("Recorded Playwright video file was not available for renaming.");
+                    continue;
+                }
+                Path featureVideoDirectory = FeatureArtifactNameResolver.createFeatureDirectory(
+                        source.getParent(), scenario);
+                Path target = FeatureArtifactNameResolver.buildArtifactPath(
+                        featureVideoDirectory, scenario, source.getFileName().toString());
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+                logger.info("Playwright video renamed using Feature title: {}", target.toAbsolutePath());
+            } catch (Exception exception) {
+                logger.warn("Unable to rename Playwright video using Feature title: {}", exception.getMessage());
+            }
+        }
     }
 
     private static void clearFeatureTracking(String featureKey) {
@@ -520,7 +604,7 @@ public class Hooks {
      * classpath URI, or a dependency-resource URI.
      */
     private static String intentionalClosePropertyName(String featureKey) {
-        String normalized = featureKey.replace('\\', '/').toLowerCase(java.util.Locale.ROOT);
+        String normalized = featureKey.replace('\\', '/').toLowerCase(Locale.ROOT);
         int lastSeparator = normalized.lastIndexOf('/');
         String featureName = lastSeparator >= 0 ? normalized.substring(lastSeparator + 1) : normalized;
         return INTENTIONAL_CLOSE_PROPERTY_PREFIX + featureName;
@@ -535,10 +619,34 @@ public class Hooks {
         System.clearProperty(intentionalClosePropertyName(featureKey));
     }
 
-    private void clearPerformanceScenarioStateOnly() {
+    private void clearBrowserlessScenarioStateOnly() {
         scenarioThreadLocal.remove();
         activeFeatureThreadLocal.remove();
-        performanceScenarioThreadLocal.remove();
+        browserlessScenarioThreadLocal.remove();
+    }
+
+    /**
+     * Determines whether a scenario must run without Playwright and returns a concise reason for
+     * lifecycle logging. Playwright mobile-browser emulation ({@code @mobile_browser}) is
+     * intentionally excluded because it is a UI test and still requires a browser.
+     *
+     * @param scenario active Cucumber scenario
+     * @return non-UI scenario type, or {@code null} when Playwright is required
+     */
+    private String getBrowserlessScenarioType(Scenario scenario) {
+        if (isPerformanceScenario(scenario)) {
+            return "performance";
+        }
+        if (isApiScenario(scenario)) {
+            return "API";
+        }
+        if (isAppiumMobileScenario(scenario)) {
+            return "Appium mobile";
+        }
+        if (isFileOrDatabaseScenario(scenario)) {
+            return "file/database";
+        }
+        return null;
     }
 
     private boolean isPerformanceScenario(Scenario scenario) {
@@ -558,6 +666,104 @@ public class Hooks {
 
         String featureKey = getFeatureKey(scenario);
         return featureKey != null && featureKey.toLowerCase().contains("performance");
+    }
+
+    /**
+     * Identifies API-only scenarios before browser initialization. API scenarios are detected
+     * explicitly by {@code @api}, {@code @api_*}, or {@code @api-*} tags. To preserve support
+     * for existing API features without a tag, feature files located under an {@code api}
+     * directory or whose file name contains {@code api} are also treated as API-only.
+     *
+     * <p>This method only controls Playwright setup/teardown. It does not alter API step
+     * definitions, API requests, reporting, or any UI/mobile scenario behavior.</p>
+     *
+     * @param scenario active Cucumber scenario
+     * @return {@code true} when the scenario does not require a Playwright browser
+     */
+    private boolean isApiScenario(Scenario scenario) {
+        if (scenario == null) {
+            return false;
+        }
+
+        for (String tag : scenario.getSourceTagNames()) {
+            if (tag == null) {
+                continue;
+            }
+            String normalizedTag = tag.trim().toLowerCase(Locale.ROOT);
+            if ("@api".equals(normalizedTag)
+                    || normalizedTag.startsWith("@api_")
+                    || normalizedTag.startsWith("@api-")) {
+                return true;
+            }
+        }
+
+        String featureKey = getFeatureKey(scenario);
+        if (featureKey == null || featureKey.trim().isEmpty()) {
+            return false;
+        }
+
+        String normalizedPath = featureKey.toLowerCase(Locale.ROOT).replace('\\', '/');
+        int lastSlash = normalizedPath.lastIndexOf('/');
+        String fileName = lastSlash >= 0 ? normalizedPath.substring(lastSlash + 1) : normalizedPath;
+        return normalizedPath.contains("/api/") || fileName.contains("api");
+    }
+
+    /**
+     * Detects native mobile and real mobile-browser scenarios, both of which use Appium through
+     * {@link MobileHooks} and must never start a second Playwright desktop browser.
+     */
+    private boolean isAppiumMobileScenario(Scenario scenario) {
+        if (scenario == null) {
+            return false;
+        }
+
+        for (String tag : scenario.getSourceTagNames()) {
+            if (tag != null && APPIUM_MOBILE_TAGS.contains(tag.trim().toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+
+        String featureKey = getFeatureKey(scenario);
+        if (featureKey == null) {
+            return false;
+        }
+        String normalizedPath = featureKey.toLowerCase(Locale.ROOT).replace('\\', '/');
+        return normalizedPath.contains("/features/mobile/");
+    }
+
+    /**
+     * Detects explicitly file-only XML/CSV work and database, ZIP, and PDF scenarios. UI-embedded
+     * XML/CSV scenarios are deliberately excluded so their existing browser automation remains
+     * unchanged.
+     */
+    private boolean isFileOrDatabaseScenario(Scenario scenario) {
+        if (scenario == null) {
+            return false;
+        }
+
+        java.util.Collection<String> tags = scenario.getSourceTagNames();
+        boolean uiEmbeddedFileScenario = tags.stream()
+                .filter(tag -> tag != null)
+                .map(tag -> tag.trim().toLowerCase(Locale.ROOT))
+                .anyMatch(tag -> "@xml_ui".equals(tag) || "@csv_ui".equals(tag));
+        if (uiEmbeddedFileScenario) {
+            return false;
+        }
+
+        for (String tag : tags) {
+            if (tag != null && NON_UI_DATA_TAGS.contains(tag.trim().toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+
+        String featureKey = getFeatureKey(scenario);
+        if (featureKey == null) {
+            return false;
+        }
+        String normalizedPath = featureKey.toLowerCase(Locale.ROOT).replace('\\', '/');
+        return normalizedPath.contains("/features/db/")
+                || normalizedPath.contains("/features/pdf/")
+                || normalizedPath.contains("/features/zip/");
     }
 
     private String getSafeFeatureKeyForTearDown(Scenario scenario) {

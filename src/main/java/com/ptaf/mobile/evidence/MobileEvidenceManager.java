@@ -1,6 +1,6 @@
 package com.ptaf.mobile.evidence;
-
 import com.ptaf.mobile.config.MobileConfigurationProperties;
+import com.ptaf.utils.FeatureArtifactNameResolver;
 import io.appium.java_client.AppiumDriver;
 import io.appium.java_client.screenrecording.CanRecordScreen;
 import io.cucumber.java.Scenario;
@@ -297,17 +297,20 @@ public final class MobileEvidenceManager {
                 return;
             }
 
-            // Decode Base64 payload and write out an MP4 file named after the scenario (or a default).
+            // Decode Base64 payload and write an MP4 named after the declared Feature: title.
+            // The timestamp in the shared resolver keeps multiple feature artifacts unique.
             byte[] videoBytes = Base64.getDecoder().decode(recording);
-            String safeScenarioName = scenario != null ? safeName(scenario.getName()) : "mobile_scenario";
-            Path output = outputDir("videos").resolve(safeScenarioName + ".mp4");
+            Path featureVideoDirectory = FeatureArtifactNameResolver.createFeatureDirectory(
+                    outputDir("videos"), scenario);
+            Path output = FeatureArtifactNameResolver.buildArtifactPath(
+                    featureVideoDirectory, scenario, "recording.mp4");
             Files.write(output, videoBytes);
             logger.info("Native mobile video saved to [{}]", output.toAbsolutePath());
 
             // Log to scenario and optionally attach the MP4 bytes to the report.
             if (scenario != null) scenario.log("Native mobile video: " + output.toAbsolutePath());
             if (scenario != null && MobileConfigurationProperties.attachVideoToReport()) {
-                scenario.attach(videoBytes, "video/mp4", "mobile-video-" + safeScenarioName);
+                scenario.attach(videoBytes, "video/mp4", "mobile-video-" + output.getFileName());
             }
         } catch (Exception e) {
             // Non-fatal: log the issue but allow tests to continue.
