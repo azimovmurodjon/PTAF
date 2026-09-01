@@ -1,800 +1,286 @@
-package com.ptaf.hooks;
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by Fernflower decompiler)
+//
 
-import com.google.gson.JsonObject;
+package com.ptaf.utils;
+
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
-import com.microsoft.playwright.CDPSession;
-import com.microsoft.playwright.Page;
-import com.microsoft.playwright.options.LoadState;
-import com.ptaf.ui.pages.PageCommonMethods;
-import com.ptaf.utils.BrowserFactory;
-import com.ptaf.utils.BrowserFactory.BrowserTypeEnum;
-import com.ptaf.utils.ConfigurationProperties;
-import io.cucumber.java.After;
-import io.cucumber.java.Before;
-import io.cucumber.java.Scenario;
-import io.cucumber.java.Status;
+import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.options.HttpCredentials;
+import com.ptaf.ui.mobilebrowser.MobileBrowserExecutionConfig;
+import com.ptaf.ui.mobilebrowser.MobileBrowserProfile;
+import com.ptaf.ui.mobilebrowser.MobileBrowserProfileRepository;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
+public final class BrowserFactory {
+    private static final Logger logger = LoggerFactory.getLogger(BrowserFactory.class);
+    private static final String TIMESTAMP = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+    private static final String VIDEO_DIR;
+    private static final String MOBILE_BROWSER_VIDEO_DIR;
+    private static final ThreadLocal<MobileBrowserProfile> ACTIVE_MOBILE_BROWSER_PROFILE = new ThreadLocal();
 
-public class Hooks {
-
-    private static final Logger logger = LoggerFactory.getLogger(Hooks.class);
-
-    private static final ThreadLocal<Browser> browserThreadLocal = new ThreadLocal<>();
-    private static final ThreadLocal<BrowserContext> contextThreadLocal = new ThreadLocal<>();
-    private static final ThreadLocal<Page> pageThreadLocal = new ThreadLocal<>();
-    private static final ThreadLocal<Scenario> scenarioThreadLocal = new ThreadLocal<>();
-    private static final ThreadLocal<PageCommonMethods> pageCommonMethodsThreadLocal = new ThreadLocal<>();
-    private static final ThreadLocal<String> activeFeatureThreadLocal = new ThreadLocal<>();
-    private static final ThreadLocal<Boolean> performanceScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
-
-    /**
-     * Feature has @LastScenario tag.
-     */
-    private static final Map<String, Boolean> lastScenarioFeatureMap = new ConcurrentHashMap<>();
-
-    /**
-     * Total runnable scenarios in feature.
-     */
-    private static final Map<String, Integer> featureScenarioTotalMap = new ConcurrentHashMap<>();
-
-    /**
-     * How many scenarios already completed @After.
-     */
-    private static final Map<String, AtomicInteger> featureScenarioExecutedMap = new ConcurrentHashMap<>();
-
-    /**
-     * Once true, all next scenarios in that feature must fail immediately.
-     */
-    private static final Map<String, Boolean> featureFailureMap = new ConcurrentHashMap<>();
-
-    /**
-     * Records an explicit close step separately from an unexpected browser failure so the next
-     * @LastScenario scenario can create a fresh browser, context, and page.
-     */
-    private static final Map<String, Boolean> intentionalBrowserCloseFeatureMap = new ConcurrentHashMap<>();
-    private static final String INTENTIONAL_CLOSE_PROPERTY_PREFIX = "com.ptaf.lastScenario.intentionalClose.";
-
-    /**
-     * Performance-related tags that should never initialize UI browser stack.
-     */
-    private static final Set<String> PERFORMANCE_TAGS = Set.of(
-            "@performance_testing",
-            "@performance_full_regression",
-            "@performance_get",
-            "@performance_post",
-            "@performance_put",
-            "@performance_delete",
-            "@performance_profile",
-            "@performance_inline_json",
-            "@performance_yaml",
-            "@performance_csv",
-            "@performance_excel",
-            "@performance_auth",
-            "@performance_bearer",
-            "@performance_basic_auth",
-            "@performance_negative",
-            "@performance_expected_failure"
-    );
-
-    public Hooks() {
+    private BrowserFactory() {
+        throw new IllegalStateException("Utility class");
     }
 
-    @Before
-    public void setUp(Scenario scenario) {
-        scenarioThreadLocal.set(scenario);
-
-        String featureKey = getFeatureKey(scenario);
-
-        if (featureKey == null || featureKey.trim().isEmpty()) {
-            featureKey = buildFallbackFeatureKey(scenario);
-            logger.warn(
-                    "Unable to resolve feature key for scenario [{}]. Using fallback feature key [{}].",
-                    scenario != null ? scenario.getName() : "UNKNOWN",
-                    featureKey
-            );
+    public static Browser createBrowser(BrowserTypeEnum browserTypeEnum) {
+        ACTIVE_MOBILE_BROWSER_PROFILE.remove();
+        Playwright playwright = Playwright.create();
+        Browser var10000;
+        switch (browserTypeEnum.ordinal()) {
+            case 0 -> var10000 = launchChromium(playwright.chromium(), "CHROME", (String)null);
+            case 1 -> var10000 = launchBrowser(playwright.firefox());
+            case 2 -> var10000 = launchBrowser(playwright.webkit());
+            case 3 -> var10000 = launchChromium(playwright.chromium(), "EDGE", "msedge");
+            default -> throw new MatchException((String)null, (Throwable)null);
         }
 
-        activeFeatureThreadLocal.set(featureKey);
-
-        if (isPerformanceScenario(scenario)) {
-            performanceScenarioThreadLocal.set(Boolean.TRUE);
-            logger.info(
-                    "Performance scenario detected [{}]. Skipping Playwright browser initialization.",
-                    scenario != null ? scenario.getName() : "UNKNOWN"
-            );
-            return;
-        }
-
-        performanceScenarioThreadLocal.set(Boolean.FALSE);
-
-        boolean isLastScenarioTaggedFeature =
-                scenario != null && scenario.getSourceTagNames().contains("@LastScenario");
-
-        lastScenarioFeatureMap.putIfAbsent(featureKey, isLastScenarioTaggedFeature);
-
-        if (isLastScenarioTaggedFeature) {
-            featureScenarioTotalMap.computeIfAbsent(featureKey, key -> countScenariosInFeatureFile(scenario));
-            featureScenarioExecutedMap.computeIfAbsent(featureKey, key -> new AtomicInteger(0));
-            featureFailureMap.putIfAbsent(featureKey, false);
-        }
-
-        Browser existingBrowser = browserThreadLocal.get();
-        BrowserContext existingContext = contextThreadLocal.get();
-        Page existingPage = pageThreadLocal.get();
-
-        boolean browserAlive =
-                existingBrowser != null &&
-                        existingContext != null &&
-                        existingPage != null &&
-                        !existingPage.isClosed();
-
-        if (isLastScenarioTaggedFeature) {
-            boolean featureAlreadyFailed = Boolean.TRUE.equals(featureFailureMap.get(featureKey));
-            boolean browserClosedIntentionally = isBrowserClosedIntentionally(featureKey);
-            int alreadyExecuted = featureScenarioExecutedMap.containsKey(featureKey)
-                    ? featureScenarioExecutedMap.get(featureKey).get()
-                    : 0;
-
-            if (featureAlreadyFailed && !browserClosedIntentionally) {
-                logger.error(
-                        "Skipping scenario [{}] because @LastScenario feature [{}] is already marked as failed.",
-                        scenario != null ? scenario.getName() : "UNKNOWN",
-                        featureKey
-                );
-                throw new RuntimeException(
-                        "Previous scenario failed in @LastScenario feature. Remaining scenarios are failed intentionally."
-                );
-            }
-
-            if (alreadyExecuted == 0 && !browserAlive) {
-                createBrowserStack(scenario);
-                logger.info(
-                        "Initial shared browser created for @LastScenario feature [{}], scenario [{}]",
-                        featureKey,
-                        scenario != null ? scenario.getName() : "UNKNOWN"
-                );
-                return;
-            }
-
-            if (alreadyExecuted > 0) {
-                if (browserAlive) {
-                    logger.info(
-                            "Reusing shared browser for @LastScenario feature [{}], scenario [{}]",
-                            featureKey,
-                            scenario != null ? scenario.getName() : "UNKNOWN"
-                    );
-                    return;
-                } else if (browserClosedIntentionally) {
-                    logger.info(
-                            "Browser was closed intentionally in @LastScenario feature [{}]. Creating a fresh browser for scenario [{}].",
-                            featureKey,
-                            scenario != null ? scenario.getName() : "UNKNOWN"
-                    );
-                    featureFailureMap.put(featureKey, false);
-                    createBrowserStack(scenario);
-                    clearIntentionalBrowserCloseMarker(featureKey);
-                    return;
-                } else {
-                    featureFailureMap.put(featureKey, true);
-                    logger.error(
-                            "Shared browser/session is no longer available for @LastScenario feature [{}] before scenario [{}]. " +
-                                    "Failing remaining scenarios and not reopening browser.",
-                            featureKey,
-                            scenario != null ? scenario.getName() : "UNKNOWN"
-                    );
-                    throw new RuntimeException(
-                            "Shared browser was closed or lost during @LastScenario execution. Remaining scenarios are failed intentionally."
-                    );
-                }
-            }
-        }
-
-        createBrowserStack(scenario);
+        return var10000;
     }
 
-    @After
-    public void tearDown(Scenario scenario) {
-        String featureKey = getSafeFeatureKeyForTearDown(scenario);
-
-        try {
-            if (!Boolean.TRUE.equals(performanceScenarioThreadLocal.get()) && scenario.getStatus() == Status.PASSED) {
-                PageCommonMethods pageCommonMethods = pageCommonMethodsThreadLocal.get();
-                if (pageCommonMethods != null) {
-                    pageCommonMethods.finalizeScenario();
-                }
-            }
-        } catch (Exception e) {
-            logger.error("Error during scenario teardown: {}", e.getMessage(), e);
-        } finally {
-            if (Boolean.TRUE.equals(performanceScenarioThreadLocal.get())) {
-                clearPerformanceScenarioStateOnly();
-                logger.info("Performance scenario teardown completed without UI browser cleanup requirement.");
-                return;
-            }
-
-            boolean isLastScenarioFeature =
-                    featureKey != null && Boolean.TRUE.equals(lastScenarioFeatureMap.get(featureKey));
-
-            if (isLastScenarioFeature) {
-                boolean browserClosedIntentionally = isBrowserClosedIntentionally(featureKey);
-                Browser browser = browserThreadLocal.get();
-                BrowserContext context = contextThreadLocal.get();
-                Page page = pageThreadLocal.get();
-
-                boolean browserAlive =
-                        browser != null &&
-                                context != null &&
-                                page != null &&
-                                !page.isClosed();
-
-                if (scenario.getStatus() == Status.FAILED) {
-                    featureFailureMap.put(featureKey, true);
-                    logger.error(
-                            "Scenario [{}] failed in @LastScenario feature [{}]. Remaining scenarios will fail immediately.",
-                            scenario.getName(),
-                            featureKey
-                    );
-                }
-
-                if (!browserAlive && !browserClosedIntentionally) {
-                    featureFailureMap.put(featureKey, true);
-                    logger.error(
-                            "Shared browser/session became unavailable in @LastScenario feature [{}] after scenario [{}]. " +
-                                    "Remaining scenarios will fail immediately.",
-                            featureKey,
-                            scenario.getName()
-                    );
-                } else if (!browserAlive) {
-                    logger.info(
-                            "Browser was closed intentionally in @LastScenario feature [{}]. The next scenario will create a fresh browser stack.",
-                            featureKey
-                    );
-                }
-
-                AtomicInteger executedCounter = featureScenarioExecutedMap.get(featureKey);
-                int executed = executedCounter != null ? executedCounter.incrementAndGet() : 1;
-                int total = featureScenarioTotalMap.getOrDefault(featureKey, 1);
-
-                logger.info("Feature [{}] progress: {}/{}", featureKey, executed, total);
-
-                if (executed >= total) {
-                    logger.info("Last scenario reached for feature [{}]. Closing browser resources.", featureKey);
-                    closeBrowserResources();
-                    clearFeatureTracking(featureKey);
-                } else {
-                    logger.info("Keeping browser state unchanged for next scenario in @LastScenario feature [{}].", featureKey);
-                }
+    public static Browser createBrowser(String profileName) {
+        MobileBrowserProfile profile = (MobileBrowserProfile)MobileBrowserProfileRepository.findByName(profileName).orElseThrow(() -> new IllegalArgumentException("Unsupported browser or mobile browser profile: " + profileName));
+        if (!MobileBrowserExecutionConfig.isEnabled()) {
+            throw new IllegalStateException("Mobile browser emulation is disabled in mobile-browser-execution.yml");
+        } else {
+            ACTIVE_MOBILE_BROWSER_PROFILE.set(profile);
+            Playwright playwright = Playwright.create();
+            if (profile.usesWebKit()) {
+                return launchBrowser(playwright.webkit());
             } else {
-                if (featureKey == null) {
-                    logger.warn(
-                            "Feature key was not available during teardown for scenario [{}]. " +
-                                    "Proceeding with normal browser cleanup to avoid NullPointerException.",
-                            scenario != null ? scenario.getName() : "UNKNOWN"
-                    );
-                }
-
-                closeBrowserResources();
+                return profile.usesFirefox() ? launchBrowser(playwright.firefox()) : launchChromium(playwright.chromium(), profile.getName(), (String)null);
             }
         }
     }
 
-    private void createBrowserStack(Scenario scenario) {
-        try {
-            String browserName = ConfigurationProperties.getBrowser();
-            BrowserTypeEnum browserTypeEnum;
-
-            switch (browserName.toUpperCase()) {
-                case "CHROME":
-                    browserTypeEnum = BrowserTypeEnum.CHROME;
-                    break;
-                case "FIREFOX":
-                    browserTypeEnum = BrowserTypeEnum.FIREFOX;
-                    break;
-                case "WEBKIT":
-                    browserTypeEnum = BrowserTypeEnum.WEBKIT;
-                    break;
-                case "EDGE":
-                    browserTypeEnum = BrowserTypeEnum.EDGE;
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported browser type: " + browserName);
-            }
-
-            Browser browser = BrowserFactory.createBrowser(browserTypeEnum);
-            browserThreadLocal.set(browser);
-
-            BrowserContext context = BrowserFactory.createContextWithVideo(browser);
-            contextThreadLocal.set(context);
-
-            Page page = context.newPage();
-            pageThreadLocal.set(page);
-
-            long runtimeTimeoutMillis = getConfiguredRuntimeTimeoutMillis();
-
-            page.setDefaultTimeout(runtimeTimeoutMillis);
-            page.setDefaultNavigationTimeout(runtimeTimeoutMillis);
-
-            PageCommonMethods pageCommonMethods = new PageCommonMethods(page);
-            pageCommonMethodsThreadLocal.set(pageCommonMethods);
-
-            logger.info(
-                    "Browser setup completed for scenario: {} with runtime timeout: {} ms",
-                    scenario != null ? scenario.getName() : "UNKNOWN",
-                    runtimeTimeoutMillis
-            );
-
-        } catch (Exception e) {
-            logger.error(
-                    "Error setting up the browser for scenario: {}",
-                    scenario != null ? scenario.getName() : "UNKNOWN",
-                    e
-            );
-            throw new RuntimeException("Browser setup failed", e);
-        }
+    public static boolean isMobileBrowserProfile(String browserName) {
+        return MobileBrowserProfileRepository.isMobileBrowserProfile(browserName);
     }
 
-    /**
-     * Reads runtimeWait from YAML/config.
-     * Value is treated as direct seconds.
-     *
-     * Example:
-     * runtimeWait = 5 -> 5000 ms
-     */
-    private static long getConfiguredRuntimeTimeoutMillis() {
-        try {
-            String runtimeValue = ConfigurationProperties.getValue("runtimeWait");
-
-            if (runtimeValue == null || runtimeValue.trim().isEmpty()) {
-                logger.warn("runtimeWait is not configured. Defaulting to 30 seconds.");
-                return 30000L;
-            }
-
-            long seconds = Long.parseLong(runtimeValue.trim());
-
-            if (seconds <= 0) {
-                logger.warn("runtimeWait must be greater than 0. Defaulting to 30 seconds.");
-                return 30000L;
-            }
-
-            long timeoutMillis = seconds * 1000L;
-            logger.info("Configured runtimeWait: {} second(s) = {} ms", seconds, timeoutMillis);
-            return timeoutMillis;
-
-        } catch (Exception e) {
-            logger.warn(
-                    "Unable to parse runtimeWait from configuration. Defaulting to 30 seconds. Reason: {}",
-                    e.getMessage()
-            );
-            return 30000L;
-        }
+    public static boolean hasActiveMobileBrowserProfile() {
+        return ACTIVE_MOBILE_BROWSER_PROFILE.get() != null;
     }
 
-    /**
-     * Waits until current page is loaded.
-     * It waits only up to configured timeout.
-     * If page loads earlier, execution continues immediately.
-     */
-    public static void waitForCurrentPageToLoad() {
-        Page page = getPage();
-        long timeout = getConfiguredRuntimeTimeoutMillis();
-
-        try {
-            page.waitForLoadState(
-                    LoadState.DOMCONTENTLOADED,
-                    new Page.WaitForLoadStateOptions().setTimeout(timeout)
-            );
-
-            page.waitForLoadState(
-                    LoadState.LOAD,
-                    new Page.WaitForLoadStateOptions().setTimeout(timeout)
-            );
-
-            logger.info("Page reached load state successfully within {} ms", timeout);
-        } catch (Exception e) {
-            logger.error("Page did not load within configured timeout: {} ms", timeout, e);
-            throw new RuntimeException("Page did not load within configured timeout: " + timeout + " ms", e);
+    private static Browser launchBrowser(BrowserType browserType) {
+        boolean headless = getHeadlessMode();
+        boolean maximizeBrowser = getMaximizeBrowser();
+        logger.info("Launching browser: {} with headless mode: {}", browserType.name().toUpperCase(), headless);
+        if (maximizeBrowser) {
+            logger.warn("maximize_browser=true is optimized for headed Chromium/Chrome/Edge. Browser [{}] does not support Selenium-style --start-maximized through this factory path. Existing behavior will be preserved.", browserType.name().toUpperCase());
         }
+
+        return browserType.launch((new BrowserType.LaunchOptions()).setHeadless(headless));
     }
 
-    /**
-     * Sets the active page for the current thread.
-     * This is important when popup/new tab page is opened and must become the new working page.
-     */
-    public static void setPage(Page page) {
-        if (page == null || page.isClosed()) {
-            throw new IllegalArgumentException("The page is null or closed.");
+    private static Browser launchChromium(BrowserType browserType, String browserName, String channel) {
+        boolean headless = getHeadlessMode();
+        boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
+        boolean maximizeBrowser = getMaximizeBrowser();
+        BrowserType.LaunchOptions launchOptions = (new BrowserType.LaunchOptions()).setHeadless(false);
+        if (channel != null && !channel.trim().isEmpty()) {
+            launchOptions.setChannel(channel);
         }
 
-        pageThreadLocal.set(page);
-
-        try {
-            long runtimeTimeoutMillis = getConfiguredRuntimeTimeoutMillis();
-            page.setDefaultTimeout(runtimeTimeoutMillis);
-            page.setDefaultNavigationTimeout(runtimeTimeoutMillis);
-        } catch (Exception e) {
-            logger.warn("Unable to apply timeout settings to switched page. Reason: {}", e.getMessage());
+        List<String> launchArgs = new ArrayList();
+        if ("msedge".equalsIgnoreCase(channel)) {
+            launchArgs.add("--edge-skip-compat-layer-relaunch");
+            logger.info("Applying the Microsoft Edge remote-debugging compatibility launch argument.");
         }
 
-        pageCommonMethodsThreadLocal.set(new PageCommonMethods(page));
-        logger.info("Active page has been switched successfully.");
+        if (headless) {
+            launchArgs.add("--headless=old");
+            logger.info("Launching {} in headless mode via --headless=old (classic Chrome headless).", browserName);
+        } else {
+            logger.info("Launching {} in headed mode (no --headless flag).", browserName);
+        }
+
+        String ciEnv = System.getenv("CI");
+        if (ciEnv != null && !ciEnv.trim().isEmpty()) {
+            launchArgs.add("--no-sandbox");
+            launchArgs.add("--disable-setuid-sandbox");
+            logger.info("CI environment detected (CI={}). Adding --no-sandbox flags for {}.", ciEnv, browserName);
+        }
+
+        if (shouldIgnoreHTTPSErrors) {
+            launchArgs.addAll(Arrays.asList("--ignore-certificate-errors", "--allow-insecure-localhost", "--disable-web-security"));
+            logger.info("Launching {} with SSL bypass launch arguments enabled because ignoreHTTPSErrors=true.", browserName);
+        }
+
+        if (maximizeBrowser && !headless && !hasActiveMobileBrowserProfile()) {
+            launchArgs.add("--start-maximized");
+            logger.info("Launching {} with Selenium-style maximize enabled using --start-maximized.", browserName);
+        } else if (maximizeBrowser && headless) {
+            logger.warn("maximize_browser=true was requested, but headless=true. Playwright cannot maximize a real OS browser window in headless mode; existing headless behavior will be preserved.");
+        } else if (maximizeBrowser && hasActiveMobileBrowserProfile()) {
+            logger.info("maximize_browser=true ignored for mobile browser emulation profile because device viewport must remain profile-controlled.");
+        }
+
+        if (!launchArgs.isEmpty()) {
+            launchOptions.setArgs(launchArgs);
+        }
+
+        logger.info("Launching {} with headless mode: {}, ignoreHTTPSErrors: {}, maximize_browser: {}", new Object[]{browserName, headless, shouldIgnoreHTTPSErrors, maximizeBrowser});
+        return browserType.launch(launchOptions);
     }
 
-    public static void closeBrowserResources() {
-        // This public method is the framework's explicit browser-cleanup API. When a test calls
-        // it while an @LastScenario feature is active, the close is deliberate even if the
-        // consuming project does not invoke PageCommonSteps' marker method first. Recording the
-        // intent here guarantees that the next scenario is allowed to create a new page.
-        String activeFeatureKey = activeFeatureThreadLocal.get();
-        if (activeFeatureKey != null && Boolean.TRUE.equals(lastScenarioFeatureMap.get(activeFeatureKey))) {
-            markBrowserClosedIntentionally();
+    public static BrowserContext createContextWithVideo(Browser browser) {
+        boolean recordVideo = getVideoCapture();
+        boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
+        boolean mobileBrowser = hasActiveMobileBrowserProfile();
+        boolean mobileBrowserVideo = mobileBrowser && MobileBrowserExecutionConfig.videoRecordingEnabled();
+        boolean maximizeBrowser = getMaximizeBrowser();
+        boolean headless = getHeadlessMode();
+        Browser.NewContextOptions contextOptions = (new Browser.NewContextOptions()).setIgnoreHTTPSErrors(shouldIgnoreHTTPSErrors);
+        applySeleniumStyleMaximizeViewportIfConfigured(contextOptions, maximizeBrowser, headless, mobileBrowser);
+        applyMobileBrowserProfileIfAvailable(contextOptions);
+        logger.info("Creating UI BrowserContext. ignoreHTTPSErrors={}", shouldIgnoreHTTPSErrors);
+        applyHttpCredentialsIfAvailable(contextOptions);
+        if (mobileBrowserVideo) {
+            logger.info("Mobile browser video capture enabled. Videos will be stored under: {}", MOBILE_BROWSER_VIDEO_DIR);
+            contextOptions.setRecordVideoDir(Paths.get(MOBILE_BROWSER_VIDEO_DIR)).setRecordVideoSize(MobileBrowserExecutionConfig.getVideoSizeWidth(), MobileBrowserExecutionConfig.getVideoSizeHeight());
+        } else if (recordVideo) {
+            logger.info("Video capture enabled. Videos will be stored under: {}", VIDEO_DIR);
+            contextOptions.setRecordVideoDir(Paths.get(VIDEO_DIR)).setRecordVideoSize(1280, 720);
+        } else {
+            logger.info("Video capture disabled.");
         }
 
-        try {
-            BrowserContext context = contextThreadLocal.get();
-
-            if (context != null) {
-                for (Page page : context.pages()) {
-                    try {
-                        if (page != null && !page.isClosed()) {
-                            page.close();
-                        }
-                    } catch (Exception pageCloseEx) {
-                        logger.error("Error closing page: {}", pageCloseEx.getMessage(), pageCloseEx);
-                    }
-                }
-
-                context.close();
-            }
-        } catch (Exception ex) {
-            logger.error("Error closing the browser context: {}", ex.getMessage(), ex);
-        } finally {
-            pageThreadLocal.remove();
-            contextThreadLocal.remove();
+        BrowserContext context = browser.newContext(contextOptions);
+        if (mobileBrowser) {
+            logger.info("UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}, mobileBrowserProfile={}, maximize_browser={}", new Object[]{shouldIgnoreHTTPSErrors, mobileBrowserVideo, ((MobileBrowserProfile)ACTIVE_MOBILE_BROWSER_PROFILE.get()).getName(), maximizeBrowser});
+        } else {
+            logger.info("UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}, maximize_browser={}", new Object[]{shouldIgnoreHTTPSErrors, recordVideo, maximizeBrowser});
         }
 
-        try {
-            Browser browser = browserThreadLocal.get();
-            if (browser != null) {
-                browser.close();
-                logger.info("Browser closed.");
-            }
-        } catch (Exception ex) {
-            logger.error("Error closing the browser: {}", ex.getMessage(), ex);
-        } finally {
-            browserThreadLocal.remove();
-        }
-
-        pageCommonMethodsThreadLocal.remove();
-        scenarioThreadLocal.remove();
-        activeFeatureThreadLocal.remove();
-        performanceScenarioThreadLocal.remove();
+        return context;
     }
 
-    private static void clearFeatureTracking(String featureKey) {
-        if (featureKey == null || featureKey.trim().isEmpty()) {
-            logger.warn("Skipping feature tracking cleanup because feature key is null or empty.");
-            return;
-        }
-
-        lastScenarioFeatureMap.remove(featureKey);
-        featureScenarioTotalMap.remove(featureKey);
-        featureScenarioExecutedMap.remove(featureKey);
-        featureFailureMap.remove(featureKey);
-        clearIntentionalBrowserCloseMarker(featureKey);
-    }
-
-    /** Marks the current @LastScenario feature's close operation as deliberate. */
-    public static void markBrowserClosedIntentionally() {
-        String featureKey = activeFeatureThreadLocal.get();
-        if (featureKey == null || featureKey.trim().isEmpty()) {
-            logger.warn("Unable to mark browser close as intentional because no active feature key is available.");
-            return;
-        }
-        intentionalBrowserCloseFeatureMap.put(featureKey, Boolean.TRUE);
-        System.setProperty(intentionalClosePropertyName(featureKey), Boolean.TRUE.toString());
-        logger.info("Browser close was marked as intentional for @LastScenario feature [{}].", featureKey);
-    }
-
-    /** Returns whether the current feature explicitly requested browser cleanup. */
-    private static boolean isBrowserClosedIntentionally(String featureKey) {
-        return featureKey != null
-                && (Boolean.TRUE.equals(intentionalBrowserCloseFeatureMap.get(featureKey))
-                || Boolean.parseBoolean(System.getProperty(intentionalClosePropertyName(featureKey), Boolean.FALSE.toString())));
-    }
-
-    /**
-     * Builds the same marker name for a feature whether the consumer reports it as a file URI,
-     * classpath URI, or a dependency-resource URI.
-     */
-    private static String intentionalClosePropertyName(String featureKey) {
-        String normalized = featureKey.replace('\\', '/').toLowerCase(java.util.Locale.ROOT);
-        int lastSeparator = normalized.lastIndexOf('/');
-        String featureName = lastSeparator >= 0 ? normalized.substring(lastSeparator + 1) : normalized;
-        return INTENTIONAL_CLOSE_PROPERTY_PREFIX + featureName;
-    }
-
-    /** Clears local and JVM-visible close intent after it is consumed or the feature ends. */
-    private static void clearIntentionalBrowserCloseMarker(String featureKey) {
-        if (featureKey == null || featureKey.trim().isEmpty()) {
-            return;
-        }
-        intentionalBrowserCloseFeatureMap.remove(featureKey);
-        System.clearProperty(intentionalClosePropertyName(featureKey));
-    }
-
-    private void clearPerformanceScenarioStateOnly() {
-        scenarioThreadLocal.remove();
-        activeFeatureThreadLocal.remove();
-        performanceScenarioThreadLocal.remove();
-    }
-
-    private boolean isPerformanceScenario(Scenario scenario) {
-        if (scenario == null) {
-            return false;
-        }
-
-        for (String tag : scenario.getSourceTagNames()) {
-            if (PERFORMANCE_TAGS.contains(tag)) {
-                return true;
-            }
-
-            if (tag != null && tag.startsWith("@performance")) {
-                return true;
+    private static void applySeleniumStyleMaximizeViewportIfConfigured(Browser.NewContextOptions contextOptions, boolean maximizeBrowser, boolean headless, boolean mobileBrowser) {
+        if (maximizeBrowser) {
+            if (headless) {
+                logger.warn("maximize_browser=true requested, but headless=true. No viewport override will be applied.");
+            } else if (mobileBrowser) {
+                logger.info("maximize_browser=true ignored for mobile browser emulation context because profile viewport must remain profile-controlled.");
+            } else {
+                logger.info("maximize_browser=true: Chromium window is maximized while Playwright keeps its stable desktop viewport for frame compatibility.");
             }
         }
-
-        String featureKey = getFeatureKey(scenario);
-        return featureKey != null && featureKey.toLowerCase().contains("performance");
     }
 
-    private String getSafeFeatureKeyForTearDown(Scenario scenario) {
-        String featureKey = activeFeatureThreadLocal.get();
-
-        if (featureKey != null && !featureKey.trim().isEmpty()) {
-            return featureKey;
-        }
-
-        try {
-            featureKey = getFeatureKey(scenario);
-
-            if (featureKey != null && !featureKey.trim().isEmpty()) {
-                activeFeatureThreadLocal.set(featureKey);
-                logger.warn(
-                        "Feature key was missing from ThreadLocal during teardown. Recovered feature key [{}] from scenario [{}].",
-                        featureKey,
-                        scenario != null ? scenario.getName() : "UNKNOWN"
-                );
-                return featureKey;
-            }
-        } catch (Exception e) {
-            logger.warn(
-                    "Unable to recover feature key during teardown for scenario [{}]. Reason: {}",
-                    scenario != null ? scenario.getName() : "UNKNOWN",
-                    e.getMessage()
-            );
-        }
-
-        return null;
-    }
-
-    private String getFeatureKey(Scenario scenario) {
-        if (scenario == null) {
-            return null;
-        }
-
-        try {
-            URI uri = scenario.getUri();
-            if (uri != null && uri.toString() != null && !uri.toString().trim().isEmpty()) {
-                return uri.toString();
-            }
-        } catch (Exception ignored) {
-        }
-
-        try {
-            String id = scenario.getId();
-
-            if (id == null || id.trim().isEmpty()) {
-                return null;
+    private static void applyMobileBrowserProfileIfAvailable(Browser.NewContextOptions contextOptions) {
+        MobileBrowserProfile profile = (MobileBrowserProfile)ACTIVE_MOBILE_BROWSER_PROFILE.get();
+        if (profile != null) {
+            int viewportWidth = profile.getViewportWidth();
+            int viewportHeight = profile.getViewportHeight();
+            int screenWidth = profile.getScreenWidth();
+            int screenHeight = profile.getScreenHeight();
+            String orientationMode = MobileBrowserExecutionConfig.getOrientationMode();
+            if ("portrait".equals(orientationMode) && viewportWidth > viewportHeight) {
+                int tmp = viewportWidth;
+                viewportWidth = viewportHeight;
+                viewportHeight = tmp;
+                tmp = screenWidth;
+                screenWidth = screenHeight;
+                screenHeight = tmp;
+            } else if ("landscape".equals(orientationMode) && viewportHeight > viewportWidth) {
+                int tmp = viewportWidth;
+                viewportWidth = viewportHeight;
+                viewportHeight = tmp;
+                tmp = screenWidth;
+                screenWidth = screenHeight;
+                screenHeight = tmp;
             }
 
-            int colonIndex = id.lastIndexOf(':');
-            return colonIndex > 0 ? id.substring(0, colonIndex) : id;
-        } catch (Exception ignored) {
-        }
-
-        return null;
-    }
-
-    private String buildFallbackFeatureKey(Scenario scenario) {
-        String scenarioName = scenario != null && scenario.getName() != null
-                ? scenario.getName().replaceAll("[^a-zA-Z0-9_-]", "_")
-                : "UNKNOWN_SCENARIO";
-
-        return "UNKNOWN_FEATURE_" + Thread.currentThread().getId() + "_" + scenarioName;
-    }
-
-    private int countScenariosInFeatureFile(Scenario scenario) {
-        try {
-            URI uri = scenario.getUri();
-            if (uri == null) {
-                logger.warn("Scenario URI is null. Defaulting scenario count to 1.");
-                return 1;
+            contextOptions.setViewportSize(viewportWidth, viewportHeight).setScreenSize(screenWidth, screenHeight).setDeviceScaleFactor(profile.getDeviceScaleFactor()).setIsMobile(profile.isMobile()).setHasTouch(profile.hasTouch());
+            if (isNotBlank(profile.getUserAgent())) {
+                contextOptions.setUserAgent(profile.getUserAgent());
             }
 
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(openFeatureStream(uri)))) {
-                String line;
-                int total = 0;
-
-                boolean inScenarioOutline = false;
-                boolean inExamples = false;
-                boolean headerSkipped = false;
-                int outlineExampleRows = 0;
-
-                while ((line = reader.readLine()) != null) {
-                    String trimmed = line.trim();
-
-                    if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith("@")) {
-                        continue;
-                    }
-
-                    if (trimmed.startsWith("Scenario Outline:") || trimmed.startsWith("Scenario Template:")) {
-                        if (inScenarioOutline) {
-                            total += Math.max(outlineExampleRows, 1);
-                        }
-                        inScenarioOutline = true;
-                        inExamples = false;
-                        headerSkipped = false;
-                        outlineExampleRows = 0;
-                        continue;
-                    }
-
-                    if (trimmed.startsWith("Scenario:")) {
-                        if (inScenarioOutline) {
-                            total += Math.max(outlineExampleRows, 1);
-                            inScenarioOutline = false;
-                            inExamples = false;
-                            headerSkipped = false;
-                            outlineExampleRows = 0;
-                        }
-                        total++;
-                        continue;
-                    }
-
-                    if (inScenarioOutline && trimmed.startsWith("Examples:")) {
-                        inExamples = true;
-                        headerSkipped = false;
-                        continue;
-                    }
-
-                    if (inScenarioOutline && inExamples && trimmed.startsWith("|")) {
-                        if (!headerSkipped) {
-                            headerSkipped = true;
-                        } else {
-                            outlineExampleRows++;
-                        }
-                    }
-                }
-
-                if (inScenarioOutline) {
-                    total += Math.max(outlineExampleRows, 1);
-                }
-
-                logger.info("Detected [{}] runnable scenarios in feature [{}]", total, uri);
-                return total > 0 ? total : 1;
-            }
-        } catch (Exception e) {
-            logger.warn(
-                    "Unable to count scenarios in feature file. Defaulting scenario count to 1. Reason: {}",
-                    e.getMessage()
-            );
-            return 1;
+            logger.info("Applied mobile browser profile [{}] orientationMode={} viewport={}x{} screen={}x{} scale={} touch={}", new Object[]{profile.getName(), orientationMode, viewportWidth, viewportHeight, screenWidth, screenHeight, profile.getDeviceScaleFactor(), profile.hasTouch()});
         }
     }
 
-    private InputStream openFeatureStream(URI uri) throws Exception {
-        if ("file".equalsIgnoreCase(uri.getScheme())) {
-            return Files.newInputStream(Paths.get(uri));
+    private static void applyHttpCredentialsIfAvailable(Browser.NewContextOptions contextOptions) {
+        String username = System.getProperty("service.username");
+        String password = System.getProperty("service.password");
+        if (isNotBlank(username) && isNotBlank(password)) {
+            contextOptions.setHttpCredentials(new HttpCredentials(username, password));
+            logger.info("HTTP authentication credentials applied.");
+        } else {
+            logger.info("No HTTP credentials found. Proceeding without authentication.");
         }
 
-        String path = uri.toString();
-
-        if (path.startsWith("classpath:")) {
-            path = path.replace("classpath:", "");
-        }
-
-        if (path.startsWith("/")) {
-            path = path.substring(1);
-        }
-
-        InputStream inputStream = Thread.currentThread()
-                .getContextClassLoader()
-                .getResourceAsStream(path);
-
-        if (inputStream == null) {
-            throw new IllegalStateException("Unable to load feature file from URI: " + uri);
-        }
-
-        return inputStream;
     }
 
-    /**
-     * Retains compatibility with the framework's explicit maximize action without changing
-     * browser lifecycle behavior. Unsupported browsers simply return false.
-     */
-    public static boolean maximizeBrowserWindow(Page page) {
-        if (page == null || page.isClosed()) {
-            return false;
-        }
-        CDPSession cdpSession = null;
-        try {
-            cdpSession = page.context().newCDPSession(page);
-            JsonObject windowInfo = cdpSession.send("Browser.getWindowForTarget");
-            if (!windowInfo.has("windowId")) {
+    private static boolean getHeadlessMode() {
+        String sysProp = System.getProperty("headless");
+        if (sysProp != null && !sysProp.trim().isEmpty()) {
+            boolean headless = Boolean.parseBoolean(sysProp.trim());
+            logger.info("Headless mode resolved from JVM system property -Dheadless={} → headless={}", sysProp.trim(), headless);
+            return headless;
+        } else {
+            String configValue = ConfigurationProperties.getHeadlessMode();
+            if (configValue != null && !configValue.trim().isEmpty()) {
+                boolean headless = Boolean.parseBoolean(configValue.trim());
+                logger.info("Headless mode resolved from config.yml headless={} → headless={}", configValue.trim(), headless);
+                return headless;
+            } else {
+                logger.warn("Headless mode config key 'headless' is missing or blank in config.yml. Defaulting to false (headed mode). Add 'headless: \"true\"' to config.yml to enable headless.");
                 return false;
             }
-            JsonObject bounds = new JsonObject();
-            bounds.addProperty("windowState", "maximized");
-            JsonObject parameters = new JsonObject();
-            parameters.addProperty("windowId", windowInfo.get("windowId").getAsInt());
-            parameters.add("bounds", bounds);
-            cdpSession.send("Browser.setWindowBounds", parameters);
-            return true;
-        } catch (Exception exception) {
-            logger.debug("Native browser maximization is unavailable: {}", exception.getMessage());
+        }
+    }
+
+    private static boolean getVideoCapture() {
+        String value = ConfigurationProperties.getVideoCapture();
+        return Boolean.parseBoolean(value);
+    }
+
+    private static boolean getMaximizeBrowser() {
+        String value = ConfigurationProperties.getValue("maximize_browser");
+        if (!isNotBlank(value)) {
+            value = ConfigurationProperties.getValue("maximizeBrowser");
+        }
+
+        return !isNotBlank(value) ? false : Boolean.parseBoolean(value.trim());
+    }
+
+    private static boolean getIgnoreHTTPSErrors() {
+        String value = ConfigurationProperties.getIgnoreHTTPSErrors();
+        if (value != null && !value.trim().isEmpty()) {
+            return Boolean.parseBoolean(value.trim());
+        } else {
+            logger.warn("ignoreHTTPSErrors is missing or blank. Defaulting to false.");
             return false;
-        } finally {
-            if (cdpSession != null) {
-                try {
-                    cdpSession.detach();
-                } catch (Exception ignored) {
-                    // The browser can close while a window command is in progress.
-                }
-            }
         }
     }
 
-    public static Page getPage() {
-        Page page = pageThreadLocal.get();
-        if (page != null && !page.isClosed()) {
-            return page;
+    private static boolean isNotBlank(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    static {
+        VIDEO_DIR = "test-output/captured-videos/" + TIMESTAMP;
+        MOBILE_BROWSER_VIDEO_DIR = "test-output/mobile-browser-evidence/" + TIMESTAMP + "/videos";
+    }
+
+    public static enum BrowserTypeEnum {
+        CHROME,
+        FIREFOX,
+        WEBKIT,
+        EDGE;
+
+        private BrowserTypeEnum() {
         }
-        throw new IllegalStateException("The page is closed or not initialized.");
-    }
-
-    public static Browser getBrowser() {
-        Browser browser = browserThreadLocal.get();
-        if (browser == null) {
-            throw new IllegalStateException("The browser is not initialized.");
-        }
-        return browser;
-    }
-
-    public static Scenario getCurrentScenario() {
-        return scenarioThreadLocal.get();
-    }
-
-    public static void setCurrentScenario(Scenario scenario) {
-        scenarioThreadLocal.set(scenario);
-    }
-
-    public static BrowserContext getContext() {
-        BrowserContext context = contextThreadLocal.get();
-        if (context == null) {
-            throw new IllegalStateException("The browser context is not initialized.");
-        }
-        return context;
     }
 }
