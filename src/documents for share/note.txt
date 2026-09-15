@@ -1,3 +1,32 @@
+Performance-config.yml
+performance:
+  defaults:
+    protocol: https
+    host: vsoiqwebdev01.myfnb.us:9080/
+    port:
+    users: 5
+    rampUpSeconds: 5
+    holdSeconds: 10
+    iterations: 1
+
+  reporting:
+    resultsFolder: test-output-performance-test/results
+    dashboardFolder: test-output-performance-test/dashboard
+
+  assertions:
+    maxErrorPercent: 5.0
+    maxAvgResponseTimeMs: 5000
+    maxP95ResponseTimeMs: 7000
+
+performance_basic.feature
+@performance_testing_2
+Feature: Happy Path Load Validation
+#
+  Scenario: Happy path smoke load
+    When we store bearer token alias "Authentication" with value "token"
+    And we run authenticated YAML-driven POST performance test for path "oppiqgateway/api/v1/graphql" with name "Create VHLM GraphQL" using yaml key "navigator_graphql_create_vhlm" and bearer token alias "Authentication"
+    Then performance execution should pass
+performance-payloads.yml
 navigator_graphql_create_vhlm:
   query: |
     mutation($input:CreateVhlmInput! ) {
@@ -19,3 +48,38 @@ navigator_graphql_create_vhlm:
       country: "Panama"
       flag: "Panama"
       phone: "+10000000000"
+StepDefinition
+@When("^we store bearer token alias \"(.*?)\" with value \"(.*?)\"$")
+    public void weStoreBearerTokenAlias(String alias, String tokenValue) {
+        String final_tokenValue = ExcelReader.getData(file_name, "TC_CreateToken",tokenValue);
+        performanceEngine.storeBearerToken(alias, final_tokenValue);
+    }
+@When("^we run authenticated YAML-driven POST performance test for path \"(.*?)\" with name \"(.*?)\" using yaml key \"(.*?)\" and bearer token alias \"(.*?)\"$")
+    public void weRunAuthenticatedYamlDrivenPostPerformanceTest(String path,
+                                                                String testName,
+                                                                String yamlKey,
+                                                                String tokenAlias) {
+
+        PerformanceRequest request = new PerformanceRequestBuilder()
+                .withRequestName(testName)
+                .withMethod("POST")
+                .withPath(path)
+                .withYamlBodyKey(yamlKey)
+                .withContentType("application/json")
+                .withAcceptType("application/json")
+                .withBearerTokenAlias(tokenAlias)
+                .build();
+
+        latestResult = performanceEngine.runHttpTest(request);
+    }
+@Then("^performance execution should pass$")
+    public void performanceExecutionShouldPass() {
+        assertResultAvailable();
+
+        if (!latestResult.isExecutionPassed()) {
+            throw new AssertionError(
+                    "Expected performance execution to pass, but it failed. Failure message: "
+                            + latestResult.getFailureMessage()
+            );
+        }
+    }
