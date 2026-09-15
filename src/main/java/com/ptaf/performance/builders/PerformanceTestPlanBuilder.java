@@ -174,8 +174,20 @@ public class PerformanceTestPlanBuilder {
                 );
             }
 
+            String normalizedToken = resolvedToken.trim();
+            if (normalizedToken.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
+                normalizedToken = normalizedToken.substring("Bearer ".length()).trim();
+            }
+
+            if (normalizedToken.isBlank()) {
+                throw new IllegalArgumentException(
+                        "Bearer token for alias contains only the Bearer scheme: "
+                                + request.getBearerTokenAlias()
+                );
+            }
+
             // Add Authorization header using Bearer scheme.
-            headers.put("Authorization", "Bearer " + resolvedToken);
+            headers.put("Authorization", "Bearer " + normalizedToken);
         }
 
         // Resolve Basic Authentication if username is provided.
@@ -430,6 +442,8 @@ public class PerformanceTestPlanBuilder {
             throw new IllegalArgumentException("Performance request host cannot be null or blank.");
         }
 
+        validateEndpointConfiguration(request);
+
         if (request.getPort() <= 0) {
             throw new IllegalArgumentException("Performance request port must be greater than 0.");
         }
@@ -456,6 +470,40 @@ public class PerformanceTestPlanBuilder {
             throw new IllegalArgumentException(
                     "Performance profile is invalid. For duration mode, holdSeconds must be greater than 0. " +
                             "For iteration mode, iterations must be greater than 0."
+            );
+        }
+    }
+
+    /**
+     * Validates that the performance configuration uses the framework's separate
+     * protocol, host, port, and relative-path model. This prevents malformed JMeter
+     * URLs such as {@code https://host:9080/api:9080/post}, which commonly result
+     * when a full URL is supplied as the host value.
+     *
+     * @param request request containing configured endpoint components
+     */
+    private void validateEndpointConfiguration(PerformanceRequest request) {
+        String protocol = request.getProtocol().trim().toLowerCase(java.util.Locale.ROOT);
+        if (!"http".equals(protocol) && !"https".equals(protocol)) {
+            throw new IllegalArgumentException(
+                    "Performance protocol must be either 'http' or 'https'; found: " + request.getProtocol()
+            );
+        }
+
+        String host = request.getHost().trim();
+        if (host.contains("://") || host.contains("/") || host.contains("?") || host.contains("#")) {
+            throw new IllegalArgumentException(
+                    "Performance host must contain only the DNS host or IP address, not a full URL, port, or path. "
+                            + "Configure protocol, host, and port separately; place the endpoint route in the feature step. "
+                            + "Invalid host value: " + host
+            );
+        }
+
+        String path = request.getPath().trim();
+        if (path.contains("://")) {
+            throw new IllegalArgumentException(
+                    "Performance request path must be relative, for example '/oppiqgateway/api/v1/graphql'; "
+                            + "do not provide a full URL: " + path
             );
         }
     }

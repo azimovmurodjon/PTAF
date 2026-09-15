@@ -154,8 +154,17 @@ public class PerformanceHeaderManager {
             throw new IllegalArgumentException("Bearer token cannot be null or blank.");
         }
 
+        String normalizedToken = token.trim();
+        if (normalizedToken.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
+            normalizedToken = normalizedToken.substring("Bearer ".length()).trim();
+        }
+
+        if (normalizedToken.isBlank()) {
+            throw new IllegalArgumentException("Bearer token cannot contain only the Bearer scheme.");
+        }
+
         // Store as a request-level header so it wins over default Authorization if present.
-        requestHeaders.put("Authorization", "Bearer " + token.trim());
+        requestHeaders.put("Authorization", "Bearer " + normalizedToken);
         return this;
     }
 

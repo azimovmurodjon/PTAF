@@ -1,5 +1,6 @@
 package com.ptaf.performance.payloads;
 
+import com.google.gson.Gson;
 import com.ptaf.utils.ExcelReader;
 import com.ptaf.utils.YamlReader;
 
@@ -25,6 +26,13 @@ import com.ptaf.utils.YamlReader;
  * </p>
  */
 public final class PerformancePayloadResolver {
+
+    /**
+     * Converts structured YAML values to valid JSON request bodies. Scalar YAML
+     * values remain unchanged so existing raw JSON block-scalar payloads retain
+     * their current behavior.
+     */
+    private static final Gson GSON = new Gson();
 
     /**
      * Utility class - prevent instantiation.
@@ -179,10 +187,10 @@ public final class PerformancePayloadResolver {
      * Resolve a YAML payload from the YAML store.
      *
      * <p>
-     * This method validates the presence of a YAML key in the definition, reads the value using
-     * {@link YamlReader#get(String)}, and returns the string representation of the stored value.
-     * A descriptive {@link IllegalArgumentException} is thrown if the key is missing or the value
-     * cannot be found.
+     * This method validates the presence of a YAML key in the definition and reads the value using
+     * {@link YamlReader#get(String)}. Scalar values are returned as text, while structured YAML
+     * maps and lists are serialized as valid JSON bodies. A descriptive
+     * {@link IllegalArgumentException} is thrown if the key is missing or the value cannot be found.
      * </p>
      *
      * @param definition the payload definition containing the YAML key
@@ -201,8 +209,16 @@ public final class PerformancePayloadResolver {
             throw new IllegalArgumentException("YAML payload value not found for key: " + definition.getYamlKey());
         }
 
-        // Convert any returned object to its string representation
-        return String.valueOf(value);
+        // Preserve existing scalar behavior. A YAML block scalar containing raw
+        // JSON must be sent exactly as written by the tester.
+        if (value instanceof CharSequence || value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+
+        // String.valueOf(Map) creates Java map syntax such as "{query=...}",
+        // which is not a valid GraphQL JSON request body. Serialize structured
+        // YAML maps/lists so GraphQL and other JSON APIs receive valid JSON.
+        return GSON.toJson(value);
     }
 
     /**

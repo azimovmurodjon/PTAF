@@ -443,7 +443,16 @@ public class PerformanceEngine {
             throw new IllegalArgumentException("Token value cannot be null or blank.");
         }
 
-        tokenStore.put(alias, tokenValue);
+        String normalizedToken = tokenValue.trim();
+        if (normalizedToken.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
+            normalizedToken = normalizedToken.substring("Bearer ".length()).trim();
+        }
+
+        if (normalizedToken.isBlank()) {
+            throw new IllegalArgumentException("Token value cannot contain only the Bearer scheme.");
+        }
+
+        tokenStore.put(alias.trim(), normalizedToken);
     }
 
     /**
