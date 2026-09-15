@@ -472,52 +472,64 @@ public class Hooks {
             markBrowserClosedIntentionally();
         }
 
-        // Video paths become available only once their pages/context are closed. Capture the
-        // Video handles before cleanup, then rename the finalized .webm files afterwards.
+        // Capture video handles before shutdown. Calling Video.path() before the browser is
+        // closed can block while Playwright is still finalizing the .webm file, especially for
+        // long recordings. Finalize and rename recordings only after browser.close() completes.
         Scenario artifactScenario = scenarioThreadLocal.get();
         List<Video> recordedVideos = new ArrayList<>();
-        try {
-            BrowserContext context = contextThreadLocal.get();
+        long shutdownStartedAt = System.nanoTime();
+        BrowserContext context = contextThreadLocal.get();
 
+        try {
             if (context != null) {
                 for (Page page : context.pages()) {
-                    try {
-                        rememberRecordedVideo(page, recordedVideos);
-                        if (page != null && !page.isClosed()) {
-                            page.close();
-                        }
-                    } catch (Exception pageCloseEx) {
-                        logger.error("Error closing page: {}", pageCloseEx.getMessage(), pageCloseEx);
-                    }
+                    rememberRecordedVideo(page, recordedVideos);
                 }
-
-                context.close();
             }
-        } catch (Exception ex) {
-            logger.error("Error closing the browser context: {}", ex.getMessage(), ex);
-        } finally {
-            pageThreadLocal.remove();
-            contextThreadLocal.remove();
+        } catch (Exception videoCaptureException) {
+            // Artifact collection must never prevent the explicit close request from closing the
+            // underlying browser. Evidence renaming is non-fatal by design.
+            logger.warn("Unable to collect video handles before browser shutdown: {}",
+                    videoCaptureException.getMessage());
         }
 
-        renameRecordedVideos(recordedVideos, artifactScenario);
-
         try {
+            // Browser.close() closes every remaining context and page in one Playwright command.
+            // Avoiding separate page.close()/context.close() calls prevents each individual page
+            // from adding its own blocking shutdown wait to the explicit Close all browsers step.
             Browser browser = browserThreadLocal.get();
             if (browser != null) {
                 browser.close();
-                logger.info("Browser closed.");
+                logger.info("Browser closed in {} ms.", elapsedMillis(shutdownStartedAt));
+            } else if (context != null) {
+                // Fallback only for an incomplete browser stack where the browser reference is
+                // already unavailable but its context still needs cleanup.
+                context.close();
+                logger.info("Browser context closed in {} ms because Browser was unavailable.",
+                        elapsedMillis(shutdownStartedAt));
             }
         } catch (Exception ex) {
             logger.error("Error closing the browser: {}", ex.getMessage(), ex);
         } finally {
+            pageThreadLocal.remove();
+            contextThreadLocal.remove();
             browserThreadLocal.remove();
         }
 
+        // At this point Playwright has finalized video output. Renaming now avoids the previous
+        // video.path() wait before browser shutdown while preserving Feature-based video names.
         pageCommonMethodsThreadLocal.remove();
         scenarioThreadLocal.remove();
         activeFeatureThreadLocal.remove();
         browserlessScenarioThreadLocal.remove();
+
+        renameRecordedVideos(recordedVideos, artifactScenario);
+        logger.info("Close all browser resources completed in {} ms.", elapsedMillis(shutdownStartedAt));
+    }
+
+    /** Converts a nano-time start marker into an elapsed millisecond value for shutdown diagnostics. */
+    private static long elapsedMillis(long startedAtNanos) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNanos);
     }
 
     /**
