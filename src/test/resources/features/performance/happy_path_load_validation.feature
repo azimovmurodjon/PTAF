@@ -1,5 +1,5 @@
-#@performance_testing
-#Feature: Performance Happy Path Load Validation
+@performance_testing_1
+Feature: Performance Happy Path Load Validation
 #
 ##  Scenario: Happy path smoke load
 ##    When we run GET performance test for path "/get" with name "happy_path_5_users" using 5 users ramp 5 seconds hold 10 seconds
@@ -21,6 +21,6 @@
 ##    When we run GET performance test for path "/get" with name "happy_path_200_users" using 200 users ramp 30 seconds hold 60 seconds
 ##    Then performance dashboard path should be generated
 ##
-##  Scenario: Happy path extreme local stress
-##    When we run GET performance test for path "/get" with name "happy_path_300_users" using 300 users ramp 45 seconds hold 90 seconds
-##    Then performance dashboard path should be generated
+  Scenario: Happy path extreme local stress
+    When we run GET performance test for path "/get" with name "happy_path_300_users" using 300 users ramp 45 seconds hold 90 seconds
+    Then performance dashboard path should be generated

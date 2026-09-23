@@ -1,0 +1,48 @@
+ui_performance:
+  enabled: true
+  active_profile: load
+  target:
+    protocol: http
+    host: 127.0.0.1
+    port: 18765
+    base_path: ""
+    routes:
+      ready: "/ready"
+  execution:
+    synchronized_start_timeout_ms: 30000
+    between_iterations_ms: 0
+  profiles:
+    load:
+      type: load
+      stages:
+        - name: concurrent-contract
+          users: 2
+          ramp_up_seconds: 0
+          hold_seconds: 0
+          iterations_per_user: 1
+  browser:
+    headless: true
+    ignore_https_errors: false
+    isolation: process
+    action_timeout_ms: 5000
+    navigation_timeout_ms: 5000
+  data:
+    use_csv: false
+    users_csv: "ui_performance/data/users.csv"
+    allow_user_reuse: false
+  evidence:
+    capture_failure_screenshots: false
+    capture_console_errors: true
+  thresholds:
+    maximum_failure_rate_percent: 0.0
+    maximum_average_journey_duration_ms: 5000
+    maximum_p95_journey_duration_ms: 5000
+  safety:
+    max_virtual_users: 2
+  reporting:
+    output_directory: "target/ui-performance-browser-contract"
+    existing_performance_reporter_enabled: true
+    html_enabled: true
+    pdf_enabled: true
+    csv_enabled: true
+    json_enabled: true

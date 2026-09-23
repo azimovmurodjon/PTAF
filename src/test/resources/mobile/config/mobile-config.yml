@@ -1,0 +1,55 @@
+# ==========================================================
+# PTAF Shared Mobile Framework Configuration
+# ==========================================================
+# Purpose:
+# - This file contains settings shared by all Appium-based mobile execution.
+# - Do NOT place native app capabilities here.
+# - Do NOT place Appium real browser capabilities here.
+#
+# Capability files:
+# - Native app automation:       mobile-native-config.yml
+# - Real Chrome/Safari browser:  mobile-browser-config.yml
+# - Playwright responsive mode:  src/test/resources/mobile_browser/config/*
+#
+# Why this split exists:
+# Keeping shared framework settings separate from platform capabilities prevents
+# accidental overrides when teams switch between Android, iOS, native app, and
+# real mobile browser execution.
+
+mobile:
+  enabled: true
+  appium_server_url: "http://127.0.0.1:4723"
+
+  # Default platform used only when neither -Dmobile.platform nor @android/@ios is provided.
+  # Example override: -Dmobile.platform=ios or -Dmobile.platform=android
+  default_platform: "android"
+
+  # Framework-level waits. Keep implicit wait at 0 and prefer explicit waits.
+  # explicit_wait_seconds: how long to wait for each element to become visible before failing.
+  #   - Default: 30 seconds. Maximum recommended: 60 seconds.
+  #   - The wait is SMART: it returns immediately the moment the element appears.
+  #   - Increase this if your app has slow screen transitions or heavy loading states.
+  implicit_wait_seconds: 0
+  explicit_wait_seconds: 30
+  # new_command_timeout_seconds: how long Appium waits between commands before killing the session.
+  #   - Default: 300 seconds (5 minutes). Increase if your app has long loading screens.
+  #   - If the app closes unexpectedly during a test, increase this value.
+  new_command_timeout_seconds: 300
+
+  permissions:
+    # Timeout for optional OS/system permission popups. Keep short because no popup is valid.
+    popup_timeout_seconds: 3
+    # Maximum number of permission popups to handle in one step. Prevents infinite loops.
+    max_popups_to_handle: 5
+    # Capture before/after screenshots for explicit permission handling steps.
+    capture_evidence: true
+
+  evidence:
+    output_directory: "test-output/mobile-evidence"
+    screenshot_on_failure: true
+    screenshot_on_pass: false
+    screenshot_after_each_scenario: false
+    attach_screenshots_to_report: true
+    video_recording_enabled: false
+    video_on_failure_only: true
+    attach_video_to_report: false

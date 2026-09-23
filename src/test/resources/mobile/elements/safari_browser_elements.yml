@@ -1,0 +1,14 @@
+# ==========================================================
+# PTAF Appium Real iOS Safari Support Locators
+# ==========================================================
+# These locators are internal browser-support locators used only when iOS
+# Safari opens on its native Start Page and Appium driver.get(url) does not
+# navigate to the requested site. They are NOT native app locators and are
+# NOT Google page DOM locators.
+
+mobile_elements:
+  safariBrowser:
+    addressBar:
+      ios: "XPATH_//*[@name='URL' or @label='Address' or contains(@label,'Search') or contains(@name,'Search') or contains(@value,'Search or enter website') or contains(@value,'Search or enter')]"
+    startPageCloseButton:
+      ios: "XPATH_//*[@name='Close' or @label='Close' or @name='Done' or @label='Done']"

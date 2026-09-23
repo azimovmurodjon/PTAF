@@ -1,0 +1,28 @@
+# ==========================================================
+# PTAF Playwright Mobile Browser Execution Controls
+# ==========================================================
+# This file controls screenshots, video, orientation, and visual testing for
+# mobile browser emulation profiles. These settings apply only when config.yml
+# browser is set to a profile from mobile-browser-profiles.yml.
+
+mobile_browser:
+  enabled: true
+  orientation: "profile"        # profile, portrait, or landscape
+
+  evidence:
+    output_directory: "test-output/mobile-browser-evidence"
+    screenshot_on_failure: true
+    screenshot_on_pass: false
+    screenshot_after_each_scenario: false
+    attach_screenshots_to_report: true
+    video_recording_enabled: false
+    video_size_width: 390
+    video_size_height: 844
+
+  visual:
+    enabled: true
+    baseline_directory: "src/test/resources/baselines/mobile_browser"
+    output_directory: "test-output/mobile-browser-visual"
+    mismatch_threshold_percent: 0.10
+    create_baseline_if_missing: true
+    attach_artifacts_to_report: true

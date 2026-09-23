@@ -1,0 +1,268 @@
+# ==========================================================
+# PTAF Playwright Mobile Browser Emulation Profiles
+# ==========================================================
+# Use these names in src/test/resources/config/config.yml under the existing browser key.
+# Example: browser: "iPhone 17 Pro Max Safari"
+# This is browser emulation for responsive web testing; it does not launch native simulators.
+
+mobile_browser_profiles:
+  iPhone 17 Pro Max Safari:
+    browser_engine: "webkit"
+    platform: "iOS"
+    device_category: "phone"
+    orientation: "portrait"
+    viewport_width: 430
+    viewport_height: 932
+    screen_width: 430
+    screen_height: 932
+    device_scale_factor: 3
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Mobile/15E148 Safari/604.1"
+  iPhone 17 Pro Max Chrome:
+    browser_engine: "webkit"
+    platform: "iOS"
+    device_category: "phone"
+    orientation: "portrait"
+    viewport_width: 430
+    viewport_height: 932
+    screen_width: 430
+    screen_height: 932
+    device_scale_factor: 3
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/139.0.0.0 Mobile/15E148 Safari/604.1"
+  iPhone 16 Pro Safari:
+    browser_engine: "webkit"
+    platform: "iOS"
+    device_category: "phone"
+    orientation: "portrait"
+    viewport_width: 402
+    viewport_height: 874
+    screen_width: 402
+    screen_height: 874
+    device_scale_factor: 3
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+  iPhone 15 Safari:
+    browser_engine: "webkit"
+    platform: "iOS"
+    device_category: "phone"
+    orientation: "portrait"
+    viewport_width: 393
+    viewport_height: 852
+    screen_width: 393
+    screen_height: 852
+    device_scale_factor: 3
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+  iPhone SE Safari:
+    browser_engine: "webkit"
+    platform: "iOS"
+    device_category: "phone"
+    orientation: "portrait"
+    viewport_width: 375
+    viewport_height: 667
+    screen_width: 375
+    screen_height: 667
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+  Galaxy S25 Ultra Chrome:
+    browser_engine: "chromium"
+    platform: "Android"
+    device_category: "phone"
+    orientation: "portrait"
+    viewport_width: 412
+    viewport_height: 915
+    screen_width: 412
+    screen_height: 915
+    device_scale_factor: 3.5
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (Linux; Android 15; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36"
+  Galaxy S24 Chrome:
+    browser_engine: "chromium"
+    platform: "Android"
+    device_category: "phone"
+    orientation: "portrait"
+    viewport_width: 384
+    viewport_height: 854
+    screen_width: 384
+    screen_height: 854
+    device_scale_factor: 3
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (Linux; Android 14; SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36"
+  Pixel 9 Pro Chrome:
+    browser_engine: "chromium"
+    platform: "Android"
+    device_category: "phone"
+    orientation: "portrait"
+    viewport_width: 412
+    viewport_height: 915
+    screen_width: 412
+    screen_height: 915
+    device_scale_factor: 3
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (Linux; Android 15; Pixel 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36"
+  Pixel 8 Chrome:
+    browser_engine: "chromium"
+    platform: "Android"
+    device_category: "phone"
+    orientation: "portrait"
+    viewport_width: 412
+    viewport_height: 915
+    screen_width: 412
+    screen_height: 915
+    device_scale_factor: 2.625
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36"
+  OnePlus 13 Chrome:
+    browser_engine: "chromium"
+    platform: "Android"
+    device_category: "phone"
+    orientation: "portrait"
+    viewport_width: 412
+    viewport_height: 919
+    screen_width: 412
+    screen_height: 919
+    device_scale_factor: 3.5
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (Linux; Android 15; OnePlus 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36"
+  iPad Pro 13 Safari:
+    browser_engine: "webkit"
+    platform: "iOS"
+    device_category: "tablet"
+    orientation: "portrait"
+    viewport_width: 1032
+    viewport_height: 1376
+    screen_width: 1032
+    screen_height: 1376
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+  iPad Pro 11 Safari:
+    browser_engine: "webkit"
+    platform: "iOS"
+    device_category: "tablet"
+    orientation: "portrait"
+    viewport_width: 834
+    viewport_height: 1194
+    screen_width: 834
+    screen_height: 1194
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+  iPad Air Safari:
+    browser_engine: "webkit"
+    platform: "iOS"
+    device_category: "tablet"
+    orientation: "portrait"
+    viewport_width: 820
+    viewport_height: 1180
+    screen_width: 820
+    screen_height: 1180
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+  iPad Mini Safari:
+    browser_engine: "webkit"
+    platform: "iOS"
+    device_category: "tablet"
+    orientation: "portrait"
+    viewport_width: 744
+    viewport_height: 1133
+    screen_width: 744
+    screen_height: 1133
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+  iPad 10th Gen Safari:
+    browser_engine: "webkit"
+    platform: "iOS"
+    device_category: "tablet"
+    orientation: "portrait"
+    viewport_width: 820
+    viewport_height: 1180
+    screen_width: 820
+    screen_height: 1180
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+  Galaxy Tab S10 Ultra Chrome:
+    browser_engine: "chromium"
+    platform: "Android"
+    device_category: "tablet"
+    orientation: "landscape"
+    viewport_width: 1480
+    viewport_height: 924
+    screen_width: 1480
+    screen_height: 924
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (Linux; Android 15; SM-X926B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+  Galaxy Tab S9 Chrome:
+    browser_engine: "chromium"
+    platform: "Android"
+    device_category: "tablet"
+    orientation: "landscape"
+    viewport_width: 1280
+    viewport_height: 800
+    screen_width: 1280
+    screen_height: 800
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+  Pixel Tablet Chrome:
+    browser_engine: "chromium"
+    platform: "Android"
+    device_category: "tablet"
+    orientation: "landscape"
+    viewport_width: 1280
+    viewport_height: 800
+    screen_width: 1280
+    screen_height: 800
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (Linux; Android 14; Pixel Tablet) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+  Lenovo Tab P12 Chrome:
+    browser_engine: "chromium"
+    platform: "Android"
+    device_category: "tablet"
+    orientation: "landscape"
+    viewport_width: 1365
+    viewport_height: 853
+    screen_width: 1365
+    screen_height: 853
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (Linux; Android 14; Lenovo TB370FU) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+  Xiaomi Pad 7 Chrome:
+    browser_engine: "chromium"
+    platform: "Android"
+    device_category: "tablet"
+    orientation: "landscape"
+    viewport_width: 1366
+    viewport_height: 853
+    screen_width: 1366
+    screen_height: 853
+    device_scale_factor: 2
+    is_mobile: true
+    has_touch: true
+    user_agent: "Mozilla/5.0 (Linux; Android 15; Xiaomi Pad 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"

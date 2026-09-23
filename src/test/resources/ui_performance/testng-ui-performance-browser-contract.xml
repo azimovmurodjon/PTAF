@@ -1,0 +1,8 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd" >
+<suite name="FNB-ETAF UI Performance Browser Contract" verbose="1" parallel="false">
+    <test name="Two Real Concurrent Browser Users">
+        <classes>
+            <class name="com.ptaf.ui_performance.UiPerformanceConcurrentBrowserIntegrationTest"/>
+        </classes>
+    </test>
+</suite>

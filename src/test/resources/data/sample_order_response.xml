@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    PTAF XML Automation — Sample Data File
+    =======================================
+    This file is used by the example XML feature file to demonstrate
+    all XML step definitions available in the PTAF framework.
+
+    Location: src/test/resources/data/sample_order_response.xml
+-->
+<orderResponse>
+    <status>SUCCESS</status>
+    <message>Order processed successfully</message>
+    <orderId>ORD-2025-00123</orderId>
+    <timestamp>2025-07-15T14:30:00Z</timestamp>
+
+    <customer>
+        <id>CUST-456</id>
+        <name>John Doe</name>
+        <email>john.doe@example.com</email>
+    </customer>
+
+    <items>
+        <item id="1">
+            <productCode>PROD-001</productCode>
+            <description>Wireless Headphones</description>
+            <quantity>2</quantity>
+            <unitPrice>59.99</unitPrice>
+            <totalPrice>119.98</totalPrice>
+        </item>
+        <item id="2">
+            <productCode>PROD-002</productCode>
+            <description>USB-C Cable</description>
+            <quantity>3</quantity>
+            <unitPrice>9.99</unitPrice>
+            <totalPrice>29.97</totalPrice>
+        </item>
+        <item id="3">
+            <productCode>PROD-003</productCode>
+            <description>Phone Case</description>
+            <quantity>1</quantity>
+            <unitPrice>19.99</unitPrice>
+            <totalPrice>19.99</totalPrice>
+        </item>
+    </items>
+
+    <pricing>
+        <subtotal>169.94</subtotal>
+        <tax>13.60</tax>
+        <shipping>5.99</shipping>
+        <total>189.53</total>
+        <currency>USD</currency>
+    </pricing>
+
+    <payment>
+        <method>CREDIT_CARD</method>
+        <last4Digits>4242</last4Digits>
+        <transactionId>TXN-789-XYZ</transactionId>
+        <authCode>AUTH123456</authCode>
+    </payment>
+
+    <shipping>
+        <address>123 Main Street, Springfield, IL 62701</address>
+        <carrier>FedEx</carrier>
+        <trackingNumber>FX123456789</trackingNumber>
+        <estimatedDelivery>2025-07-18</estimatedDelivery>
+    </shipping>
+</orderResponse>
