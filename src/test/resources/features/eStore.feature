@@ -32,7 +32,7 @@ Feature: Consumer Deposit with Payment Switch
 #    Then we click on page TestHarness locator openURL_btn
     Then we capture screenshot on page consumer_personal_info locator body name "body"
     Then we click TestHarness locator openURL_btn and switch to popup
-    Then time out for 15 seconds
+#    Then time out for 15 seconds
 #    And we close all browsers
 
     Examples:
