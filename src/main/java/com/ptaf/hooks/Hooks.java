@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Hooks {
@@ -45,6 +46,11 @@ public class Hooks {
     private static final ThreadLocal<Scenario> scenarioThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<PageCommonMethods> pageCommonMethodsThreadLocal = new ThreadLocal<>();
     private static final ThreadLocal<String> activeFeatureThreadLocal = new ThreadLocal<>();
+    /**
+     * Retains the recording for every page created in the active context. This is necessary because
+     * popup pages can close before scenario teardown and would not be available from context.pages().
+     */
+    private static final ThreadLocal<List<Video>> recordedVideoHandlesThreadLocal = new ThreadLocal<>();
     /** Tracks scenarios that deliberately run without a Playwright browser stack. */
     private static final ThreadLocal<Boolean> browserlessScenarioThreadLocal = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
@@ -349,8 +355,15 @@ public class Hooks {
             BrowserContext context = BrowserFactory.createContextWithVideo(browser);
             contextThreadLocal.set(context);
 
+            // Register before creating the initial page so regular pages and popups retain their
+            // video handles until Playwright finalizes recordings at context/browser closure.
+            List<Video> recordedVideos = new CopyOnWriteArrayList<>();
+            recordedVideoHandlesThreadLocal.set(recordedVideos);
+            context.onPage(page -> rememberRecordedVideo(page, recordedVideos));
+
             Page page = context.newPage();
             pageThreadLocal.set(page);
+            rememberRecordedVideo(page, recordedVideos);
 
             long runtimeTimeoutMillis = getConfiguredRuntimeTimeoutMillis();
 
@@ -477,6 +490,10 @@ public class Hooks {
         // long recordings. Finalize and rename recordings only after browser.close() completes.
         Scenario artifactScenario = scenarioThreadLocal.get();
         List<Video> recordedVideos = new ArrayList<>();
+        List<Video> rememberedVideos = recordedVideoHandlesThreadLocal.get();
+        if (rememberedVideos != null) {
+            recordedVideos.addAll(rememberedVideos);
+        }
         long shutdownStartedAt = System.nanoTime();
         BrowserContext context = contextThreadLocal.get();
 
@@ -514,6 +531,7 @@ public class Hooks {
             pageThreadLocal.remove();
             contextThreadLocal.remove();
             browserThreadLocal.remove();
+            recordedVideoHandlesThreadLocal.remove();
         }
 
         // At this point Playwright has finalized video output. Renaming now avoids the previous
@@ -552,8 +570,8 @@ public class Hooks {
 
     /**
      * Renames finalized Playwright recordings from Playwright's anonymous .webm name to the
-     * declared Feature title plus timestamp. Failure to rename evidence is non-fatal and does
-     * not affect browser teardown or scenario status.
+     * declared Feature title plus timestamp. A short retry supports delayed file finalization on
+     * local and CI filesystems. Evidence errors never change the UI scenario result.
      */
     private static void renameRecordedVideos(List<Video> recordedVideos, Scenario scenario) {
         if (recordedVideos == null || recordedVideos.isEmpty()) {
@@ -562,21 +580,68 @@ public class Hooks {
 
         for (Video video : recordedVideos) {
             try {
-                Path source = video.path();
+                Path source = waitForFinalizedVideo(video);
                 if (source == null || !Files.exists(source)) {
-                    logger.debug("Recorded Playwright video file was not available for renaming.");
+                    logger.warn("Recorded Playwright video was not available after browser shutdown.");
                     continue;
                 }
                 Path featureVideoDirectory = FeatureArtifactNameResolver.createFeatureDirectory(
                         source.getParent(), scenario);
-                Path target = FeatureArtifactNameResolver.buildArtifactPath(
+                Path target = buildAvailableVideoTarget(
                         featureVideoDirectory, scenario, source.getFileName().toString());
-                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+                moveFinalizedVideo(source, target);
                 logger.info("Playwright video renamed using Feature title: {}", target.toAbsolutePath());
             } catch (Exception exception) {
                 logger.warn("Unable to rename Playwright video using Feature title: {}", exception.getMessage());
             }
         }
+    }
+
+    /** Waits briefly for Playwright to expose a completed recording after browser shutdown. */
+    private static Path waitForFinalizedVideo(Video video) throws Exception {
+        if (video == null) {
+            return null;
+        }
+        Path source = video.path();
+        for (int attempt = 0; attempt < 20; attempt++) {
+            if (source != null && Files.exists(source)) {
+                return source;
+            }
+            Thread.sleep(100L);
+        }
+        return source;
+    }
+
+    /** Allocates a new feature-named video target without overwriting a prior recording. */
+    private static Path buildAvailableVideoTarget(Path featureDirectory,
+                                                  Scenario scenario,
+                                                  String originalFileName) throws Exception {
+        for (int attempt = 0; attempt < 20; attempt++) {
+            Path candidate = FeatureArtifactNameResolver.buildArtifactPath(
+                    featureDirectory, scenario, originalFileName);
+            if (!Files.exists(candidate)) {
+                return candidate;
+            }
+            Thread.sleep(1L);
+        }
+        throw new java.io.IOException("Unable to allocate a unique Feature-name video file.");
+    }
+
+    /** Moves one completed video with a bounded retry for transient file locking. */
+    private static void moveFinalizedVideo(Path source, Path target) throws Exception {
+        Exception lastFailure = null;
+        for (int attempt = 0; attempt < 20; attempt++) {
+            try {
+                Files.move(source, target);
+                return;
+            } catch (Exception exception) {
+                lastFailure = exception;
+                Thread.sleep(100L);
+            }
+        }
+        throw lastFailure != null
+                ? lastFailure
+                : new java.io.IOException("Unable to move completed Playwright video.");
     }
 
     private static void clearFeatureTracking(String featureKey) {
@@ -677,7 +742,17 @@ public class Hooks {
         }
 
         String featureKey = getFeatureKey(scenario);
-        return featureKey != null && featureKey.toLowerCase().contains("performance");
+        if (featureKey == null || featureKey.trim().isEmpty()) {
+            return false;
+        }
+
+        // Only the actual performance feature location identifies an untagged performance
+        // scenario. Checking the entire absolute URI for the word "performance" incorrectly
+        // skipped normal UI setup when a parent workspace directory happened to use that word.
+        String normalizedPath = featureKey.toLowerCase(Locale.ROOT).replace('\\', '/');
+        return normalizedPath.contains("/features/performance/")
+                || normalizedPath.startsWith("features/performance/")
+                || normalizedPath.startsWith("classpath:features/performance/");
     }
 
     /**

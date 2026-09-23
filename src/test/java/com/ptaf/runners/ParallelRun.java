@@ -42,7 +42,7 @@ import io.cucumber.testng.CucumberOptions;
         },
         monochrome = true,  // Produce cleaner console output without ANSI escape codes
         glue = {"com/ptaf/stepdefinitions", "com/ptaf/hooks"},  // Packages to search for step definitions and hooks
-        tags = "@secondPageTest",  // CI/test-runner will execute only scenarios or features annotated with this tag
+        tags = "@eStore",  // CI/test-runner will execute only scenarios or features annotated with this tag
         features = {"src/test/resources/features"}  // Location of feature files to execute
 )
 public class ParallelRun extends AbstractTestNGCucumberTests {

@@ -7,7 +7,7 @@ Feature: Validate all textual content of the sample invoice PDF
   Background:
     # Pick the newest PDF from your downloads directory.
     # Make sure sample_invoice.pdf is in this folder and is the newest file.
-    When I set last PDF from directory "downloads"
+    When I set last PDF from directory "src/test/resources/features/pdf"
     Then the last PDF should exist
     And the last PDF should be a valid PDF
     And the last PDF should have 2 pages
