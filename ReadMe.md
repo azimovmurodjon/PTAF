@@ -14,8 +14,6 @@ This guide is the top-level map for locating code, resources, execution entry po
 
 ## Architecture at a glance
 
-The editable source is [`architecture/fnb-etaf-framework-architecture.mmd`](architecture/fnb-etaf-framework-architecture.mmd). A rendered overview is available below and as [a PNG image](architecture/fnb-etaf-framework-architecture.png). The same Mermaid source is embedded after the image so the structure remains editable and reviewable in source control.
-
 ![FNB-ETAF framework architecture overview.png](FNB-ETAF framework architecture overview.png)
 
 ```mermaid
