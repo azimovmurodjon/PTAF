@@ -1,0 +1,20 @@
+mobile_elements:
+  fnb:
+    appRoot:
+      ios: "XPATH_//XCUIElementTypeApplication"
+      android: "XPATH_//android.widget.FrameLayout | //*[@package]"
+    anyVisibleElement:
+      ios: "XPATH_//*[self::XCUIElementTypeButton or self::XCUIElementTypeStaticText or self::XCUIElementTypeTextField or self::XCUIElementTypeSecureTextField][1]"
+      android: "XPATH_//*[self::android.widget.Button or self::android.widget.TextView or self::android.widget.EditText][1]"
+    possibleLoginButton:
+      ios: "XPATH_//*[contains(@name,'Log') or contains(@label,'Log') or contains(@name,'Sign') or contains(@label,'Sign') or contains(@name,'Continue') or contains(@label,'Continue')]"
+      android: "XPATH_//*[contains(@text,'Log') or contains(@content-desc,'Log') or contains(@text,'Sign') or contains(@content-desc,'Sign') or contains(@text,'Continue') or contains(@content-desc,'Continue')]"
+    possibleUserIdField:
+      ios: "XPATH_//*[self::XCUIElementTypeTextField or contains(@name,'User') or contains(@label,'User') or contains(@name,'Login') or contains(@label,'Login')]"
+      android: "XPATH_//*[self::android.widget.EditText or contains(@text,'User') or contains(@content-desc,'User') or contains(@text,'Login') or contains(@content-desc,'Login')]"
+    possiblePasswordField:
+      ios: "XPATH_//*[self::XCUIElementTypeSecureTextField or contains(@name,'Password') or contains(@label,'Password') or contains(@name,'Passcode') or contains(@label,'Passcode')]"
+      android: "XPATH_//*[self::android.widget.EditText or contains(@text,'Password') or contains(@content-desc,'Password') or contains(@text,'Passcode') or contains(@content-desc,'Passcode')]"
+    possibleAllowButton:
+      ios: "XPATH_//*[contains(@name,'Allow') or contains(@label,'Allow') or contains(@name,'OK') or contains(@label,'OK') or contains(@name,'Not Now') or contains(@label,'Not Now')]"
+      android: "XPATH_//*[contains(@text,'Allow') or contains(@content-desc,'Allow') or contains(@text,'OK') or contains(@content-desc,'OK') or contains(@text,'Not Now') or contains(@content-desc,'Not Now')]"

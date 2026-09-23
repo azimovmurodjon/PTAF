@@ -1,95 +1,565 @@
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by Fernflower decompiler)
+//
+
 package com.ptaf.utils;
 
-import com.microsoft.playwright.*;
+import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.BrowserContext;
+import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.options.HttpCredentials;
+import com.ptaf.ui.mobilebrowser.MobileBrowserExecutionConfig;
+import com.ptaf.ui.mobilebrowser.MobileBrowserProfile;
+import com.ptaf.ui.mobilebrowser.MobileBrowserProfileRepository;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Paths;
-
 /**
- * BrowserFactory is a utility class for creating Playwright Browser instances.
- * It abstracts the browser creation logic, allowing users to easily instantiate
- * different types of browsers (Chrome, Firefox, WebKit, Microsoft Edge) based on their requirements.
+ * Utility class responsible for creating Playwright Browser and BrowserContext instances.
+ *
+ * <p>This class centralizes browser creation logic including:
+ * - launching different browser types (Chromium, Firefox, WebKit, Edge)
+ * - applying mobile browser emulation profiles when requested
+ * - enforcing configuration-driven options such as headless mode, video capture, and ignoring HTTPS errors
+ * - applying HTTP basic authentication credentials to contexts if provided via system properties
+ *
+ * <p>All methods are static and the class cannot be instantiated.
+ *
+ * <p>Testers and automation engineers can use this class to obtain Browser and BrowserContext
+ * instances consistently across the test suite while respecting environment/configuration settings.
  */
-public class BrowserFactory {
-
+public final class BrowserFactory {
+    /**
+     * SLF4J logger instance for logging startup and configuration information.
+     */
     private static final Logger logger = LoggerFactory.getLogger(BrowserFactory.class);
-    static String headlessMode = ConfigurationProperties.getHeadlessMode();
-    static String videoCapture = ConfigurationProperties.getVideoCapture(); // New property
-    private static final String VIDEO_DIR = "test-output/captured-videos";
-
 
     /**
-     * Enum representing the supported browser types.
+     * Timestamp used to create unique folder names for captured artifacts (videos).
+     * Format: yyyyMMdd_HHmmss
      */
-    public enum BrowserTypeEnum {
-        CHROME,
-        FIREFOX,
-        WEBKIT,
-        EDGE
+    private static final String TIMESTAMP = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+
+    /**
+     * Base directory for storing UI video recordings captured during tests.
+     * Populated in the static initializer to include a timestamp for uniqueness.
+     */
+    private static final String VIDEO_DIR;
+
+    /**
+     * Directory specifically for storing mobile browser evidence video recordings.
+     * Populated in the static initializer to include a timestamp for uniqueness.
+     */
+    private static final String MOBILE_BROWSER_VIDEO_DIR;
+
+    /**
+     * ThreadLocal that holds the currently active mobile browser profile, if any.
+     *
+     * <p>Using ThreadLocal allows tests that run in parallel threads to maintain separate
+     * mobile profiles without interfering with each other.
+     */
+    private static final ThreadLocal<MobileBrowserProfile> ACTIVE_MOBILE_BROWSER_PROFILE = new ThreadLocal<>();
+
+    /**
+     * Private constructor to prevent instantiation of this utility class.
+     */
+    private BrowserFactory() {
+        throw new IllegalStateException("Utility class");
     }
 
     /**
-     * Creates and launches a Playwright Browser instance based on the specified browser type.
+     * Create a Playwright Browser instance for a given BrowserTypeEnum.
      *
-     * @param browserTypeEnum The type of browser to create.
-     * @return A Playwright Browser instance.
+     * <p>This method resets any active mobile browser profile for the current thread
+     * and then creates a Playwright instance to launch the requested browser type.
+     * The implementation uses a switch on the enum ordinal to determine which
+     * launch method to call.
+     *
+     * @param browserTypeEnum the enum representing the desired browser type
+     * @return a launched Playwright Browser instance
+     * @throws MatchException if an unsupported enum value is provided (should not occur)
      */
     public static Browser createBrowser(BrowserTypeEnum browserTypeEnum) {
+        // Ensure no mobile profile remains active for this thread when creating a standard browser
+        ACTIVE_MOBILE_BROWSER_PROFILE.remove();
+        // Create a Playwright driver in order to create Browser instances
         Playwright playwright = Playwright.create();
-        return switch (browserTypeEnum) {
-            case CHROME -> {
-                BrowserType browserType = playwright.chromium();
-                yield launchBrowser(browserType);
-            }
-            case FIREFOX -> {
-                BrowserType browserType = playwright.firefox();
-                yield launchBrowser(browserType);
-            }
-            case WEBKIT -> {
-                BrowserType browserType = playwright.webkit();
-                yield launchBrowser(browserType);
-            }
-            case EDGE -> {
-                boolean headless = Boolean.parseBoolean(headlessMode);
-                logger.info("Launching Microsoft Edge with headless mode: {}", headless);
-                yield playwright.chromium().launch(new BrowserType.LaunchOptions()
-                        .setChannel("msedge")
-                        .setHeadless(headless));
-            }
-        };
+        Browser var10000;
+        switch (browserTypeEnum.ordinal()) {
+            case 0 -> var10000 = launchChromium(playwright.chromium(), "CHROME", (String)null);
+            case 1 -> var10000 = launchBrowser(playwright.firefox());
+            case 2 -> var10000 = launchBrowser(playwright.webkit());
+            case 3 -> var10000 = launchChromium(playwright.chromium(), "EDGE", "msedge");
+            default -> throw new MatchException((String)null, (Throwable)null);
+        }
+
+        return var10000;
     }
 
     /**
-     * Launches the specified browser type with the configured headless mode.
+     * Create a Playwright Browser instance that corresponds to a mobile browser profile.
      *
-     * @param browserType The BrowserType instance.
-     * @return The launched Browser.
+     * <p>The profileName is looked up in the MobileBrowserProfileRepository. If the
+     * profile exists and mobile browser execution is enabled (via configuration),
+     * the profile is set on the current thread and the appropriate browser engine
+     * (Chromium, WebKit, or Firefox) is launched.
+     *
+     * @param profileName the name of the mobile browser profile to use
+     * @return a launched Playwright Browser instance configured for the chosen profile
+     * @throws IllegalArgumentException if the profile name is not found
+     * @throws IllegalStateException if mobile browser emulation is disabled in configuration
+     */
+    public static Browser createBrowser(String profileName) {
+        // Retrieve the mobile browser profile by name or fail fast
+        MobileBrowserProfile profile = MobileBrowserProfileRepository.findByName(profileName)
+                .orElseThrow(() -> new IllegalArgumentException("Unsupported browser or mobile browser profile: " + profileName));
+        // Ensure that mobile browser execution is globally enabled in configuration
+        if (!MobileBrowserExecutionConfig.isEnabled()) {
+            throw new IllegalStateException("Mobile browser emulation is disabled in mobile-browser-execution.yml");
+        }
+
+        // Store the chosen profile in the ThreadLocal so subsequent context creation can apply it
+        ACTIVE_MOBILE_BROWSER_PROFILE.set(profile);
+        Playwright playwright = Playwright.create();
+        // Delegate to the appropriate browser engine depending on the profile's engine preference
+        if (profile.usesWebKit()) {
+            return launchBrowser(playwright.webkit());
+        }
+
+        if (profile.usesFirefox()) {
+            return launchBrowser(playwright.firefox());
+        }
+
+        // Default to Chromium for other profiles; pass profile name as browserName
+        return launchChromium(playwright.chromium(), profile.getName(), (String)null);
+    }
+
+    /**
+     * Check whether a given browserName corresponds to a known mobile browser profile.
+     *
+     * @param browserName the name to check (can be a browser name or profile name)
+     * @return true if the name matches a mobile browser profile, false otherwise
+     */
+    public static boolean isMobileBrowserProfile(String browserName) {
+        return MobileBrowserProfileRepository.isMobileBrowserProfile(browserName);
+    }
+
+    /**
+     * Returns true if there is an active mobile browser profile set for the current thread.
+     *
+     * @return true when a ThreadLocal mobile profile exists, false otherwise
+     */
+    public static boolean hasActiveMobileBrowserProfile() {
+        return ACTIVE_MOBILE_BROWSER_PROFILE.get() != null;
+    }
+
+    /**
+     * Launch a Browser using the provided BrowserType with common launch options.
+     *
+     * <p>This method reads the configured headless mode and logs the decision before launching.
+     *
+     * @param browserType the Playwright BrowserType (e.g., firefox(), webkit())
+     * @return a launched Browser instance
      */
     private static Browser launchBrowser(BrowserType browserType) {
-        boolean headless = Boolean.parseBoolean(headlessMode);
+        // Determine headless mode from configuration
+        boolean headless = getHeadlessMode();
+        boolean maximizeBrowser = getMaximizeBrowser();
         logger.info("Launching browser: {} with headless mode: {}", browserType.name().toUpperCase(), headless);
-        return browserType.launch(new BrowserType.LaunchOptions().setHeadless(headless));
+        // maximize_browser=true is only effective for headed Chromium/Chrome/Edge via --start-maximized.
+        // For Firefox/WebKit this flag has no effect; log a warning so testers are aware.
+        if (maximizeBrowser) {
+            logger.warn("maximize_browser=true is optimized for headed Chromium/Chrome/Edge. Browser [{}] does not support Selenium-style --start-maximized through this factory path. Existing behavior will be preserved.", browserType.name().toUpperCase());
+        }
+        // Launch the browser with the resolved headless option
+        return browserType.launch((new BrowserType.LaunchOptions()).setHeadless(headless));
     }
 
     /**
-     * Creates a browser context with optional video capture.
+     * Launch Chromium-based browsers with additional Chromium-specific options.
      *
-     * @param browser The Browser instance.
-     * @return A BrowserContext with or without video enabled.
+     * <p>This method supports selecting a specific browser 'channel' (for example "msedge"),
+     * enabling additional launch arguments to ignore SSL errors when configured, and setting
+     * the headless mode according to configuration.
+     *
+     * @param browserType the Chromium BrowserType instance (playwright.chromium())
+     * @param browserName a friendly name for logging (e.g., "CHROME", "EDGE" or a profile name)
+     * @param channel optional Chromium channel (e.g., "msedge"). May be null.
+     * @return a launched Browser instance
+     */
+    private static Browser launchChromium(BrowserType browserType, String browserName, String channel) {
+        // Resolve configuration-driven flags
+        boolean headless = getHeadlessMode();
+        boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
+        boolean maximizeBrowser = getMaximizeBrowser();
+
+        // ── Headless mode: do NOT use setHeadless() together with --headless=old ─────────────────
+        // Playwright 1.44+ changed setHeadless(true) to launch the Chrome Headless Shell binary
+        // (a separate executable). If you ALSO pass --headless=old as a launch arg while
+        // setHeadless(true) is set, the two flags conflict: the Headless Shell does not
+        // understand --headless=old and either crashes or ignores it, causing the browser to
+        // open in headed mode unexpectedly.
+        //
+        // Solution: always call setHeadless(false) on LaunchOptions (tells Playwright NOT to
+        // switch to the Headless Shell binary), then control headless behaviour exclusively
+        // via the --headless=old Chrome flag when headless mode is requested.
+        //   headless=false → no flag added  → headed browser window (normal)
+        //   headless=true  → --headless=old → classic Chrome headless (no window, reliable)
+        BrowserType.LaunchOptions launchOptions = (new BrowserType.LaunchOptions()).setHeadless(false);
+        // If a channel is supplied, use it to launch a particular Chromium-based browser
+        if (channel != null && !channel.trim().isEmpty()) {
+            launchOptions.setChannel(channel);
+        }
+
+        List<String> launchArgs = new ArrayList<>();
+
+        // Microsoft Edge can immediately exit on some Windows builds when Playwright starts it
+        // through --remote-debugging-pipe. This Edge-only compatibility argument prevents the
+        // browser's compatibility-layer relaunch from discarding Playwright's pipe handles.
+        // It is intentionally restricted to the desktop "msedge" channel: Chrome, Firefox,
+        // WebKit, and every mobile browser profile continue through their existing paths.
+        if ("msedge".equalsIgnoreCase(channel)) {
+            launchArgs.add("--edge-skip-compat-layer-relaunch");
+            logger.info("Applying the Microsoft Edge remote-debugging compatibility launch argument.");
+        }
+
+        // Add --headless=old only when headless mode is requested.
+        // This uses the classic Chrome headless flag which works reliably across all
+        // Playwright 1.x versions and does not conflict with the Headless Shell binary.
+        if (headless) {
+            launchArgs.add("--headless=old");
+            logger.info("Launching {} in headless mode via --headless=old (classic Chrome headless).", browserName);
+        } else {
+            logger.info("Launching {} in headed mode (no --headless flag).", browserName);
+        }
+
+        // ── CI/CD no-sandbox flag ─────────────────────────────────────────────────────────────────
+        // In CI/CD environments (Docker, Jenkins, GitHub Actions, etc.) Chromium requires
+        // --no-sandbox because the Linux sandbox requires kernel namespaces which are often
+        // disabled in containerized environments. This flag is safe for test automation.
+        // It is applied in both headed and headless modes when running in a CI environment.
+        // Detection: PTAF checks the CI environment variable (set by most CI systems).
+        String ciEnv = System.getenv("CI");
+        if (ciEnv != null && !ciEnv.trim().isEmpty()) {
+            launchArgs.add("--no-sandbox");
+            launchArgs.add("--disable-setuid-sandbox");
+            logger.info("CI environment detected (CI={}). Adding --no-sandbox flags for {}.", ciEnv, browserName);
+        }
+
+        // If ignoring HTTPS errors is requested, add Chromium flags to bypass certificate checks
+        if (shouldIgnoreHTTPSErrors) {
+            launchArgs.addAll(Arrays.asList("--ignore-certificate-errors", "--allow-insecure-localhost", "--disable-web-security"));
+            logger.info("Launching {} with SSL bypass launch arguments enabled because ignoreHTTPSErrors=true.", browserName);
+        }
+
+        // Apply Selenium-style maximize via --start-maximized only for headed desktop Chromium runs.
+        // This flag is skipped in headless mode (no visible window) and for mobile profiles (viewport must stay profile-controlled).
+        if (maximizeBrowser && !headless && !hasActiveMobileBrowserProfile()) {
+            launchArgs.add("--start-maximized");
+            logger.info("Launching {} with Selenium-style maximize enabled using --start-maximized.", browserName);
+        } else if (maximizeBrowser && headless) {
+            logger.warn("maximize_browser=true was requested, but headless=true. Playwright cannot maximize a real OS browser window in headless mode; existing headless behavior will be preserved.");
+        } else if (maximizeBrowser && hasActiveMobileBrowserProfile()) {
+            logger.info("maximize_browser=true ignored for mobile browser emulation profile because device viewport must remain profile-controlled.");
+        }
+
+        if (!launchArgs.isEmpty()) launchOptions.setArgs(launchArgs);
+
+        logger.info("Launching {} with headless mode: {}, ignoreHTTPSErrors: {}, maximize_browser: {}", browserName, headless, shouldIgnoreHTTPSErrors, maximizeBrowser);
+        return browserType.launch(launchOptions);
+    }
+
+    /**
+     * Create a new BrowserContext with video recording and mobile profile support as configured.
+     *
+     * <p>This method:
+     * - Reads configuration flags for recording video and ignoring HTTPS errors.
+     * - Applies an active mobile browser profile if one is set on the current thread.
+     * - Applies HTTP basic auth credentials if provided via system properties.
+     * - Configures recording directory and video resolution for general UI or mobile-specific capture.
+     *
+     * @param browser the Browser instance to create the context for
+     * @return a configured BrowserContext ready for use by tests
      */
     public static BrowserContext createContextWithVideo(Browser browser) {
-        boolean recordVideo = Boolean.parseBoolean(videoCapture);
-        Browser.NewContextOptions contextOptions = new Browser.NewContextOptions();
-
-        if (recordVideo) {
-            logger.info("Video capture enabled.");
-            contextOptions.setRecordVideoDir(Paths.get(VIDEO_DIR))
-                    .setRecordVideoSize(1280, 720);
+        // Read various configuration flags used for context creation
+        boolean recordVideo = getVideoCapture();
+        boolean shouldIgnoreHTTPSErrors = getIgnoreHTTPSErrors();
+        boolean mobileBrowser = hasActiveMobileBrowserProfile();
+        // For mobile, video capture may be controlled by the mobile-browser-execution.yml config
+        boolean mobileBrowserVideo = mobileBrowser && MobileBrowserExecutionConfig.videoRecordingEnabled();
+        boolean maximizeBrowser = getMaximizeBrowser();
+        boolean headless = getHeadlessMode();
+        Browser.NewContextOptions contextOptions = (new Browser.NewContextOptions()).setIgnoreHTTPSErrors(shouldIgnoreHTTPSErrors);
+        // Keep the automation viewport stable even when the physical Chromium window is started
+        // maximized. Frame-driven applications can recalculate or replace iframe documents when
+        // a responsive viewport changes during startup.
+        applySeleniumStyleMaximizeViewportIfConfigured(contextOptions, maximizeBrowser, headless, mobileBrowser);
+        // Apply mobile profile settings (viewport, device scale, user agent, etc.) if available
+        applyMobileBrowserProfileIfAvailable(contextOptions);
+        logger.info("Creating UI BrowserContext. ignoreHTTPSErrors={}", shouldIgnoreHTTPSErrors);
+        // Apply HTTP credentials if system properties are present
+        applyHttpCredentialsIfAvailable(contextOptions);
+        // Configure video recording directory and size depending on whether mobile or desktop capture is requested
+        if (mobileBrowserVideo) {
+            logger.info("Mobile browser video capture enabled. Videos will be stored under: {}", MOBILE_BROWSER_VIDEO_DIR);
+            contextOptions.setRecordVideoDir(Paths.get(MOBILE_BROWSER_VIDEO_DIR)).setRecordVideoSize(MobileBrowserExecutionConfig.getVideoSizeWidth(), MobileBrowserExecutionConfig.getVideoSizeHeight());
+        } else if (recordVideo) {
+            logger.info("Video capture enabled. Videos will be stored under: {}", VIDEO_DIR);
+            // Default resolution for desktop recordings
+            contextOptions.setRecordVideoDir(Paths.get(VIDEO_DIR)).setRecordVideoSize(1280, 720);
         } else {
             logger.info("Video capture disabled.");
         }
 
-        return browser.newContext(contextOptions);
+        // Create the context using the assembled options
+        BrowserContext context = browser.newContext(contextOptions);
+        // Log outcome with different messages when mobile profile is involved to include profile name
+        if (mobileBrowser) {
+            logger.info("UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}, mobileBrowserProfile={}, maximize_browser={}",
+                    shouldIgnoreHTTPSErrors, mobileBrowserVideo,
+                    ACTIVE_MOBILE_BROWSER_PROFILE.get().getName(), maximizeBrowser);
+        } else {
+            logger.info("UI BrowserContext created successfully. ignoreHTTPSErrors={}, videoCapture={}, maximize_browser={}",
+                    shouldIgnoreHTTPSErrors, recordVideo, maximizeBrowser);
+        }
+
+        return context;
+    }
+
+    /**
+     * Applies Selenium-style browser maximize behavior for headed desktop Playwright runs.
+     *
+     * <p>The physical Chromium window is maximized at launch through {@code --start-maximized}.
+     * This method deliberately keeps Playwright's default desktop viewport instead of setting it
+     * to {@code null}. A null viewport makes the effective automation viewport follow the OS
+     * window dimensions, which can trigger responsive application changes and invalidate frame
+     * contexts during an Argo screen switch.</p>
+     *
+     * <p>This method is a no-op when:
+     * - maximize_browser is false (default)
+     * - headless mode is active (no visible window to maximize)
+     * - a mobile browser profile is active (profile viewport must remain profile-controlled)
+     * </p>
+     *
+     * @param contextOptions the context options to modify
+     * @param maximizeBrowser whether maximize_browser is enabled in configuration
+     * @param headless whether headless mode is active
+     * @param mobileBrowser whether a mobile browser profile is active
+     */
+    private static void applySeleniumStyleMaximizeViewportIfConfigured(Browser.NewContextOptions contextOptions,
+                                                                       boolean maximizeBrowser,
+                                                                       boolean headless,
+                                                                       boolean mobileBrowser) {
+        if (!maximizeBrowser) return;
+        if (headless) {
+            logger.warn("maximize_browser=true requested, but headless=true. No viewport override will be applied.");
+            return;
+        }
+        if (mobileBrowser) {
+            logger.info("maximize_browser=true ignored for mobile browser emulation context because profile viewport must remain profile-controlled.");
+            return;
+        }
+        logger.info("maximize_browser=true: Chromium window is maximized while Playwright keeps its stable desktop viewport for frame compatibility.");
+    }
+
+    /**
+     * Apply the currently active mobile browser profile to the provided context options, if present.
+     *
+     * <p>This configures viewport size, screen size, device scale factor, mobile/touch flags and
+     * user agent according to the profile. It also respects an orientation mode setting that can
+     * force the profile into portrait or landscape by swapping width/height values.
+     *
+     * @param contextOptions the Browser.NewContextOptions instance to modify
+     */
+    private static void applyMobileBrowserProfileIfAvailable(Browser.NewContextOptions contextOptions) {
+        MobileBrowserProfile profile = ACTIVE_MOBILE_BROWSER_PROFILE.get();
+        // If no profile is set for this thread, nothing to apply
+        if (profile == null) {
+            return;
+        }
+
+        // Extract values from profile
+        int viewportWidth = profile.getViewportWidth();
+        int viewportHeight = profile.getViewportHeight();
+        int screenWidth = profile.getScreenWidth();
+        int screenHeight = profile.getScreenHeight();
+        String orientationMode = MobileBrowserExecutionConfig.getOrientationMode();
+        // If a specific orientation is requested, swap width/height when necessary
+        if ("portrait".equals(orientationMode) && viewportWidth > viewportHeight) {
+            // Swap viewport width/height to force portrait orientation
+            int tmp = viewportWidth;
+            viewportWidth = viewportHeight;
+            viewportHeight = tmp;
+            // Swap screen width/height to match the viewport orientation
+            tmp = screenWidth;
+            screenWidth = screenHeight;
+            screenHeight = tmp;
+        } else if ("landscape".equals(orientationMode) && viewportHeight > viewportWidth) {
+            // Swap viewport width/height to force landscape orientation
+            int tmp = viewportWidth;
+            viewportWidth = viewportHeight;
+            viewportHeight = tmp;
+            // Swap screen width/height to match the viewport orientation
+            tmp = screenWidth;
+            screenWidth = screenHeight;
+            screenHeight = tmp;
+        }
+
+        // Apply the computed device metrics and capabilities to the context options.
+        // We explicitly set both viewport and screen size to lock the dimensions.
+        contextOptions.setViewportSize(viewportWidth, viewportHeight)
+                .setScreenSize(screenWidth, screenHeight)
+                .setDeviceScaleFactor(profile.getDeviceScaleFactor())
+                .setIsMobile(profile.isMobile())
+                .setHasTouch(profile.hasTouch());
+        // Apply user agent if one is provided in the profile (non-blank)
+        if (isNotBlank(profile.getUserAgent())) {
+            contextOptions.setUserAgent(profile.getUserAgent());
+        }
+
+        logger.info("Applied mobile browser profile [{}] orientationMode={} viewport={}x{} screen={}x{} scale={} touch={}", profile.getName(), orientationMode, viewportWidth, viewportHeight, screenWidth, screenHeight, profile.getDeviceScaleFactor(), profile.hasTouch());
+    }
+
+    /**
+     * Apply HTTP basic authentication credentials to the context options if username/password system properties are present.
+     *
+     * <p>System properties used:
+     * - service.username
+     * - service.password
+     *
+     * @param contextOptions the Browser.NewContextOptions instance to modify
+     */
+    private static void applyHttpCredentialsIfAvailable(Browser.NewContextOptions contextOptions) {
+        // Read credentials from system properties (commonly set via -Dservice.username=... -Dservice.password=...)
+        String username = System.getProperty("service.username");
+        String password = System.getProperty("service.password");
+        // Only apply credentials when both username and password are non-blank
+        if (isNotBlank(username) && isNotBlank(password)) {
+            contextOptions.setHttpCredentials(new HttpCredentials(username, password));
+            logger.info("HTTP authentication credentials applied.");
+        } else {
+            logger.info("No HTTP credentials found. Proceeding without authentication.");
+        }
+
+    }
+
+    /**
+     * Retrieve headless mode from the ConfigurationProperties helper and parse it as boolean.
+     *
+     * <p>Resolution order (first non-null/non-blank value wins):
+     * <ol>
+     *   <li>JVM system property {@code headless} (e.g. {@code -Dheadless=true} on the Maven command line)</li>
+     *   <li>Config key {@code headless} in {@code config.yml}</li>
+     *   <li>Default: {@code false} (headed mode)</li>
+     * </ol>
+     *
+     * <p>Accepts both quoted ({@code "true"}/{@code "false"}) and unquoted YAML boolean values.
+     * Case-insensitive: {@code TRUE}, {@code True}, {@code true} are all treated as {@code true}.
+     *
+     * @return {@code true} if headless mode is enabled, {@code false} otherwise
+     */
+    private static boolean getHeadlessMode() {
+        // 1. Check JVM system property first — allows CI/CD or command-line override
+        //    without modifying config.yml (e.g. mvn test -Dheadless=true)
+        String sysProp = System.getProperty("headless");
+        if (sysProp != null && !sysProp.trim().isEmpty()) {
+            boolean headless = Boolean.parseBoolean(sysProp.trim());
+            logger.info("Headless mode resolved from JVM system property -Dheadless={} → headless={}",
+                sysProp.trim(), headless);
+            return headless;
+        }
+
+        // 2. Read from config.yml
+        String configValue = ConfigurationProperties.getHeadlessMode();
+        if (configValue != null && !configValue.trim().isEmpty()) {
+            boolean headless = Boolean.parseBoolean(configValue.trim());
+            logger.info("Headless mode resolved from config.yml headless={} → headless={}",
+                configValue.trim(), headless);
+            return headless;
+        }
+
+        // 3. Default to false (headed) if the key is missing or blank
+        logger.warn("Headless mode config key 'headless' is missing or blank in config.yml. "
+            + "Defaulting to false (headed mode). Add 'headless: \"true\"' to config.yml to enable headless.");
+        return false;
+    }
+
+    /**
+     * Retrieve video capture flag from the ConfigurationProperties helper and parse it as boolean.
+     *
+     * @return true if video capture is enabled in configuration, false otherwise
+     */
+    private static boolean getVideoCapture() {
+        String value = ConfigurationProperties.getVideoCapture();
+        return Boolean.parseBoolean(value);
+    }
+
+    /**
+     * Retrieve the ignoreHTTPSErrors flag from ConfigurationProperties, trim it and parse as boolean.
+     *
+     * <p>If the configuration value is missing or blank, this method logs a warning and defaults to false.
+     *
+     * @return true if ignoreHTTPSErrors is enabled, false otherwise
+     */
+    /**
+     * Retrieve the maximize_browser flag from ConfigurationProperties.
+     *
+     * <p>Supports both "maximize_browser" and "maximizeBrowser" config keys for flexibility.
+     * Defaults to false if neither key is present.
+     *
+     * @return true if browser maximize is enabled, false otherwise
+     */
+    private static boolean getMaximizeBrowser() {
+        String value = ConfigurationProperties.getValue("maximize_browser");
+        if (!isNotBlank(value)) value = ConfigurationProperties.getValue("maximizeBrowser");
+        if (!isNotBlank(value)) return false;
+        return Boolean.parseBoolean(value.trim());
+    }
+
+    private static boolean getIgnoreHTTPSErrors() {
+        String value = ConfigurationProperties.getIgnoreHTTPSErrors();
+        if (value != null && !value.trim().isEmpty()) {
+            return Boolean.parseBoolean(value.trim());
+        } else {
+            logger.warn("ignoreHTTPSErrors is missing or blank. Defaulting to false.");
+            return false;
+        }
+    }
+
+    /**
+     * Utility method to check that a string is not null and contains non-whitespace characters.
+     *
+     * @param value the string to test
+     * @return true when the value is not null and contains non-whitespace characters
+     */
+    private static boolean isNotBlank(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    // Static initializer for directory constants that rely on the computed TIMESTAMP.
+    static {
+        VIDEO_DIR = "test-output/captured-videos/" + TIMESTAMP;
+        MOBILE_BROWSER_VIDEO_DIR = "test-output/mobile-browser-evidence/" + TIMESTAMP + "/videos";
+    }
+
+    /**
+     * Enum representing supported top-level browser types used by the factory.
+     *
+     * <p>Order matters with the ordinal-based switch in createBrowser(BrowserTypeEnum).
+     */
+    public static enum BrowserTypeEnum {
+        CHROME,
+        FIREFOX,
+        WEBKIT,
+        EDGE;
     }
 }

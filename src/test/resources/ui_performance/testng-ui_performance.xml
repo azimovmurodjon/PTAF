@@ -1,0 +1,17 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd" >
+<!--
+  UI Performance Automation only. TestNG/Cucumber triggers the configured journey once.
+  UiPerformanceEngine, not TestNG, creates the configured concurrent browser load and stages.
+  This suite does not load normal UI TestNG runners, Cucumber hooks, or mobile hooks.
+-->
+<suite name="FNB-ETAF eStore UI Performance Suite" verbose="1" parallel="false">
+    <test name="eStore Concurrent Browser Journey">
+        <classes>
+            <class name="com.ptaf.ui_performance.runners.UiPerformanceRunner"/>
+            <!-- Offline verification: proves configuration, metrics, redaction, and reports without opening a browser. -->
+            <class name="com.ptaf.ui_performance.UiPerformanceModuleContractTest"/>
+            <!-- Offline concurrency verification: proves the shared start gate releases prepared virtual users together. -->
+            <class name="com.ptaf.ui_performance.UiPerformanceStartGateTest"/>
+        </classes>
+    </test>
+</suite>

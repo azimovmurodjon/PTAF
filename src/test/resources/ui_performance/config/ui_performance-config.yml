@@ -1,0 +1,157 @@
+# ================================================================
+# FNB-ETAF eStore UI PERFORMANCE CONFIGURATION
+# ================================================================
+# This file controls the real-browser UI performance run.
+# The feature file contains only the eStore journey.
+#
+# QUICK START
+# 1. Choose active_profile: load, stress, spike, or soak.
+# 2. Change users/timing only under that profile.
+# 3. Set browser.headless to true or false.
+# 4. Add enough rows to data/users.csv for the largest stage.
+# 5. Run: mvn clean test -Pui_performance
+#
+# IMPORTANT
+# users: 10 + ramp_up_seconds: 0 = 10 prepared browsers start together.
+# Every virtual user receives an independent Playwright browser process.
+
+ui_performance:
+  # Set false to block every live UI performance run.
+  enabled: true
+
+  # Choose ONE: load, stress, spike, or soak.
+  active_profile: load
+
+  # --------------------------------------------------------------
+  # 1. eStore target
+  # --------------------------------------------------------------
+  target:
+    protocol: https
+    host: staging.fnb.avoka-transact.com
+    port: 443
+    base_path: ""
+    routes:
+      test_harness: "/workspaces-preprod/servlet/SmartForm.html?formCode=testharness2"
+
+  # --------------------------------------------------------------
+  # 2. Workload profiles
+  # --------------------------------------------------------------
+  # users                 = browsers active in this stage
+  # ramp_up_seconds: 0    = prepared browsers start together
+  # hold_seconds: 0       = use the exact iteration count
+  # iterations_per_user: 1 = each browser runs the journey once
+  # iterations_per_user: 0 = repeat until hold_seconds ends
+  profiles:
+    load:
+      type: load
+      stages:
+        - name: normal-load
+          users: 2
+          ramp_up_seconds: 0
+          hold_seconds: 0
+          iterations_per_user: 1
+
+    stress:
+      type: stress
+      stages:
+        - name: stress-2-users
+          users: 2
+          ramp_up_seconds: 0
+          hold_seconds: 60
+          iterations_per_user: 0
+        - name: stress-5-users
+          users: 5
+          ramp_up_seconds: 5
+          hold_seconds: 60
+          iterations_per_user: 0
+        - name: stress-10-users
+          users: 10
+          ramp_up_seconds: 5
+          hold_seconds: 60
+          iterations_per_user: 0
+
+    spike:
+      type: spike
+      stages:
+        - name: baseline
+          users: 2
+          ramp_up_seconds: 0
+          hold_seconds: 30
+          iterations_per_user: 0
+        - name: immediate-spike
+          users: 10
+          ramp_up_seconds: 0
+          hold_seconds: 60
+          iterations_per_user: 0
+        - name: recovery
+          users: 2
+          ramp_up_seconds: 0
+          hold_seconds: 30
+          iterations_per_user: 0
+
+    soak:
+      type: soak
+      stages:
+        - name: sustained-5-users
+          users: 5
+          ramp_up_seconds: 10
+          hold_seconds: 900
+          iterations_per_user: 0
+
+  # --------------------------------------------------------------
+  # 3. Browser behavior
+  # --------------------------------------------------------------
+  browser:
+    # true: browsers run invisibly; recommended for performance runs.
+    # false: every requested browser window opens visibly.
+    headless: true
+    ignore_https_errors: true
+    # Keep process. Each virtual user gets an independent Playwright/browser process.
+    isolation: process
+    # eStore rejects the default HeadlessChrome identity with HTTP 403. Keep a normal approved desktop identity.
+    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+    # eStore application startup can exceed 15 seconds after the popup opens.
+    # Playwright returns immediately when the element is ready; these are maximum limits only.
+    action_timeout_ms: 60000
+    navigation_timeout_ms: 90000
+
+  execution:
+    # Maximum time allowed for every browser to prepare before synchronized release.
+    synchronized_start_timeout_ms: 120000
+    # Small pause only between repeat journeys; not used for a one-iteration load stage.
+    between_iterations_ms: 500
+
+  # --------------------------------------------------------------
+  # 4. Test data
+  # --------------------------------------------------------------
+  data:
+    # eStore uses email, phone, product group, and product name from this CSV.
+    use_csv: true
+    users_csv: "ui_performance/data/users.csv"
+    # false is recommended: one unique row must exist for every concurrent browser.
+    allow_user_reuse: false
+
+  # --------------------------------------------------------------
+  # 5. Results and evidence
+  # --------------------------------------------------------------
+  evidence:
+    capture_failure_screenshots: true
+    capture_console_errors: true
+
+  thresholds:
+    maximum_failure_rate_percent: 20.0
+    maximum_average_journey_duration_ms: 45000
+    maximum_p95_journey_duration_ms: 60000
+
+  safety:
+    # Recommended first maximum on a developer workstation: 10 real browsers.
+    # Increase only after confirming machine capacity and target-environment approval.
+    max_virtual_users: 10
+
+  reporting:
+    output_directory: "test-output/ui_performance"
+    existing_performance_reporter_enabled: true
+    html_enabled: true
+    pdf_enabled: true
+    csv_enabled: true
+    json_enabled: true

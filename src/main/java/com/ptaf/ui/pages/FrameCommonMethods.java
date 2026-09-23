@@ -1,19 +1,20 @@
 package com.ptaf.ui.pages;
 
-import com.microsoft.playwright.Download;
 import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.ptaf.ui.action_performer.ElementActionImpl;
 import com.ptaf.hooks.Hooks;
+import com.ptaf.ui.helpers.ElementLocatorHelper;
 import com.ptaf.ui.interfaces.ElementAction;
-import com.ptaf.utils.ScreenshotHandler;
+import com.ptaf.utils.ScenarioUtil;
 import io.cucumber.java.Scenario;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Paths;
 import java.util.List;
+
+import static com.ptaf.utils.ScenarioUtil.*;
 
 /**
  * <h1>FrameCommonMethods</h1>
@@ -37,6 +38,7 @@ import java.util.List;
 public class FrameCommonMethods {
     private final Page page; // The Playwright Page instance to interact with the browser
     private final ElementAction elementAction; // Interface instance for handling element actions
+    ElementLocatorHelper elementLocatorHelper;
     private boolean isFailed = false; // Flag to indicate if any action has failed
     private static final ThreadLocal<Scenario> currentScenario = new ThreadLocal<>(); // Thread-local variable for the current Cucumber scenario
     private static final Logger logger = LoggerFactory.getLogger(FrameCommonMethods.class); // Logger for logging events
@@ -49,6 +51,7 @@ public class FrameCommonMethods {
     public FrameCommonMethods(Page page) {
         this.page = page; // Assign the provided page instance
         this.elementAction = new ElementActionImpl(page); // Initialize the element action instance for performing actions
+        this.elementLocatorHelper = new ElementLocatorHelper();
     }
 
     /**
@@ -194,7 +197,9 @@ public class FrameCommonMethods {
      */
     public void screenshot(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator, String value) {
         String targetLocator = elementAction.getExactLocator(element, locator);
+//        System.out.println(targetLocator);
         performAction("screenshot", page, iFrame, iFrame_2, iFrame_3, element, locator, value); // Perform screenshot action
+//        elementAction.captureScreenshotForScenario(getCurrentScenario(),page, iFrame, iFrame_2, iFrame_3, element, locator, "passed");
         finalizeScenario(page, iFrame, iFrame_2, iFrame_3, targetLocator); // Finalize the scenario by handling teardown
     }
 
@@ -207,21 +212,27 @@ public class FrameCommonMethods {
      * @param iFrame_3 Third-level iFrame identifier (deepest nested frame, if applicable).
      * @param element  The element name as defined in locator configuration (e.g., YAML).
      * @param locator  The type of locator to be used (e.g., XPATH, CSS, etc.).
-     * @param value    The directory path where the downloaded file should be saved.
-     * @param name     A custom suffix or name to append to the downloaded file.
+     * @param value    The directory patha where the downloaded file should be saved.
      */
     public void download(Page page, String iFrame, String iFrame_2, String iFrame_3,
-                         String element, String locator, String value, String name) {
+                         String element, String locator, String value) {
+        performAction("download", page, iFrame, iFrame_2, iFrame_3, element, locator, value);
+    }
 
-        // Start waiting for a download event after the download-triggering action is performed
-        Download download = page.waitForDownload(() -> {
-            // Perform the click action to initiate the download from the specified element
-            click(page, iFrame, iFrame_2, iFrame_3, element, locator);
-        });
-
-        // Once the download is complete, save the file to the specified path
-        // The file is saved using its suggested filename appended with a custom suffix
-        download.saveAs(Paths.get(value, download.suggestedFilename() + name));
+    /**
+     * Initiates a file download_optional from a web page and saves it to a specified location.
+     *
+     * @param page     Playwright Page object representing the browser page.
+     * @param iFrame   First-level iFrame identifier (can be null if not applicable).
+     * @param iFrame_2 Second-level iFrame identifier (nested frame, if applicable).
+     * @param iFrame_3 Third-level iFrame identifier (deepest nested frame, if applicable).
+     * @param element  The element name as defined in locator configuration (e.g., YAML).
+     * @param locator  The type of locator to be used (e.g., XPATH, CSS, etc.).
+     * @param value    The directory patha where the downloaded file should be saved.
+     */
+    public void download_optional(Page page, String iFrame, String iFrame_2, String iFrame_3,
+                                  String element, String locator, String value) {
+        performAction("download_optional", page, iFrame, iFrame_2, iFrame_3, element, locator, value);
     }
 
 
@@ -311,7 +322,6 @@ public class FrameCommonMethods {
         if (value == null || value.trim().isEmpty()) {
             System.out.println("There is no text value for element: " + element + ", locator: " + locator);
         }
-
         return value;
     }
 
@@ -754,8 +764,74 @@ public class FrameCommonMethods {
      * @param element  The logical name of the element whose value is being retrieved.
      * @param locator  The locator string used to identify the element.
      */
+    public String getStringValue(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator) {
+        String value = getStringValue("getvalue", page, iFrame, iFrame_2, iFrame_3, element, locator, null);
+        if (value == null || value.trim().isEmpty()) {
+            System.out.println("There is no value for element: " + element + ", locator: " + locator);
+        }
+
+        return value;
+    }
+
+    /**
+     * Reports all available options from a dropdown element located within nested iframes.
+     *
+     * @param page       The Playwright page instance.
+     * @param iFrame     The first-level iframe selector.
+     * @param iFrame_2   The second-level iframe selector.
+     * @param iFrame_3   The third-level iframe selector.
+     * @param element    The logical name of the dropdown element.
+     * @param locator    The locator strategy or identifier for the dropdown element.
+     */
+    public void reportListOfDropdown(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator) {
+        String exactElement = elementAction.getExactLocator(element, locator);
+        ScenarioUtil.reportAllDropdownOptionsMultiline(getCurrentScenario(), page, iFrame, iFrame_2, iFrame_3, exactElement);
+    }
+
+    /**
+     * Captures and reports the string value of a specific element along with a screenshot,
+     * handling nested iframe contexts.
+     *
+     * @param page       The Playwright page instance.
+     * @param iFrame     The first-level iframe selector.
+     * @param iFrame_2   The second-level iframe selector.
+     * @param iFrame_3   The third-level iframe selector.
+     * @param element    The logical name of the target element.
+     * @param locator    The locator strategy or identifier for the target element.
+     * @param label      A descriptive label to associate with the reported string value.
+     */
+    public void reportElementString(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator, String label) {
+        String exactElement = elementAction.getExactLocator(element, locator);
+        ScenarioUtil.reportElementString(getCurrentScenario(), page, iFrame, iFrame_2, iFrame_3, exactElement, label);
+    }
+
+    /**
+     * Captures and reports the string value of a specific element along with a screenshot,
+     * handling nested iframe contexts.
+     *
+     * @param title       The Playwright page instance.
+     * @param value     The first-level iframe selector.
+     */
+
+    public void reportString(String title, String value) {
+        ScenarioUtil.reportString(getCurrentScenario(), title,  value);
+    }
+
+
+
+    /**
+     * Retrieves the value of a specified element located within nested iframes
+     * and performs the "getvalue" action using the shared action execution logic.
+     *
+     * @param page       The Playwright page instance.
+     * @param iFrame     The first-level iframe selector.
+     * @param iFrame_2   The second-level iframe selector.
+     * @param iFrame_3   The third-level iframe selector.
+     * @param element    The logical name of the target element.
+     * @param locator    The locator strategy or identifier for the target element.
+     */
     public void getvalue(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator) {
-        performAction("getvalue", page, iFrame, iFrame_2, iFrame_3, element, locator, null); // Perform action to get the value
+        performAction("getvalue", page, iFrame, iFrame_2, iFrame_3, element, locator, null);
     }
 
     /**
@@ -806,9 +882,17 @@ public class FrameCommonMethods {
      */
     private void performAction(String action, Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator, String value) {
         executeStep(() -> {
-            boolean actionStatus = elementAction.performActionPageFrame(page, iFrame, iFrame_2, iFrame_3, action, element, locator, value, null); // Execute action and check status
+            boolean actionStatus = elementAction.performActionPageFrame(page, iFrame, iFrame_2, iFrame_3, action, element, locator, value, null);
             if (!actionStatus) {
-                handleFailure(page, action, element); // Handle failure if action is unsuccessful
+                if (com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
+                    // SOFT ASSERTION MODE: throw a simple exception WITHOUT closing the browser.
+                    // The catch block in executeStep() will handle it, record the failure,
+                    // and continue to the next step with the browser still open.
+                    throw new RuntimeException("Action '" + action + "' failed on element '" + element + "', skipping further steps");
+                } else {
+                    // NORMAL MODE: call handleFailure which closes the browser and throws.
+                    handleFailure(page, action, element);
+                }
             }
         });
     }
@@ -834,7 +918,12 @@ public class FrameCommonMethods {
 
             // Handle failure if result is expected but null
             if (result[0] == null && actionRequiresResult(action)) {
-                handleFailure(page, action, element);
+                if (com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
+                    // SOFT ASSERTION MODE: throw without closing the browser
+                    throw new RuntimeException("Action '" + action + "' failed on element '" + element + "', skipping further steps");
+                } else {
+                    handleFailure(page, action, element);
+                }
             } else if (result[0] != null && !result[0].isEmpty()) {
                 logger.info("Action '{}' returned result: {}", action, result[0]);
             }
@@ -956,16 +1045,73 @@ public class FrameCommonMethods {
      * @param step A Runnable representing the action to be executed.
      */
     private void executeStep(Runnable step) {
-        if (isFailed) {
-            // Skip execution of further steps if a previous one has failed
-            return; // Exit if a failure has already occurred to prevent cascading failures
+        // In soft assertion mode: do NOT skip steps after a prior failure.
+        // In normal mode (default): skip all steps after the first failure.
+        if (isFailed && !com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
+            return;
         }
-        try {
-            step.run(); // Execute the provided step action
-        } catch (Exception e) {
-            isFailed = true; // Mark the test as failed
-            logger.error("Step execution failed: {}", e.getMessage(), e); // Log exception details
-            handleFailure(page, "Step execution failed", null); // Handle failure cleanly by logging and performing cleanup
+
+        if (com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
+            // SOFT ASSERTION MODE:
+            // Set the ActionPerformer thread-local override so element waits use retry_seconds
+            // instead of the full time_to_wait_in_seconds. Page load waits are not affected.
+            // ALSO set page.setDefaultTimeout(retryMs) so ALL Playwright operations within this
+            // step (including click(), fill(), etc.) use the short retry timeout instead of the
+            // 30s page default timeout. Without this, click() on an unactionable element would
+            // wait 30s before failing even though the element wait already used 3s.
+            long retryMs = (long) com.ptaf.utils.ConfigurationProperties.getSoftAssertionRetrySeconds() * 1000L;
+            double originalPageTimeout = retryMs; // track for restore
+            try {
+                com.ptaf.ui.action_performer.ActionPerformer.softAssertionTimeoutOverride.set(retryMs);
+                // Set Playwright page default timeout to retryMs so all locator operations use it.
+                if (page != null && !page.isClosed()) {
+                    page.setDefaultTimeout(retryMs);
+                }
+                step.run();
+            } catch (Exception e) {
+                // Record the failure, capture screenshot, and continue to next step.
+                // Do NOT close the browser. Do NOT set isFailed.
+                String stepDesc = "Step execution failed";
+                logger.warn("PTAF Soft Assert | Frame step failed: [{}]. Capturing screenshot and continuing.", e.getMessage());
+                String screenshotNote = null;
+                try {
+                    ScenarioUtil.handleScenarioTeardownFailier(getCurrentScenario(), page, "SoftFail");
+                    screenshotNote = "captured (see report)";
+                } catch (Exception screenshotEx) {
+                    logger.warn("PTAF Soft Assert | Could not capture failure screenshot: {}", screenshotEx.getMessage());
+                }
+                com.ptaf.softassert.SoftAssertionContext.recordFailure(
+                    stepDesc,
+                    e.getMessage() != null ? e.getMessage() : "(no error message)",
+                    screenshotNote
+                );
+                logger.warn("PTAF Soft Assert | Continuing to next step.");
+            } finally {
+                com.ptaf.ui.action_performer.ActionPerformer.softAssertionTimeoutOverride.remove();
+                // Restore the page default timeout to the full configured value after each step.
+                // This ensures subsequent steps that pass use the full timeout for legitimate waits.
+                try {
+                    if (page != null && !page.isClosed()) {
+                        long fullMs = com.ptaf.utils.ConfigurationProperties.getRuntimeTimeoutMillis();
+                        if (fullMs <= 0) fullMs = 30000L;
+                        page.setDefaultTimeout(fullMs);
+                    }
+                } catch (Exception restoreEx) {
+                    logger.debug("PTAF Soft Assert | Could not restore page default timeout: {}", restoreEx.getMessage());
+                }
+            }
+        } else {
+            // NORMAL MODE (existing behavior — unchanged):
+            if (isFailed) {
+                return;
+            }
+            try {
+                step.run();
+            } catch (Exception e) {
+                isFailed = true;
+                logger.error("Step execution failed: {}", e.getMessage(), e);
+                handleFailure(page, "Step execution failed", null);
+            }
         }
     }
 
@@ -980,7 +1126,7 @@ public class FrameCommonMethods {
     private void handleFailure(Page page, String action, String element) {
         isFailed = true; // Update internal state to indicate failure
         logger.error("Action '{}' failed on element '{}'", action, element); // Log details of the failure
-        ScreenshotHandler.handleScenarioTeardown(getCurrentScenario(), page, "Failure Step"); // Cleanup the scenario context
+        ScenarioUtil.handleScenarioTeardownFailier(getCurrentScenario(), page, "Failure Step"); // Cleanup the scenario context
         closeBrowserOnFailure(); // Attempt to close any resources on failure
         throw new RuntimeException(String.format("Action '%s' failed on element '%s', skipping further steps", action, element)); // Throw exception to indicate failure
     }
@@ -1048,7 +1194,7 @@ public class FrameCommonMethods {
             // 1. Handling the teardown process
             // 2. Capturing screenshots if applicable
             // 3. Updating the scenario context as "Passed Step"
-            ScreenshotHandler.handleScenarioTeardownLocator(
+            ScenarioUtil.handleScenarioTeardownLocator(
                     getCurrentScenario(), // Retrieve the current scenario context
                     page,                 // The Playwright Page instance used for taking the screenshot
                     iFrame,              // First iframe locator, if relevant to the scenario

@@ -1,55 +1,241 @@
-
 # ==================================
 # UI CONFIGURATION
 # ==================================
-# Browser configuration for test execution
-browser: "chrome"  # Specifies the browser to use (CHROME, FIREFOX, WEBKIT, etc.)
 
-# Headless mode setting
-headless: "false"  # Set to "true" to run the browser in headless mode (no UI)
+# Browser configuration for test execution.
+#
+# Desktop browser values supported by the original PTAF UI framework:
+#   chrome, firefox, webkit, edge
+#
+# Mobile browser emulation values are also supported through Playwright profiles.
+# These profiles reuse the same feature files, step definitions, web element YAML files,
+# screenshots, videos, and ExtentReports. They simulate browser viewport/resolution,
+# touch capability, scale factor, and user-agent; they do not boot native iOS/Android simulators.
+#
+# Examples:
+#   browser: "iPhone 17 Pro Max Safari"
+#   browser: "iPhone 17 Pro Max Chrome"
+#   browser: "Galaxy S25 Ultra Chrome"
+#   browser: "iPad Pro 13 Safari"
+#   browser: "Galaxy Tab S10 Ultra Chrome"
+#
+# Full list of 20 ready-to-use profiles:
+#   src/test/resources/mobile_browser/config/mobile-browser-profiles.yml
+browser: "chrome"
 
-#Time To Wait the lowest time can be 1 do not enter
-time_to_wait_in_seconds: "60"
+# Maximize mode setting.
+# Set to "true" to run the browser with maximized size of your screen.
+# Set to "false" to run the browser with maximized size of your screen.
+maximize_browser: true
 
-#Hooks Run Time setting
-runtimeWait: 30
 
-# Video Capture setting
+# Headless mode setting.
+# Set to "true" to run the browser without UI.
+# Set to "false" to run the browser with UI.
+headless: "false"
+
+# HTTPS / SSL Certificate Error Handling.
+# Set to "true" to bypass SSL/HTTPS certificate errors for QA, DEV, SIT, UAT environments.
+# Set to "false" to enforce certificate validation.
+ignoreHTTPSErrors: "true"
+
+# Time to wait in seconds.
+# Recommended minimum value is 1.
+time_to_wait_in_seconds: "10"
+
+# Hooks runtime wait setting.
+runtimeWait: 0
+
+# Video capture setting.
+# Set to "true" to enable Playwright video recording.
+# Set to "false" to disable video recording.
 videoCapture: "false"
 
-# Excel Document Location in your Framework you can  modify based of your application
+# Excel document location in the framework.
 excelDocumentLocation: "src/test/resources/testdata.xlsx"
 
-# Download Document Location in your Framework you can  modify based of your application
+# Download document location in the framework.
 downloadDocument: "src/test/downloads/"
 
-# Environment URLs for different test environments
+# Environment URLs for different test environments.
 tool_qa_url: "https://demoqa.com/"
 HARNESS_PREPROD_STAGE: "https://staging.fnb.avoka-transact.com/workspaces-preprod/servlet/SmartForm.html?formCode=testharness2"
+
 
 # ==================================
 # DATABASE CONFIGURATION
 # ==================================
+
 database:
-  connection_url: "jdbc:postgresql://localhost:5432/lime-of-time-database"
-  username: "postgres"
-  # IMPORTANT: The password will be read from an environment variable named 'DB_PASSWORD'
-  # Do not store the password here in plain text.
-  password_env_variable: "DB_PASSWORD"
+  # Database type used by the framework.
+  # Current supported enterprise setup: sqlserver.
+  db_type: "sqlserver"
+
+  # Server type from SQL Server Management Studio.
+  # This value is mainly for documentation/readability.
+  server_type: "Database Engine"
+
+  # SQL Server name from SQL Server Management Studio.
+  # Example from your company setup: VSDISSQLQA01
+  server_name: "VSDISSQLQA01"
+
+  # SQL Server port.
+  # Default SQL Server port is 1433.
+  # Leave as 1433 unless your DBA/team provides a different port.
+  port: "1433"
+
+  # Target database name.
+  # IMPORTANT: Replace YOUR_DATABASE_NAME with the real database name from SSMS.
+  database_name: "YOUR_DATABASE_NAME"
+
+  # Authentication mode.
+  # windows   = Windows Integrated Authentication; no username/password required.
+  # sqlserver = SQL Server username/password authentication.
+  authentication: "windows"
+
+  # SQL Server encryption setting.
+  # Many enterprise SQL Server environments require encrypt=true.
+  encrypt: "true"
+
+  # SQL Server certificate trust setting.
+  # true is commonly needed for internal QA/SIT/UAT SQL Server certificates.
+  trust_server_certificate: "true"
+
+  # Optional connection timeout in seconds.
+  login_timeout_seconds: "30"
+
+  # Optional query execution timeout in seconds.
+  # Prevents long-running SQL statements from hanging automation execution.
+  query_timeout_seconds: "60"
+
+  # Optional JDBC fetch size.
+  # Controls how many rows the JDBC driver fetches in batches.
+  fetch_size: "500"
+
+  # Optional application name visible in SQL Server monitoring/session tools.
+  application_name: "PTAF Automation Framework"
+
+  # Only used when authentication is set to "sqlserver".
+  # For Windows Authentication, keep these values empty.
+  username: ""
+  password_env_variable: ""
+
 
 # ==================================
 # API SERVICES CONFIGURATION
 # ==================================
+
 api_services:
-  # Example for a public test API like JSONPlaceholder
+  # Example for a public test API like JSONPlaceholder.
   jsonplaceholder:
     base_url: "https://jsonplaceholder.typicode.com"
-    # This service requires no authentication, so we leave it blank
+
+    # This service requires no authentication, so leave it blank.
     auth_token_env: ""
 
-  # Example for an internal service that requires authentication
+  # Example for an internal service that requires authentication.
   internal_crm:
     base_url: "https://api.internal-crm.com/v2"
-    # IMPORTANT: We store the NAME of the environment variable, not the token itself.
-    # The framework will read the actual token from the system's environment.
+
+    # IMPORTANT:
+    # Store the NAME of the environment variable, not the token itself.
+    # The framework will read the actual token from the system environment.
     auth_token_env: "CRM_API_TOKEN"
+
+# ==================================
+# REPORTING CONFIGURATION
+# ==================================
+#
+# Controls the generation of per-feature-file Extent Reports.
+# By default, PTAF generates one combined Extent HTML report for all scenarios in a run.
+# When per_feature_reports_enabled is set to true, PTAF additionally generates one
+# individual Extent HTML report per feature file — each titled with the Feature Name
+# declared in the feature file (e.g. "Feature: User Authentication").
+#
+# This works for ALL automation types: UI, Mobile, API, Database, Performance, PDF, XML, CSV.
+# The combined report is always generated regardless of this setting.
+#
+reporting:
+  # Set to true to generate one individual Extent HTML report per feature file.
+  # Each report is titled with the Feature Name from the feature file's "Feature:" declaration.
+  # Set to false (default) to generate only the combined report — no change to current behavior.
+  per_feature_reports_enabled: true
+
+  # Output directory for per-feature HTML reports.
+  # Each report is saved as: {output_dir}/{feature_file_name}_{timestamp}.html
+  # The directory is created automatically if it does not exist.
+  per_feature_reports_output_dir: "test-output/per-feature-reports"
+
+  # Set to true to also generate a PDF version of each per-feature report.
+  # Requires per_feature_reports_enabled: true to have any effect.
+  # Set to false (default) to generate HTML reports only.
+  per_feature_pdf_enabled: false
+
+  # Set to true to also generate a Glass-style PDF (via cucumber-pdf-report library) for each
+  # per-feature report. These are written to a SEPARATE directory (per_feature_glass_pdf_output_dir)
+  # so they do not mix with the PTAF direct PDFs from per_feature_pdf_enabled.
+  # Requires per_feature_reports_enabled: true to have any effect.
+  # Note: Glass PDF generation spawns one subprocess per feature (adds ~1-2 seconds per feature).
+  per_feature_glass_pdf_enabled: true
+
+  # Output directory for per-feature Glass-style PDF reports.
+  # Each report is saved as: {output_dir}/{feature_file_name}_{timestamp}.pdf
+  # The directory is created automatically if it does not exist.
+  per_feature_glass_pdf_output_dir: "test-output/per-feature-reports-glass"
+
+# ==================================
+# SOFT ASSERTIONS CONFIGURATION
+# ==================================
+#
+# Controls whether the framework uses soft assertions (continue-on-failure) mode.
+#
+# When enabled: false (default)
+#   - Normal automation behavior. A step fails → screenshot captured → test stops → browser closes.
+#   - This is the recommended mode for most test runs.
+#
+# When enabled: true
+#   - Soft assertion mode. A step fails → framework retries the step for retry_seconds →
+#     if still failing, screenshot is captured → execution continues to the next step →
+#     at the end of the scenario, if any steps failed, the scenario is marked as FAILED
+#     with a full summary of all failed steps.
+#   - The browser is kept open throughout the scenario so all steps can run.
+#   - Works for: UI automation, mobile browser simulation, mobile native app, native mobile browser.
+#   - Session crashes (driver disconnected, app crashed) still stop the test immediately.
+#
+soft_assertions:
+  # Set to true to enable soft assertion mode.
+  # Set to false (default) for normal fail-fast behavior — no change to current behavior.
+  enabled: false
+
+  # How many seconds to retry a failed step before giving up and moving on to the next step.
+  # Only used when enabled: true.
+  # Recommended range: 1 to 10 seconds. Default: 3 seconds.
+  # Keep this low — if an element has not appeared in 3 seconds it is almost certainly a real failure.
+  retry_seconds: 3
+
+# ==================================
+# ZIP FILE CONFIGURATION
+# ==================================
+#
+# Controls how FNB-ETAF handles ZIP file extraction and file discovery
+# during automated test execution.
+#
+# These settings are used by the ZIP step definitions (ZipSteps.java).
+# All settings default to sensible values if not specified here.
+#
+zip:
+  # Directory where ZIP file contents are extracted during test execution.
+  # Each ZIP is extracted into a subdirectory named after the ZIP file.
+  # Example: "report.zip" is extracted to "test-output/extracted/report/"
+  # The directory is created automatically if it does not exist.
+  extraction_dir: "test-output/extracted"
+
+  # Set to true to automatically delete extracted files at the end of each scenario.
+  # Set to false to keep extracted files for debugging and manual inspection.
+  # Default: true (auto-cleanup enabled)
+  cleanup_after_scenario: true
+
+  # Set to true to recursively extract nested ZIP files found inside the archive.
+  # Set to false to leave nested ZIPs as-is without extracting them.
+  # Default: true (recursive extraction enabled)
+  recursive_unzip: true

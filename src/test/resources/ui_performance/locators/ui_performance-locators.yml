@@ -1,0 +1,15 @@
+# eStore UI performance locators only.
+# Format: TYPE_value, matching the regular FNB-ETAF locator convention.
+# Keep these separate from src/test/resources/elements so performance changes
+# cannot alter normal functional UI automation.
+
+ui_performance_locators:
+  test_harness:
+    page_ready: "CSS_body"
+    email: "XPATH_//input[@id='email']"
+    phone_number: "CSS_#phoneNumber"
+    product_group: "XPATH_(//label[text()='Product Group']/../div/select)[1]"
+    product_name: "XPATH_(//label[text()='Consumer Deposit Products']/../div/select)[1]"
+    create_url: "Button_Create URL"
+    generated_url: "CSS_#productSelectURL"
+    open_url: "Button_Open URL"
