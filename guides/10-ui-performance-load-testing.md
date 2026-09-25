@@ -275,6 +275,30 @@ The report writer renders durations below one second as `N ms`, durations below 
 
 Reports deliberately use the configured target **host**, not a full target URL. The HTML and text report generation exclude full URLs, credentials, tokens, input values, cookies, and session data. Failure messages and captured console errors pass through `UiPerformanceSensitiveTextSanitizer`, which redacts common password, token, authorization, bearer, access-token, and client-secret patterns and bounds diagnostic length. This is a reporting safeguard, not a reason to put secrets in CSV, configuration, or feature files. [2] [20] [30]
 
+## Bundled eStore journey
+
+The checked-in runnable journey is [`estore_ui_performance.feature`][14]. It creates an eStore Consumer Deposit application URL independently for each virtual user. The feature remains intentionally clean: it contains only the journey actions, while the target, user count, headless mode, timeouts, locators, data, thresholds, and report switches remain in the dedicated YAML and CSV resources.
+
+The current journey uses the named `test_harness` route and `test_harness` locator group. Each worker waits for the harness, fills its assigned email and phone number, selects the Consumer Deposit product group and product, creates the application URL, and verifies the generated URL plus the available **Open URL** action. The engine records journey and step timings for every worker iteration.
+
+For the default fixed-count load stage, the configuration is equivalent to the following pattern:
+
+```yaml
+profiles:
+  load:
+    type: load
+    stages:
+      - name: normal-load
+        users: 2
+        ramp_up_seconds: 0
+        hold_seconds: 0
+        iterations_per_user: 1
+```
+
+With `ramp_up_seconds: 0`, the configured workers prepare their independent browsers first and are released through the same start-gate signal. To increase simultaneous users, change `users` in the selected stage, provide enough approved CSV rows when reuse is disabled, and raise `safety.max_virtual_users` only after capacity and environment approval. Use `headless: true` for normal load execution; reserve `headless: false` for a small diagnostic run.
+
+> **eStore target note:** the bundled configuration uses a desktop browser identity because the eStore edge returned HTTP 403 to the default `HeadlessChrome` identity during the checked validation. Do not copy a specific target, test-user value, or private configuration into a feature or report. Keep environment-specific values in the approved dedicated configuration.
+
 ## Troubleshooting
 
 | Symptom | Source-supported cause | Resolution |
@@ -303,6 +327,44 @@ The module also keeps its settings away from the framework-wide YAML reader, nor
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [Maven build configuration and ui_performance profile](../../pom.xml) — `../../pom.xml`
+- **[2]** [UiPerformanceEngine concurrent browser execution](../../src/main/java/com/ptaf/ui_performance/core/UiPerformanceEngine.java) — `../../src/main/java/com/ptaf/ui_performance/core/UiPerformanceEngine.java`
+- **[3]** [UiPerformanceStartGate synchronized release](../../src/main/java/com/ptaf/ui_performance/core/UiPerformanceStartGate.java) — `../../src/main/java/com/ptaf/ui_performance/core/UiPerformanceStartGate.java`
+- **[4]** [Dedicated UI Performance TestNG suite](../../src/test/resources/ui_performance/testng-ui_performance.xml) — `../../src/test/resources/ui_performance/testng-ui_performance.xml`
+- **[5]** [Dedicated UI Performance Cucumber runner](../../src/test/java/com/ptaf/ui_performance/runners/UiPerformanceRunner.java) — `../../src/test/java/com/ptaf/ui_performance/runners/UiPerformanceRunner.java`
+- **[6]** [UI Performance Cucumber step definitions](../../src/test/java/com/ptaf/ui_performance/stepdefinitions/UiPerformanceSteps.java) — `../../src/test/java/com/ptaf/ui_performance/stepdefinitions/UiPerformanceSteps.java`
+- **[7]** [Isolated UI Performance YAML reader](../../src/main/java/com/ptaf/ui_performance/config/UiPerformanceYamlReader.java) — `../../src/main/java/com/ptaf/ui_performance/config/UiPerformanceYamlReader.java`
+- **[8]** [UI Performance configuration accessors](../../src/main/java/com/ptaf/ui_performance/config/UiPerformanceConfiguration.java) — `../../src/main/java/com/ptaf/ui_performance/config/UiPerformanceConfiguration.java`
+- **[9]** [UI Performance execution plan](../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceExecutionPlan.java) — `../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceExecutionPlan.java`
+- **[10]** [UI Performance stage validation](../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceStage.java) — `../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceStage.java`
+- **[11]** [UI Performance browser and threshold profile](../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceRunProfile.java) — `../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceRunProfile.java`
+- **[12]** [Supported UI Performance test types](../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceTestType.java) — `../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceTestType.java`
+- **[13]** [UI Performance eStore configuration](../../src/test/resources/ui_performance/config/ui_performance-config.yml) — `../../src/test/resources/ui_performance/config/ui_performance-config.yml`
+- **[14]** [Bundled eStore UI Performance journey](../../src/test/resources/ui_performance/features/estore_ui_performance.feature) — `../../src/test/resources/ui_performance/features/estore_ui_performance.feature`
+- **[15]** [UI Performance locator repository](../../src/test/resources/ui_performance/locators/ui_performance-locators.yml) — `../../src/test/resources/ui_performance/locators/ui_performance-locators.yml`
+- **[16]** [UI Performance user-data CSV](../../src/test/resources/ui_performance/data/users.csv) — `../../src/test/resources/ui_performance/data/users.csv`
+- **[17]** [UI Performance CSV user-data reader](../../src/main/java/com/ptaf/ui_performance/data/UiPerformanceUserDataReader.java) — `../../src/main/java/com/ptaf/ui_performance/data/UiPerformanceUserDataReader.java`
+- **[18]** [UI Performance locator repository reader](../../src/main/java/com/ptaf/ui_performance/config/UiPerformanceLocatorRepository.java) — `../../src/main/java/com/ptaf/ui_performance/config/UiPerformanceLocatorRepository.java`
+- **[19]** [UI Performance report directory manager](../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceReportManager.java) — `../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceReportManager.java`
+- **[20]** [UI Performance report writer](../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceReportWriter.java) — `../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceReportWriter.java`
+- **[21]** [Existing Performance reporter adapter for UI browser journeys](../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceExistingReporterAdapter.java) — `../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceExistingReporterAdapter.java`
+- **[22]** [Readable UI Performance duration formatter](../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceDurationFormatter.java) — `../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceDurationFormatter.java`
+- **[23]** [UI Performance module contract tests](../../src/test/java/com/ptaf/ui_performance/UiPerformanceModuleContractTest.java) — `../../src/test/java/com/ptaf/ui_performance/UiPerformanceModuleContractTest.java`
+- **[24]** [UI Performance start-gate contract test](../../src/test/java/com/ptaf/ui_performance/UiPerformanceStartGateTest.java) — `../../src/test/java/com/ptaf/ui_performance/UiPerformanceStartGateTest.java`
+- **[25]** [Local concurrent browser integration contract](../../src/test/java/com/ptaf/ui_performance/UiPerformanceConcurrentBrowserIntegrationTest.java) — `../../src/test/java/com/ptaf/ui_performance/UiPerformanceConcurrentBrowserIntegrationTest.java`
+- **[26]** [PTAF project README and Playwright browser installation](../../ReadMe.md) — `../../ReadMe.md`
+- **[27]** [UI Performance stage result and first-start spread](../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceStageResult.java) — `../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceStageResult.java`
+- **[28]** [UI Performance isolated journey model](../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceJourney.java) — `../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceJourney.java`
+- **[29]** [UI Performance supported browser step actions](../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceStep.java) — `../../src/main/java/com/ptaf/ui_performance/model/UiPerformanceStep.java`
+- **[30]** [UI Performance sensitive-text sanitizer](../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceSensitiveTextSanitizer.java) — `../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceSensitiveTextSanitizer.java`
+- **[31]** [Normal framework Cucumber UI runner](../../src/test/java/com/ptaf/runners/TestRunner.java) — `../../src/test/java/com/ptaf/runners/TestRunner.java`
+- **[32]** [Normal framework browser and scenario Hooks](../../src/main/java/com/ptaf/hooks/Hooks.java) — `../../src/main/java/com/ptaf/hooks/Hooks.java`
+- **[33]** [Normal framework Playwright browser factory](../../src/main/java/com/ptaf/utils/BrowserFactory.java) — `../../src/main/java/com/ptaf/utils/BrowserFactory.java`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../../pom.xml "Maven build configuration and ui_performance profile"
 [2]: ../../src/main/java/com/ptaf/ui_performance/core/UiPerformanceEngine.java "UiPerformanceEngine concurrent browser execution"
 [3]: ../../src/main/java/com/ptaf/ui_performance/core/UiPerformanceStartGate.java "UiPerformanceStartGate synchronized release"

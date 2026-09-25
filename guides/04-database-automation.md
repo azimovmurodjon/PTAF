@@ -231,6 +231,36 @@ When an end-to-end test needs both a UI action and a database assertion, treat i
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [DatabaseHandler](../../src/main/java/com/ptaf/db/handlers/DatabaseHandler.java) — `../../src/main/java/com/ptaf/db/handlers/DatabaseHandler.java`
+- **[2]** [DatabaseActionImpl](../../src/main/java/com/ptaf/db/implementation/DatabaseActionImpl.java) — `../../src/main/java/com/ptaf/db/implementation/DatabaseActionImpl.java`
+- **[3]** [DatabaseActionPerformer](../../src/main/java/com/ptaf/db/performer/DatabaseActionPerformer.java) — `../../src/main/java/com/ptaf/db/performer/DatabaseActionPerformer.java`
+- **[4]** [DatabaseTestRunner](../../src/test/java/com/ptaf/runners/DatabaseTestRunner.java) — `../../src/test/java/com/ptaf/runners/DatabaseTestRunner.java`
+- **[5]** [DatabaseSteps](../../src/test/java/com/ptaf/stepdefinitions/DatabaseSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/DatabaseSteps.java`
+- **[6]** [DatabaseHooks](../../src/main/java/com/ptaf/hooks/DatabaseHooks.java) — `../../src/main/java/com/ptaf/hooks/DatabaseHooks.java`
+- **[7]** [DatabaseCommonMethods](../../src/main/java/com/ptaf/db/pages/DatabaseCommonMethods.java) — `../../src/main/java/com/ptaf/db/pages/DatabaseCommonMethods.java`
+- **[8]** [DatabaseAction interface](../../src/main/java/com/ptaf/db/interfaces/DatabaseAction.java) — `../../src/main/java/com/ptaf/db/interfaces/DatabaseAction.java`
+- **[9]** [DatabaseConnectionValidator](../../src/main/java/com/ptaf/db/validators/DatabaseConnectionValidator.java) — `../../src/main/java/com/ptaf/db/validators/DatabaseConnectionValidator.java`
+- **[10]** [Shared Cucumber Hooks](../../src/main/java/com/ptaf/hooks/Hooks.java) — `../../src/main/java/com/ptaf/hooks/Hooks.java`
+- **[11]** [ConfigurationProperties](../../src/main/java/com/ptaf/utils/ConfigurationProperties.java) — `../../src/main/java/com/ptaf/utils/ConfigurationProperties.java`
+- **[12]** [YamlReader](../../src/main/java/com/ptaf/utils/YamlReader.java) — `../../src/main/java/com/ptaf/utils/YamlReader.java`
+- **[13]** [Maven build, JDBC dependencies, and Surefire configuration](../../pom.xml) — `../../pom.xml`
+- **[14]** [Framework configuration](../../src/test/resources/config/config.yml) — `../../src/test/resources/config/config.yml`
+- **[15]** [Reusable database query resource](../../src/test/resources/queries/db_queries.yml) — `../../src/test/resources/queries/db_queries.yml`
+- **[16]** [Default TestNG suite](../../src/test/resources/testng.xml) — `../../src/test/resources/testng.xml`
+- **[17]** [Database connection health-check feature](../../src/test/resources/features/db/database_connection_health_check.feature) — `../../src/test/resources/features/db/database_connection_health_check.feature`
+- **[18]** [General data resources](../../src/test/resources/data/) — `../../src/test/resources/data/`
+- **[19]** [UI locator resources](../../src/test/resources/elements/) — `../../src/test/resources/elements/`
+- **[20]** [API request resource](../../src/test/resources/api_requests/api_requests.yml) — `../../src/test/resources/api_requests/api_requests.yml`
+- **[21]** [Performance payload resources](../../src/test/resources/performance/payloads/) — `../../src/test/resources/performance/payloads/`
+- **[22]** [PerFeatureReportListener](../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java) — `../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java`
+- **[23]** [Extent adapter output configuration](../../src/test/resources/extent.properties) — `../../src/test/resources/extent.properties`
+- **[24]** [UI Cucumber runner](../../src/test/java/com/ptaf/runners/TestRunner.java) — `../../src/test/java/com/ptaf/runners/TestRunner.java`
+- **[25]** [API Cucumber runner](../../src/test/java/com/ptaf/runners/ApiTestRunner.java) — `../../src/test/java/com/ptaf/runners/ApiTestRunner.java`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../../src/main/java/com/ptaf/db/handlers/DatabaseHandler.java "DatabaseHandler"
 [2]: ../../src/main/java/com/ptaf/db/implementation/DatabaseActionImpl.java "DatabaseActionImpl"
 [3]: ../../src/main/java/com/ptaf/db/performer/DatabaseActionPerformer.java "DatabaseActionPerformer"

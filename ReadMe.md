@@ -14,7 +14,9 @@ This guide is the top-level map for locating code, resources, execution entry po
 
 ## Architecture at a glance
 
-![FNB-ETAF framework architecture overview.png](FNB-ETAF framework architecture overview.png)
+The editable source is [`architecture/fnb-etaf-framework-architecture.mmd`](../../Downloads/FNB-ETAF_Framework_Documentation/docs/architecture/fnb-etaf-framework-architecture.mmd). A rendered overview is available below and as [a PNG image](../../Downloads/FNB-ETAF_Framework_Documentation/docs/architecture/fnb-etaf-framework-architecture.png). The same Mermaid source is embedded after the image so the structure remains editable and reviewable in source control.
+
+![FNB-ETAF framework architecture overview](../../Downloads/FNB-ETAF_Framework_Documentation/docs/architecture/fnb-etaf-framework-architecture.png)
 
 ```mermaid
 flowchart TB
@@ -109,6 +111,14 @@ or ordinary Extent/PDF listeners"]:::isolated
     ISOLATION -. "not connected" .-> HOOKS
 ```
 
+### Detailed FNB-ETAF class and module architecture
+
+The original FNB-PTAF layer model has been updated and renamed to **FNB-ETAF**. The detailed architecture preserves the original progression from specification and execution through glue code, business methods, core actions, services, data, and reporting. It also adds the current native-mobile, mobile-browser, CSV/XML/TXT/ZIP, PDF, API-performance, `ui_performance`, evidence, video, download, per-feature report, and performance-report components.
+
+The diagram is available as an [editable D2 source](../../Downloads/FNB-ETAF_Framework_Documentation/docs/architecture/fnb-etaf-detailed-architecture.d2), [scalable SVG](../../Downloads/FNB-ETAF_Framework_Documentation/docs/architecture/fnb-etaf-detailed-architecture.svg), [high-resolution PNG](../../Downloads/FNB-ETAF_Framework_Documentation/docs/architecture/fnb-etaf-detailed-architecture.png), and [shareable vector PDF](../../Downloads/FNB-ETAF_Framework_Documentation/docs/architecture/fnb-etaf-detailed-architecture.pdf). Use the SVG or PDF when zooming into class names and relationship labels.
+
+[![Detailed FNB-ETAF class and module architecture](FNB-ETAF framework architecture overview.png)](../../Downloads/FNB-ETAF_Framework_Documentation/docs/architecture/fnb-etaf-detailed-architecture.svg)
+
 ## Repository anatomy and source map
 
 The codebase separates reusable framework implementation under `src/main/java` from runners, step definitions, and test resources under `src/test`. The table is an operational starting point: each location is linked from `docs/` and can be used to trace an observed test behavior back to the responsible layer.
@@ -143,17 +153,17 @@ The framework supports the following modules in the current workspace. The linke
 
 | Module | Execution model | Main inputs | Principal outputs | Detailed guide |
 |---|---|---|---|---|
-| Foundation, configuration, and execution | Maven, TestNG, Cucumber | `pom.xml`, suite XML, global YAML, feature roots | Surefire and Cucumber outputs | [Foundation guide](guides/01-foundation-configuration-and-execution.md) |
-| Regular Playwright web UI | Shared `Hooks` plus `BrowserFactory` | Feature files, element YAML, global config | Screenshots, videos when enabled, Cucumber/Extent reports | [Web UI guide](guides/02-ui-web-automation.md) |
-| API automation | Shared Cucumber glue; browserless lifecycle | API request YAML, shared config, API features | Cucumber/Extent outputs | [API guide](guides/03-api-automation.md) |
-| Database automation | Dedicated JUnit runner or shared glue; browserless lifecycle | Query YAML, shared config, DB features | Cucumber reports and DB validation results | [Database guide](guides/04-database-automation.md) |
-| Native mobile automation | Appium with `MobileHooks` | Mobile YAML/capabilities, app artifacts, mobile features | Mobile screenshots/video according to configuration and reports | [Native mobile guide](guides/05-mobile-native-automation.md) |
-| Mobile-browser automation | Playwright profile/visual utilities or tagged Appium mobile browser | Mobile-browser configuration/profiles, baselines, features | Visual screenshots/diffs and configured evidence | [Mobile browser guide](guides/06-mobile-browser-automation.md) |
-| CSV, XML, TXT conversion, ZIP | Shared step definitions; usually browserless | Data resources and feature files | Converted/validated data and extraction outputs | [Data and file guide](guides/07-data-files-csv-xml-zip.md) |
-| PDF validation | Shared step definitions; browserless when PDF-only | Downloaded/input PDFs, baselines, PDF features | PDF text, metadata, OCR, and visual-validation results | [PDF guide](guides/08-pdf-validation.md) |
-| API performance | JMeter DSL engine through performance features | Performance YAML and payloads | JTL, dashboard/summary artifacts, Excel workbook | [API performance guide](guides/09-api-performance-testing.md) |
-| **UI performance load testing** | Dedicated `ui_performance` profile and engine | Dedicated config, journey feature, locators, CSV users | Isolated HTML/PDF/CSV/JSON/text reports and optional failure evidence | [UI performance guide](guides/10-ui-performance-load-testing.md) |
-| Reporting, evidence, and artifacts | Cross-cutting listeners/managers | Reporting and module-specific YAML | Extent, per-feature, Cucumber, and module reports | [Reporting guide](guides/11-reporting-evidence-and-artifacts.md) |
+| Foundation, configuration, and execution | Maven, TestNG, Cucumber | `pom.xml`, suite XML, global YAML, feature roots | Surefire and Cucumber outputs | [Foundation guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/01-foundation-configuration-and-execution.md) |
+| Regular Playwright web UI | Shared `Hooks` plus `BrowserFactory` | Feature files, element YAML, global config | Screenshots, videos when enabled, Cucumber/Extent reports | [Web UI guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/02-ui-web-automation.md) |
+| API automation | Shared Cucumber glue; browserless lifecycle | API request YAML, shared config, API features | Cucumber/Extent outputs | [API guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/03-api-automation.md) |
+| Database automation | Dedicated JUnit runner or shared glue; browserless lifecycle | Query YAML, shared config, DB features | Cucumber reports and DB validation results | [Database guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/04-database-automation.md) |
+| Native mobile automation | Appium with `MobileHooks` | Mobile YAML/capabilities, app artifacts, mobile features | Mobile screenshots/video according to configuration and reports | [Native mobile guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/05-mobile-native-automation.md) |
+| Mobile-browser automation | Playwright profile/visual utilities or tagged Appium mobile browser | Mobile-browser configuration/profiles, baselines, features | Visual screenshots/diffs and configured evidence | [Mobile browser guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/06-mobile-browser-automation.md) |
+| CSV, XML, TXT conversion, ZIP | Shared step definitions; usually browserless | Data resources and feature files | Converted/validated data and extraction outputs | [Data and file guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/07-data-files-csv-xml-zip.md) |
+| PDF validation | Shared step definitions; browserless when PDF-only | Downloaded/input PDFs, baselines, PDF features | PDF text, metadata, OCR, and visual-validation results | [PDF guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/08-pdf-validation.md) |
+| API performance | JMeter DSL engine through performance features | Performance YAML and payloads | JTL, dashboard/summary artifacts, Excel workbook | [API performance guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/09-api-performance-testing.md) |
+| **UI performance load testing** | Dedicated `ui_performance` profile and engine | Dedicated config, journey feature, locators, CSV users | Isolated HTML/PDF/CSV/JSON/text reports and optional failure evidence | [UI performance guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/10-ui-performance-load-testing.md) |
+| Reporting, evidence, and artifacts | Cross-cutting listeners/managers | Reporting and module-specific YAML | Extent, per-feature, Cucumber, and module reports | [Reporting guide](../../Downloads/FNB-ETAF_Framework_Documentation/docs/guides/11-reporting-evidence-and-artifacts.md) |
 
 ## Execution entry points
 
@@ -283,10 +293,21 @@ Before executing any external test, obtain approval for the target, load level, 
 
 ## Documentation index
 
-The concise documentation directory is maintained in [`README.md`](README.md). Start with the foundation guide for configuration and runner behavior, then choose the module guide that matches the target testing style. The reporting guide explains which evidence is actually wired by a chosen runner.
+The concise documentation directory is maintained in [`README.md`](../../Downloads/FNB-ETAF_Framework_Documentation/docs/README.md). Start with the foundation guide for configuration and runner behavior, then choose the module guide that matches the target testing style. The reporting guide explains which evidence is actually wired by a chosen runner.
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [Maven build, Surefire configuration, and isolated UI-performance profile](../pom.xml) — `../pom.xml`
+- **[2]** [Concurrent real-browser UI-performance execution engine](../src/main/java/com/ptaf/ui_performance/core/UiPerformanceEngine.java) — `../src/main/java/com/ptaf/ui_performance/core/UiPerformanceEngine.java`
+- **[3]** [Existing FNB PTAF project overview and Playwright browser installation command](../ReadMe.md) — `../ReadMe.md`
+- **[4]** [UI-performance configuration validation and execution controls](../src/main/java/com/ptaf/ui_performance/config/UiPerformanceConfiguration.java) — `../src/main/java/com/ptaf/ui_performance/config/UiPerformanceConfiguration.java`
+- **[5]** [Extent reporting configuration and timestamped output paths](../src/test/resources/extent.properties) — `../src/test/resources/extent.properties`
+- **[6]** [Ignored generated outputs and local UI-performance user-data override](../.gitignore) — `../.gitignore`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../pom.xml "Maven build, Surefire configuration, and isolated UI-performance profile"
 [2]: ../src/main/java/com/ptaf/ui_performance/core/UiPerformanceEngine.java "Concurrent real-browser UI-performance execution engine"
 [3]: ../ReadMe.md "Existing FNB PTAF project overview and Playwright browser installation command"

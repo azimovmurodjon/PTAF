@@ -420,6 +420,38 @@ For any existing HTTP performance report, treat `summary.txt`, `readable-summary
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [Maven build, Surefire configuration, and UI-performance profile](../../pom.xml) — `../../pom.xml`
+- **[2]** [Isolated UI-performance Cucumber runner](../../src/test/java/com/ptaf/ui_performance/runners/UiPerformanceRunner.java) — `../../src/test/java/com/ptaf/ui_performance/runners/UiPerformanceRunner.java`
+- **[3]** [PTAF repository README and Playwright prerequisite command](../../ReadMe.md) — `../../ReadMe.md`
+- **[4]** [Appium mobile lifecycle hooks](../../src/main/java/com/ptaf/hooks/MobileHooks.java) — `../../src/main/java/com/ptaf/hooks/MobileHooks.java`
+- **[5]** [Global framework configuration including reporting, video, download, and ZIP settings](../../src/test/resources/config/config.yml) — `../../src/test/resources/config/config.yml`
+- **[6]** [Per-feature Extent HTML and PDF listener](../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java) — `../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java`
+- **[7]** [Extent adapter reporter formats and timestamped output layout](../../src/test/resources/extent.properties) — `../../src/test/resources/extent.properties`
+- **[8]** [Cucumber publishing configuration](../../src/test/resources/cucumber.properties) — `../../src/test/resources/cucumber.properties`
+- **[9]** [Safe feature-based artifact directory and filename resolver](../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java) — `../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java`
+- **[10]** [Native mobile screenshot and video evidence manager](../../src/main/java/com/ptaf/mobile/evidence/MobileEvidenceManager.java) — `../../src/main/java/com/ptaf/mobile/evidence/MobileEvidenceManager.java`
+- **[11]** [Playwright mobile-browser execution and evidence configuration](../../src/test/resources/mobile_browser/config/mobile-browser-execution.yml) — `../../src/test/resources/mobile_browser/config/mobile-browser-execution.yml`
+- **[12]** [Mobile-browser visual baseline and diff artifact implementation](../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserVisualValidator.java) — `../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserVisualValidator.java`
+- **[13]** [HTTP performance configuration accessor](../../src/main/java/com/ptaf/performance/config/PerformanceConfigurationProperties.java) — `../../src/main/java/com/ptaf/performance/config/PerformanceConfigurationProperties.java`
+- **[14]** [HTTP/JMeter performance execution and report lifecycle](../../src/main/java/com/ptaf/performance/core/PerformanceEngine.java) — `../../src/main/java/com/ptaf/performance/core/PerformanceEngine.java`
+- **[15]** [Default TestNG Cucumber runner and plugins](../../src/test/java/com/ptaf/runner/TestRunner.java) — `../../src/test/java/com/ptaf/runner/TestRunner.java`
+- **[16]** [Dedicated mobile Cucumber runner and report outputs](../../src/test/java/com/ptaf/runners/MobileTestRunner.java) — `../../src/test/java/com/ptaf/runners/MobileTestRunner.java`
+- **[17]** [Dedicated HTTP-performance Cucumber runner](../../src/test/java/com/ptaf/runners/PerformanceTestRunner.java) — `../../src/test/java/com/ptaf/runners/PerformanceTestRunner.java`
+- **[18]** [Alternate JUnit Cucumber UI runner](../../src/test/java/com/ptaf/runners/TestRunner.java) — `../../src/test/java/com/ptaf/runners/TestRunner.java`
+- **[19]** [HTTP performance Gherkin step definitions](../../src/test/java/com/ptaf/stepdefinitions/PerformanceSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/PerformanceSteps.java`
+- **[20]** [Downloaded PDF step definitions and PdfStore integration](../../src/test/java/com/ptaf/stepdefinitions/PdfSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/PdfSteps.java`
+- **[21]** [Configuration-first UI-performance journey DSL](../../src/test/java/com/ptaf/ui_performance/stepdefinitions/UiPerformanceSteps.java) — `../../src/test/java/com/ptaf/ui_performance/stepdefinitions/UiPerformanceSteps.java`
+- **[22]** [Mobile-browser visual comparison step definition](../../src/test/java/com/ptaf/stepdefinitions/MobileBrowserVisualSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/MobileBrowserVisualSteps.java`
+- **[23]** [Glass-style per-feature PDF subprocess generator](../../src/main/java/com/ptaf/reporting/GlassPdfSubprocessGenerator.java) — `../../src/main/java/com/ptaf/reporting/GlassPdfSubprocessGenerator.java`
+- **[24]** [Performance Excel workbook writer](../../src/main/java/com/ptaf/performance/reports/PerformanceExcelReportWriter.java) — `../../src/main/java/com/ptaf/performance/reports/PerformanceExcelReportWriter.java`
+- **[25]** [UI-performance run directory manager](../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceReportManager.java) — `../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceReportManager.java`
+- **[26]** [UI-performance adapter to existing performance reports](../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceExistingReporterAdapter.java) — `../../src/main/java/com/ptaf/ui_performance/reporting/UiPerformanceExistingReporterAdapter.java`
+- **[27]** [HTTP performance text and readable summary writer](../../src/main/java/com/ptaf/performance/reports/PerformanceSummaryWriter.java) — `../../src/main/java/com/ptaf/performance/reports/PerformanceSummaryWriter.java`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../../pom.xml "Maven build, Surefire configuration, and UI-performance profile"
 [2]: ../../src/test/java/com/ptaf/ui_performance/runners/UiPerformanceRunner.java "Isolated UI-performance Cucumber runner"
 [3]: ../../ReadMe.md "PTAF repository README and Playwright prerequisite command"
