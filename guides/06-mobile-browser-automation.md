@@ -267,6 +267,41 @@ API, database, and performance modules have their own request, query, and payloa
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [Playwright mobile-browser emulation profiles](../../src/test/resources/mobile_browser/config/mobile-browser-profiles.yml) — `../../src/test/resources/mobile_browser/config/mobile-browser-profiles.yml`
+- **[2]** [Mobile-browser execution controls](../../src/test/resources/mobile_browser/config/mobile-browser-execution.yml) — `../../src/test/resources/mobile_browser/config/mobile-browser-execution.yml`
+- **[3]** [Appium mobile lifecycle hooks](../../src/main/java/com/ptaf/hooks/MobileHooks.java) — `../../src/main/java/com/ptaf/hooks/MobileHooks.java`
+- **[4]** [Appium real mobile-browser capability configuration](../../src/test/resources/mobile/config/mobile-browser-config.yml) — `../../src/test/resources/mobile/config/mobile-browser-config.yml`
+- **[5]** [Playwright browser and mobile-profile factory](../../src/main/java/com/ptaf/utils/BrowserFactory.java) — `../../src/main/java/com/ptaf/utils/BrowserFactory.java`
+- **[6]** [Playwright scenario lifecycle hooks](../../src/main/java/com/ptaf/hooks/Hooks.java) — `../../src/main/java/com/ptaf/hooks/Hooks.java`
+- **[7]** [Default TestNG suite](../../src/test/resources/testng.xml) — `../../src/test/resources/testng.xml`
+- **[8]** [Default TestNG Cucumber runner](../../src/test/java/com/ptaf/runner/TestRunner.java) — `../../src/test/java/com/ptaf/runner/TestRunner.java`
+- **[9]** [Mobile-browser YAML resource loader](../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserYamlReader.java) — `../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserYamlReader.java`
+- **[10]** [Mobile-browser profile repository](../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserProfileRepository.java) — `../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserProfileRepository.java`
+- **[11]** [Mobile-browser execution configuration accessors](../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserExecutionConfig.java) — `../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserExecutionConfig.java`
+- **[12]** [Mobile-browser visual Cucumber steps](../../src/test/java/com/ptaf/stepdefinitions/MobileBrowserVisualSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/MobileBrowserVisualSteps.java`
+- **[13]** [Pixel-based mobile-browser visual validation](../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserVisualValidator.java) — `../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserVisualValidator.java`
+- **[14]** [Mobile-browser evidence screenshot manager](../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserEvidenceManager.java) — `../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserEvidenceManager.java`
+- **[15]** [Mobile-browser visual feature sample](../../src/test/resources/features/mobile_browser/mobile_browser_visual_sample.feature) — `../../src/test/resources/features/mobile_browser/mobile_browser_visual_sample.feature`
+- **[16]** [Example mobile-browser visual baseline](../../src/test/resources/baselines/mobile_browser/Galaxy_S25_Ultra_Chrome/visual-smoke-example.png) — `../../src/test/resources/baselines/mobile_browser/Galaxy_S25_Ultra_Chrome/visual-smoke-example.png`
+- **[17]** [Shared Playwright navigation and frame steps](../../src/test/java/com/ptaf/stepdefinitions/FrameCommonSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/FrameCommonSteps.java`
+- **[18]** [FNB-ETAF Maven build and test configuration](../../pom.xml) — `../../pom.xml`
+- **[19]** [Global UI and reporting configuration](../../src/test/resources/config/config.yml) — `../../src/test/resources/config/config.yml`
+- **[20]** [Framework configuration accessor](../../src/main/java/com/ptaf/utils/ConfigurationProperties.java) — `../../src/main/java/com/ptaf/utils/ConfigurationProperties.java`
+- **[21]** [General framework YAML reader](../../src/main/java/com/ptaf/utils/YamlReader.java) — `../../src/main/java/com/ptaf/utils/YamlReader.java`
+- **[22]** [YAML element locator helper](../../src/main/java/com/ptaf/ui/helpers/ElementLocatorHelper.java) — `../../src/main/java/com/ptaf/ui/helpers/ElementLocatorHelper.java`
+- **[23]** [Playwright locator-type handler](../../src/main/java/com/ptaf/ui/handlers/LocatorHandler.java) — `../../src/main/java/com/ptaf/ui/handlers/LocatorHandler.java`
+- **[24]** [Extent report output configuration](../../src/test/resources/extent.properties) — `../../src/test/resources/extent.properties`
+- **[25]** [Per-feature reporting listener](../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java) — `../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java`
+- **[26]** [Mobile-browser emulation profile model](../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserProfile.java) — `../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserProfile.java`
+- **[27]** [Shared Playwright page Cucumber steps](../../src/test/java/com/ptaf/stepdefinitions/PageCommonSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/PageCommonSteps.java`
+- **[28]** [Shared Playwright page actions](../../src/main/java/com/ptaf/ui/pages/PageCommonMethods.java) — `../../src/main/java/com/ptaf/ui/pages/PageCommonMethods.java`
+- **[29]** [Appium-focused mobile Cucumber runner](../../src/test/java/com/ptaf/runners/MobileTestRunner.java) — `../../src/test/java/com/ptaf/runners/MobileTestRunner.java`
+- **[30]** [Appium real mobile-browser feature example](../../src/test/resources/features/mobile/appium_mobile_browser_google_search.feature) — `../../src/test/resources/features/mobile/appium_mobile_browser_google_search.feature`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../../src/test/resources/mobile_browser/config/mobile-browser-profiles.yml "Playwright mobile-browser emulation profiles"
 [2]: ../../src/test/resources/mobile_browser/config/mobile-browser-execution.yml "Mobile-browser execution controls"
 [3]: ../../src/main/java/com/ptaf/hooks/MobileHooks.java "Appium mobile lifecycle hooks"

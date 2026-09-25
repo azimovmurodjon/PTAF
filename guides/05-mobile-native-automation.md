@@ -368,6 +368,32 @@ If cross-cutting soft assertions are enabled, `MobileCommonMethods` records cert
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [FNB-ETAF Maven build: Java, Appium, Cucumber, JUnit, and Surefire configuration](../../pom.xml) — `../../pom.xml`
+- **[2]** [Shared Appium mobile configuration](../../src/test/resources/mobile/config/mobile-config.yml) — `../../src/test/resources/mobile/config/mobile-config.yml`
+- **[3]** [Appium real mobile browser capability configuration](../../src/test/resources/mobile/config/mobile-browser-config.yml) — `../../src/test/resources/mobile/config/mobile-browser-config.yml`
+- **[4]** [Native mobile Appium lifecycle hooks](../../src/main/java/com/ptaf/hooks/MobileHooks.java) — `../../src/main/java/com/ptaf/hooks/MobileHooks.java`
+- **[5]** [Dedicated Appium mobile Cucumber runner](../../src/test/java/com/ptaf/runners/MobileTestRunner.java) — `../../src/test/java/com/ptaf/runners/MobileTestRunner.java`
+- **[6]** [Scoped mobile YAML reader](../../src/main/java/com/ptaf/mobile/config/MobileYamlReader.java) — `../../src/main/java/com/ptaf/mobile/config/MobileYamlReader.java`
+- **[7]** [Appium native and browser driver factory](../../src/main/java/com/ptaf/mobile/drivers/MobileDriverFactory.java) — `../../src/main/java/com/ptaf/mobile/drivers/MobileDriverFactory.java`
+- **[8]** [PTAF native mobile Appium resource guide](../../src/test/resources/mobile/README.md) — `../../src/test/resources/mobile/README.md`
+- **[9]** [Reusable Appium mobile actions, waits, and locator resolution](../../src/main/java/com/ptaf/mobile/pages/MobileCommonMethods.java) — `../../src/main/java/com/ptaf/mobile/pages/MobileCommonMethods.java`
+- **[10]** [Native mobile Cucumber step definitions](../../src/test/java/com/ptaf/stepdefinitions/MobileSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/MobileSteps.java`
+- **[11]** [Mobile locator lookup and explicit wait implementation](../../src/main/java/com/ptaf/mobile/pages/MobileCommonMethods.java) — `../../src/main/java/com/ptaf/mobile/pages/MobileCommonMethods.java`
+- **[12]** [Mobile locator format resolver](../../src/main/java/com/ptaf/mobile/handlers/MobileLocatorHandler.java) — `../../src/main/java/com/ptaf/mobile/handlers/MobileLocatorHandler.java`
+- **[13]** [Thread-local Appium driver lifecycle manager](../../src/main/java/com/ptaf/mobile/drivers/MobileDriverManager.java) — `../../src/main/java/com/ptaf/mobile/drivers/MobileDriverManager.java`
+- **[14]** [Safe mobile permission and system-dialog handling](../../src/main/java/com/ptaf/mobile/permissions/MobilePermissionHandler.java) — `../../src/main/java/com/ptaf/mobile/permissions/MobilePermissionHandler.java`
+- **[15]** [Mobile action contract and platform caveats](../../src/main/java/com/ptaf/mobile/interfaces/MobileAction.java) — `../../src/main/java/com/ptaf/mobile/interfaces/MobileAction.java`
+- **[16]** [Native screenshot and screen-recording evidence manager](../../src/main/java/com/ptaf/mobile/evidence/MobileEvidenceManager.java) — `../../src/main/java/com/ptaf/mobile/evidence/MobileEvidenceManager.java`
+- **[17]** [Framework reporting and soft-assertion configuration](../../src/test/resources/config/config.yml) — `../../src/test/resources/config/config.yml`
+- **[18]** [Feature-based artifact naming utility](../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java) — `../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java`
+- **[19]** [Playwright mobile browser emulation resources](../../src/test/resources/mobile_browser/README.md) — `../../src/test/resources/mobile_browser/README.md`
+- **[20]** [PTAF framework resource layout and module overview](../../ReadMe.md) — `../../ReadMe.md`
+- **[21]** [Canonical FNB-ETAF UI performance load-testing guide](10-ui-performance-load-testing.md) — `10-ui-performance-load-testing.md`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../../pom.xml "FNB-ETAF Maven build: Java, Appium, Cucumber, JUnit, and Surefire configuration"
 [2]: ../../src/test/resources/mobile/config/mobile-config.yml "Shared Appium mobile configuration"
 [3]: ../../src/test/resources/mobile/config/mobile-browser-config.yml "Appium real mobile browser capability configuration"
@@ -388,4 +414,4 @@ If cross-cutting soft assertions are enabled, `MobileCommonMethods` records cert
 [18]: ../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java "Feature-based artifact naming utility"
 [19]: ../../src/test/resources/mobile_browser/README.md "Playwright mobile browser emulation resources"
 [20]: ../../ReadMe.md "PTAF framework resource layout and module overview"
-[21]: ../../FNB-ETAF_UI_Performance_Automation_Guide.md "FNB-ETAF dedicated UI performance module guide"
+[21]: 10-ui-performance-load-testing.md "Canonical FNB-ETAF UI performance load-testing guide"

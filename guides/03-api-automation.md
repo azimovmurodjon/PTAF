@@ -223,6 +223,33 @@ Browserless API scenarios do not initialize the browser stack, so UI screenshots
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [Browserless scenario detection and shared lifecycle hooks](../../src/main/java/com/ptaf/hooks/Hooks.java) — `../../src/main/java/com/ptaf/hooks/Hooks.java`
+- **[2]** [Reusable API request definitions](../../src/test/resources/api_requests/api_requests.yml) — `../../src/test/resources/api_requests/api_requests.yml`
+- **[3]** [Framework configuration including API service settings](../../src/test/resources/config/config.yml) — `../../src/test/resources/config/config.yml`
+- **[4]** [Browserless API scenario classification](../../src/main/java/com/ptaf/hooks/Hooks.java) — `../../src/main/java/com/ptaf/hooks/Hooks.java`
+- **[5]** [Cucumber API step definitions](../../src/test/java/com/ptaf/stepdefinitions/ApiSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/ApiSteps.java`
+- **[6]** [API facade and JUnit response validations](../../src/main/java/com/ptaf/api/methods/ApiCommonMethods.java) — `../../src/main/java/com/ptaf/api/methods/ApiCommonMethods.java`
+- **[7]** [Stateful API action implementation](../../src/main/java/com/ptaf/api/implementation/ApiActionImpl.java) — `../../src/main/java/com/ptaf/api/implementation/ApiActionImpl.java`
+- **[8]** [HTTP request assembly and dispatch](../../src/main/java/com/ptaf/api/performer/ApiActionPerformer.java) — `../../src/main/java/com/ptaf/api/performer/ApiActionPerformer.java`
+- **[9]** [Thread-local Playwright API context and authentication handling](../../src/main/java/com/ptaf/api/handlers/ApiRequestHandler.java) — `../../src/main/java/com/ptaf/api/handlers/ApiRequestHandler.java`
+- **[10]** [API response wrapper](../../src/main/java/com/ptaf/api/wrapper/ApiResponseWrapper.java) — `../../src/main/java/com/ptaf/api/wrapper/ApiResponseWrapper.java`
+- **[11]** [API action contract](../../src/main/java/com/ptaf/api/interfaces/ApiAction.java) — `../../src/main/java/com/ptaf/api/interfaces/ApiAction.java`
+- **[12]** [Merged YAML resource loader](../../src/main/java/com/ptaf/utils/YamlReader.java) — `../../src/main/java/com/ptaf/utils/YamlReader.java`
+- **[13]** [Configuration lookup and environment override utility](../../src/main/java/com/ptaf/utils/ConfigurationProperties.java) — `../../src/main/java/com/ptaf/utils/ConfigurationProperties.java`
+- **[14]** [API GET and response-validation example](../../src/test/resources/features/api_test.feature) — `../../src/test/resources/features/api_test.feature`
+- **[15]** [Tagged API workflow and request-body example](../../src/test/resources/features/create_post_workflow_api.feature) — `../../src/test/resources/features/create_post_workflow_api.feature`
+- **[16]** [Default TestNG Cucumber runner](../../src/test/java/com/ptaf/runner/TestRunner.java) — `../../src/test/java/com/ptaf/runner/TestRunner.java`
+- **[17]** [Default Maven TestNG suite](../../src/test/resources/testng.xml) — `../../src/test/resources/testng.xml`
+- **[18]** [Maven dependencies and Surefire configuration](../../pom.xml) — `../../pom.xml`
+- **[19]** [JUnit API runner configuration](../../src/test/java/com/ptaf/runners/ApiTestRunner.java) — `../../src/test/java/com/ptaf/runners/ApiTestRunner.java`
+- **[20]** [Per-feature report artifact generation](../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java) — `../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java`
+- **[21]** [UI locator resource directory](../../src/test/resources/elements/) — `../../src/test/resources/elements/`
+- **[22]** [Database query resource](../../src/test/resources/queries/db_queries.yml) — `../../src/test/resources/queries/db_queries.yml`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../../src/main/java/com/ptaf/hooks/Hooks.java "Browserless scenario detection and shared lifecycle hooks"
 [2]: ../../src/test/resources/api_requests/api_requests.yml "Reusable API request definitions"
 [3]: ../../src/test/resources/config/config.yml "Framework configuration including API service settings"
