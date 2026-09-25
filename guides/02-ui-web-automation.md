@@ -308,8 +308,39 @@ This pattern uses the feature’s configuration key, logical locator group/key n
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [Maven build, Surefire configuration, and UI performance profile](../../pom.xml) — `../../pom.xml`
+- **[2]** [Canonical FNB-ETAF UI performance load-testing guide](10-ui-performance-load-testing.md) — `10-ui-performance-load-testing.md`
+- **[3]** [Regular browser lifecycle and browserless scenario classification](../../src/main/java/com/ptaf/hooks/Hooks.java) — `../../src/main/java/com/ptaf/hooks/Hooks.java`
+- **[4]** [Default Cucumber TestNG runner for regular UI execution](../../src/test/java/com/ptaf/runner/TestRunner.java) — `../../src/test/java/com/ptaf/runner/TestRunner.java`
+- **[5]** [Playwright browser and browser-context factory](../../src/main/java/com/ptaf/utils/BrowserFactory.java) — `../../src/main/java/com/ptaf/utils/BrowserFactory.java`
+- **[6]** [Regular page interaction and failure handling facade](../../src/main/java/com/ptaf/ui/pages/PageCommonMethods.java) — `../../src/main/java/com/ptaf/ui/pages/PageCommonMethods.java`
+- **[7]** [Regular nested-frame interaction facade](../../src/main/java/com/ptaf/ui/pages/FrameCommonMethods.java) — `../../src/main/java/com/ptaf/ui/pages/FrameCommonMethods.java`
+- **[8]** [Playwright action dispatcher, waits, downloads, and screenshots](../../src/main/java/com/ptaf/ui/action_performer/ActionPerformer.java) — `../../src/main/java/com/ptaf/ui/action_performer/ActionPerformer.java`
+- **[9]** [YAML locator chaining and action routing](../../src/main/java/com/ptaf/ui/action_performer/ElementActionImpl.java) — `../../src/main/java/com/ptaf/ui/action_performer/ElementActionImpl.java`
+- **[10]** [YAML element-path and locator token parser](../../src/main/java/com/ptaf/ui/helpers/ElementLocatorHelper.java) — `../../src/main/java/com/ptaf/ui/helpers/ElementLocatorHelper.java`
+- **[11]** [Locator type to Playwright locator mapping](../../src/main/java/com/ptaf/ui/handlers/LocatorHandler.java) — `../../src/main/java/com/ptaf/ui/handlers/LocatorHandler.java`
+- **[12]** [Regular top-level page Cucumber step definitions](../../src/test/java/com/ptaf/stepdefinitions/PageCommonSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/PageCommonSteps.java`
+- **[13]** [Popup, new-page, and predefined frame Cucumber step definitions](../../src/test/java/com/ptaf/stepdefinitions/NewPageCommonSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/NewPageCommonSteps.java`
+- **[14]** [Navigation and popup frame Cucumber step definitions](../../src/test/java/com/ptaf/stepdefinitions/FrameCommonSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/FrameCommonSteps.java`
+- **[15]** [Configuration accessors, environment override logic, reporting, and soft assertion settings](../../src/main/java/com/ptaf/utils/ConfigurationProperties.java) — `../../src/main/java/com/ptaf/utils/ConfigurationProperties.java`
+- **[16]** [Merged YAML resource-folder loader](../../src/main/java/com/ptaf/utils/YamlReader.java) — `../../src/main/java/com/ptaf/utils/YamlReader.java`
+- **[17]** [Cucumber screenshot attachment handler](../../src/main/java/com/ptaf/utils/ScreenshotHandler.java) — `../../src/main/java/com/ptaf/utils/ScreenshotHandler.java`
+- **[18]** [Feature-title artifact naming and directory grouping](../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java) — `../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java`
+- **[19]** [Per-feature Extent report listener](../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java) — `../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java`
+- **[20]** [Timestamped Extent report output configuration](../../src/test/resources/extent.properties) — `../../src/test/resources/extent.properties`
+- **[21]** [Regular UI feature example](../../src/test/resources/features/google.feature) — `../../src/test/resources/features/google.feature`
+- **[22]** [Regular UI popup, nested-frame, screenshot, and download example](../../src/test/resources/features/secondPageTest.feature) — `../../src/test/resources/features/secondPageTest.feature`
+- **[23]** [Regular UI locator YAML example](../../src/test/resources/elements/homepage.yml) — `../../src/test/resources/elements/homepage.yml`
+- **[24]** [Generic data resource directory](../../src/test/resources/data/) — `../../src/test/resources/data/`
+- **[25]** [API request definition resource](../../src/test/resources/api_requests/api_requests.yml) — `../../src/test/resources/api_requests/api_requests.yml`
+- **[26]** [Database query definition resource](../../src/test/resources/queries/db_queries.yml) — `../../src/test/resources/queries/db_queries.yml`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../../pom.xml "Maven build, Surefire configuration, and UI performance profile"
-[2]: ../../FNB-ETAF_UI_Performance_Automation_Guide.md "Existing isolated UI performance automation guide"
+[2]: 10-ui-performance-load-testing.md "Canonical FNB-ETAF UI performance load-testing guide"
 [3]: ../../src/main/java/com/ptaf/hooks/Hooks.java "Regular browser lifecycle and browserless scenario classification"
 [4]: ../../src/test/java/com/ptaf/runner/TestRunner.java "Default Cucumber TestNG runner for regular UI execution"
 [5]: ../../src/main/java/com/ptaf/utils/BrowserFactory.java "Playwright browser and browser-context factory"

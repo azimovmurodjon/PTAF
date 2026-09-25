@@ -353,6 +353,31 @@ The framework has several deliberately different execution models. Keeping their
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [FNB-ETAF Maven build descriptor](../../pom.xml) — `../../pom.xml`
+- **[2]** [PTAF unified test automation framework readme](../../ReadMe.md) — `../../ReadMe.md`
+- **[3]** [Shared configuration accessor](../../src/main/java/com/ptaf/utils/ConfigurationProperties.java) — `../../src/main/java/com/ptaf/utils/ConfigurationProperties.java`
+- **[4]** [Global YAML resource reader](../../src/main/java/com/ptaf/utils/YamlReader.java) — `../../src/main/java/com/ptaf/utils/YamlReader.java`
+- **[5]** [Playwright browser and context factory](../../src/main/java/com/ptaf/utils/BrowserFactory.java) — `../../src/main/java/com/ptaf/utils/BrowserFactory.java`
+- **[6]** [API request-context configuration and lifecycle](../../src/main/java/com/ptaf/api/handlers/ApiRequestHandler.java) — `../../src/main/java/com/ptaf/api/handlers/ApiRequestHandler.java`
+- **[7]** [Database connection configuration and lifecycle](../../src/main/java/com/ptaf/db/handlers/DatabaseHandler.java) — `../../src/main/java/com/ptaf/db/handlers/DatabaseHandler.java`
+- **[8]** [Protocol-level performance YAML reader](../../src/main/java/com/ptaf/performance/config/PerformanceYamlReader.java) — `../../src/main/java/com/ptaf/performance/config/PerformanceYamlReader.java`
+- **[9]** [Mobile-browser YAML reader](../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserYamlReader.java) — `../../src/main/java/com/ptaf/ui/mobilebrowser/MobileBrowserYamlReader.java`
+- **[10]** [Appium mobile Cucumber lifecycle hooks](../../src/main/java/com/ptaf/hooks/MobileHooks.java) — `../../src/main/java/com/ptaf/hooks/MobileHooks.java`
+- **[11]** [Default TestNG Cucumber runner](../../src/test/java/com/ptaf/runner/TestRunner.java) — `../../src/test/java/com/ptaf/runner/TestRunner.java`
+- **[12]** [JUnit and TestNG Cucumber runner package](../../src/test/java/com/ptaf/runners/) — `../../src/test/java/com/ptaf/runners/`
+- **[13]** [Isolated UI-performance YAML reader](../../src/main/java/com/ptaf/ui_performance/config/UiPerformanceYamlReader.java) — `../../src/main/java/com/ptaf/ui_performance/config/UiPerformanceYamlReader.java`
+- **[14]** [UI-performance Gherkin steps](../../src/test/java/com/ptaf/ui_performance/stepdefinitions/UiPerformanceSteps.java) — `../../src/test/java/com/ptaf/ui_performance/stepdefinitions/UiPerformanceSteps.java`
+- **[15]** [Isolated UI-performance TestNG Cucumber runner](../../src/test/java/com/ptaf/ui_performance/runners/UiPerformanceRunner.java) — `../../src/test/java/com/ptaf/ui_performance/runners/UiPerformanceRunner.java`
+- **[16]** [Extent report output configuration](../../src/test/resources/extent.properties) — `../../src/test/resources/extent.properties`
+- **[17]** [Default TestNG suite](../../src/test/resources/testng.xml) — `../../src/test/resources/testng.xml`
+- **[18]** [UI-performance browser-contract TestNG suite](../../src/test/resources/ui_performance/testng-ui-performance-browser-contract.xml) — `../../src/test/resources/ui_performance/testng-ui-performance-browser-contract.xml`
+- **[19]** [Feature-based artifact naming utility](../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java) — `../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java`
+- **[20]** [Shared Cucumber browser and browserless scenario lifecycle](../../src/main/java/com/ptaf/hooks/Hooks.java) — `../../src/main/java/com/ptaf/hooks/Hooks.java`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../../pom.xml "FNB-ETAF Maven build descriptor"
 [2]: ../../ReadMe.md "PTAF unified test automation framework readme"
 [3]: ../../src/main/java/com/ptaf/utils/ConfigurationProperties.java "Shared configuration accessor"

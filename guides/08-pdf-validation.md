@@ -270,6 +270,33 @@ The following points are explicit in the current code and should guide test desi
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [PdfSteps Cucumber bindings](../../src/test/java/com/ptaf/stepdefinitions/PdfSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/PdfSteps.java`
+- **[2]** [PdfStore thread-local document path management](../../src/main/java/com/ptaf/pdf/PdfStore.java) — `../../src/main/java/com/ptaf/pdf/PdfStore.java`
+- **[3]** [PdfUtils PDFBox extraction, rendering, and normalization](../../src/main/java/com/ptaf/pdf/PdfUtils.java) — `../../src/main/java/com/ptaf/pdf/PdfUtils.java`
+- **[4]** [PdfValidator assertion and OCR control methods](../../src/main/java/com/ptaf/pdf/PdfValidator.java) — `../../src/main/java/com/ptaf/pdf/PdfValidator.java`
+- **[5]** [PdfMeta document-information and AcroForm extraction](../../src/main/java/com/ptaf/pdf/PdfMeta.java) — `../../src/main/java/com/ptaf/pdf/PdfMeta.java`
+- **[6]** [PdfOcr Tesseract integration](../../src/main/java/com/ptaf/pdf/PdfOcr.java) — `../../src/main/java/com/ptaf/pdf/PdfOcr.java`
+- **[7]** [PdfRenderDiff image comparison implementation](../../src/main/java/com/ptaf/pdf/PdfRenderDiff.java) — `../../src/main/java/com/ptaf/pdf/PdfRenderDiff.java`
+- **[8]** [PDF validation feature example](../../src/test/resources/features/pdf/PdfValidation.feature) — `../../src/test/resources/features/pdf/PdfValidation.feature`
+- **[9]** [Sample local PDF input](../../downloads/sample_invoice.pdf) — `../../downloads/sample_invoice.pdf`
+- **[10]** [PDF visual comparison baselines](../../src/test/resources/baselines/) — `../../src/test/resources/baselines/`
+- **[11]** [Playwright strict download action](../../src/main/java/com/ptaf/ui/action_performer/ActionPerformer.java) — `../../src/main/java/com/ptaf/ui/action_performer/ActionPerformer.java`
+- **[12]** [Feature-based artifact naming](../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java) — `../../src/main/java/com/ptaf/utils/FeatureArtifactNameResolver.java`
+- **[13]** [Cucumber lifecycle and non-UI PDF classification](../../src/main/java/com/ptaf/hooks/Hooks.java) — `../../src/main/java/com/ptaf/hooks/Hooks.java`
+- **[14]** [Default TestNG Cucumber runner](../../src/test/java/com/ptaf/runner/TestRunner.java) — `../../src/test/java/com/ptaf/runner/TestRunner.java`
+- **[15]** [Default TestNG suite](../../src/test/resources/testng.xml) — `../../src/test/resources/testng.xml`
+- **[16]** [Maven dependencies, compiler level, and Surefire configuration](../../pom.xml) — `../../pom.xml`
+- **[17]** [Global framework and per-feature reporting configuration](../../src/test/resources/config/config.yml) — `../../src/test/resources/config/config.yml`
+- **[18]** [Timestamped Extent reporter configuration](../../src/test/resources/extent.properties) — `../../src/test/resources/extent.properties`
+- **[19]** [Cucumber publication configuration](../../src/test/resources/cucumber.properties) — `../../src/test/resources/cucumber.properties`
+- **[20]** [Element locator resolution and returned action execution](../../src/main/java/com/ptaf/ui/action_performer/ElementActionImpl.java) — `../../src/main/java/com/ptaf/ui/action_performer/ElementActionImpl.java`
+- **[21]** [Classpath YAML folder discovery and lookup](../../src/main/java/com/ptaf/utils/YamlReader.java) — `../../src/main/java/com/ptaf/utils/YamlReader.java`
+- **[22]** [Per-feature HTML and PDF report generation](../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java) — `../../src/main/java/com/ptaf/reporting/PerFeatureReportListener.java`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../../src/test/java/com/ptaf/stepdefinitions/PdfSteps.java "PdfSteps Cucumber bindings"
 [2]: ../../src/main/java/com/ptaf/pdf/PdfStore.java "PdfStore thread-local document path management"
 [3]: ../../src/main/java/com/ptaf/pdf/PdfUtils.java "PdfUtils PDFBox extraction, rendering, and normalization"

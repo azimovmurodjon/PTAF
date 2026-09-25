@@ -315,6 +315,41 @@ The database module owns `src/test/resources/queries/db_queries.yml`; the UI and
 
 ## References
 
+<!-- Visible source-reference list -->
+The sources below are visible and clickable in Markdown preview. Citation labels used in this guide point to the same source files.
+
+- **[1]** [Performance Cucumber step definitions](../../src/test/java/com/ptaf/stepdefinitions/PerformanceSteps.java) — `../../src/test/java/com/ptaf/stepdefinitions/PerformanceSteps.java`
+- **[2]** [PTAF framework overview and API automation introduction](../../ReadMe.md) — `../../ReadMe.md`
+- **[3]** [Dedicated performance Cucumber runner](../../src/test/java/com/ptaf/runners/PerformanceTestRunner.java) — `../../src/test/java/com/ptaf/runners/PerformanceTestRunner.java`
+- **[4]** [Functional API Cucumber runner](../../src/test/java/com/ptaf/runners/ApiTestRunner.java) — `../../src/test/java/com/ptaf/runners/ApiTestRunner.java`
+- **[5]** [Checked-in GraphQL performance feature](../../src/test/resources/features/performance/performance.feature) — `../../src/test/resources/features/performance/performance.feature`
+- **[6]** [Performance engine token storage and execution](../../src/main/java/com/ptaf/performance/core/PerformanceEngine.java) — `../../src/main/java/com/ptaf/performance/core/PerformanceEngine.java`
+- **[7]** [Maven build, JMeter DSL dependencies, Surefire configuration, and UI performance profile](../../pom.xml) — `../../pom.xml`
+- **[8]** [Performance request construction and payload precedence](../../src/main/java/com/ptaf/performance/builders/PerformanceRequestBuilder.java) — `../../src/main/java/com/ptaf/performance/builders/PerformanceRequestBuilder.java`
+- **[9]** [Performance load profile construction and validation](../../src/main/java/com/ptaf/performance/builders/PerformanceProfileBuilder.java) — `../../src/main/java/com/ptaf/performance/builders/PerformanceProfileBuilder.java`
+- **[10]** [JMeter DSL HTTP plan construction and endpoint validation](../../src/main/java/com/ptaf/performance/builders/PerformanceTestPlanBuilder.java) — `../../src/main/java/com/ptaf/performance/builders/PerformanceTestPlanBuilder.java`
+- **[11]** [Performance execution, JTL parsing, statuses, and run artifacts](../../src/main/java/com/ptaf/performance/core/PerformanceEngine.java) — `../../src/main/java/com/ptaf/performance/core/PerformanceEngine.java`
+- **[12]** [Performance threshold assertion engine](../../src/main/java/com/ptaf/performance/assertions/PerformanceAssertionEngine.java) — `../../src/main/java/com/ptaf/performance/assertions/PerformanceAssertionEngine.java`
+- **[13]** [Performance configuration classpath reader](../../src/main/java/com/ptaf/performance/config/PerformanceYamlReader.java) — `../../src/main/java/com/ptaf/performance/config/PerformanceYamlReader.java`
+- **[14]** [Performance configuration properties](../../src/main/java/com/ptaf/performance/config/PerformanceConfigurationProperties.java) — `../../src/main/java/com/ptaf/performance/config/PerformanceConfigurationProperties.java`
+- **[15]** [YAML, CSV, Excel, and inline payload resolver](../../src/main/java/com/ptaf/performance/payloads/PerformancePayloadResolver.java) — `../../src/main/java/com/ptaf/performance/payloads/PerformancePayloadResolver.java`
+- **[16]** [Shared recursive YAML resource reader](../../src/main/java/com/ptaf/utils/YamlReader.java) — `../../src/main/java/com/ptaf/utils/YamlReader.java`
+- **[17]** [Performance YAML payload registry](../../src/test/resources/performance/payloads/yaml/performance-payloads.yml) — `../../src/test/resources/performance/payloads/yaml/performance-payloads.yml`
+- **[18]** [CSV payload reader](../../src/main/java/com/ptaf/performance/payloads/CsvPayloadReader.java) — `../../src/main/java/com/ptaf/performance/payloads/CsvPayloadReader.java`
+- **[19]** [Performance CSV payload resource](../../src/test/resources/performance/payloads/csv/customers.csv) — `../../src/test/resources/performance/payloads/csv/customers.csv`
+- **[20]** [Excel payload reader](../../src/main/java/com/ptaf/utils/ExcelReader.java) — `../../src/main/java/com/ptaf/utils/ExcelReader.java`
+- **[21]** [Performance Excel payload resource](../../src/test/resources/performance/payloads/excel/performance_payloads.xlsx) — `../../src/test/resources/performance/payloads/excel/performance_payloads.xlsx`
+- **[22]** [Performance HTTP header manager](../../src/main/java/com/ptaf/performance/headers/PerformanceHeaderManager.java) — `../../src/main/java/com/ptaf/performance/headers/PerformanceHeaderManager.java`
+- **[23]** [Performance authentication token manager](../../src/main/java/com/ptaf/performance/auth/PerformanceAuthTokenManager.java) — `../../src/main/java/com/ptaf/performance/auth/PerformanceAuthTokenManager.java`
+- **[24]** [Performance technical and readable summary writer](../../src/main/java/com/ptaf/performance/reports/PerformanceSummaryWriter.java) — `../../src/main/java/com/ptaf/performance/reports/PerformanceSummaryWriter.java`
+- **[25]** [Performance Excel report writer](../../src/main/java/com/ptaf/performance/reports/PerformanceExcelReportWriter.java) — `../../src/main/java/com/ptaf/performance/reports/PerformanceExcelReportWriter.java`
+- **[26]** [Performance report path conventions](../../src/main/java/com/ptaf/performance/utils/PerformancePathResolver.java) — `../../src/main/java/com/ptaf/performance/utils/PerformancePathResolver.java`
+- **[27]** [Shared Cucumber hooks and browserless performance tags](../../src/main/java/com/ptaf/hooks/Hooks.java) — `../../src/main/java/com/ptaf/hooks/Hooks.java`
+- **[28]** [Default TestNG suite](../../src/test/resources/testng.xml) — `../../src/test/resources/testng.xml`
+- **[29]** [Functional API request definitions](../../src/test/resources/api_requests/api_requests.yml) — `../../src/test/resources/api_requests/api_requests.yml`
+- **[30]** [Shared framework and functional API configuration](../../src/test/resources/config/config.yml) — `../../src/test/resources/config/config.yml`
+
+<!-- Internal citation definitions used by the in-text [n] links. Keep these definitions so citations remain clickable. -->
 [1]: ../../src/test/java/com/ptaf/stepdefinitions/PerformanceSteps.java "Performance Cucumber step definitions"
 [2]: ../../ReadMe.md "PTAF framework overview and API automation introduction"
 [3]: ../../src/test/java/com/ptaf/runners/PerformanceTestRunner.java "Dedicated performance Cucumber runner"
