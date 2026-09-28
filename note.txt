@@ -1,0 +1,197 @@
+
+## FNB-ETAF — UI Performance Testing Usage
+
+Team,
+
+We now have a dedicated **UI Performance Testing** module in FNB-ETAF for validating real browser user journeys under concurrent load.
+
+This is **not** the same as running normal UI automation in parallel. UI Performance Testing opens real Chromium browser sessions and runs the configured number of virtual users **at the same time** against the selected UI journey. It is intended for **load, stress, spike, and soak-style browser testing**.
+
+### What it supports
+
+- Real Chromium browser execution per virtual user
+- Configurable **headless** or visible browser execution
+- Concurrent user starts—not one user after another
+- Configurable load profiles:
+  - **Load** — normal expected user volume
+  - **Stress** — increased user volume
+  - **Spike** — sudden higher volume
+  - **Soak** — sustained load over time
+- Optional CSV test data for separate users; a journey can also run without usernames/passwords when no login data is needed
+- Dedicated UI-performance reports with:
+  - Total virtual users and completed iterations
+  - Passed/failed counts and error rate
+  - Throughput
+  - Average, minimum, maximum, P50, P90, P95, and P99 timings
+  - Readable durations, such as `850 ms`, `2.4 sec`, or `1 min 15 sec`
+  - Stage-level load results
+  - Configured threshold assessment
+  - Failed-user screenshots and sanitized diagnostics when enabled
+
+> **Important:** UI Performance Testing is isolated from normal UI automation. It does not change normal UI `Hooks`, regular `BrowserFactory`, normal UI runners, or existing Extent/PDF reports.
+
+---
+
+## Main configuration location
+
+All UI Performance settings are controlled from:
+
+```text
+src/test/resources/ui_performance/config/ui_performance-config.yml
+```
+
+This file controls:
+
+```yaml
+ui_performance:
+  enabled: true
+  active_profile: load
+```
+
+### Important configuration areas
+
+| Configuration area | Purpose |
+|---|---|
+| `target` | Application protocol, host, port, base path, and target URL settings |
+| `browser` | Headless mode, browser type, viewport, startup timeout, browser identity |
+| `journey` | UI journey timing, element wait time, screenshots, navigation behavior |
+| `profiles` | User counts, stages, ramp-up, duration, iterations, and test type |
+| `thresholds` | Maximum error rate and allowed response-time limits |
+| `data` | Enables or disables optional CSV user data |
+| `reporting` | Controls HTML, PDF, CSV, JSON, text reports, and failure evidence |
+
+---
+
+## eStore UI Performance Journey
+
+The current configured UI Performance feature is:
+
+```text
+src/test/resources/ui_performance/features/estore_ui_performance.feature
+```
+
+The eStore-specific locators are located in:
+
+```text
+src/test/resources/ui_performance/locators/ui_performance-locators.yml
+```
+
+Optional virtual-user data is located in:
+
+```text
+src/test/resources/ui_performance/data/users.csv
+```
+
+If the journey does **not** require separate usernames or passwords, configure:
+
+```yaml
+data:
+  use_csv: false
+```
+
+The framework will create safe synthetic virtual-user IDs such as `vu-1`, `vu-2`, and so on, while still launching the configured concurrent browser users.
+
+If the journey requires separate accounts, configure:
+
+```yaml
+data:
+  use_csv: true
+  csv_file: src/test/resources/ui_performance/data/users.csv
+```
+
+Do **not** commit real usernames, passwords, tokens, cookies, or production secrets into the repository. Use approved non-production accounts and local/approved secret handling.
+
+---
+
+## How to configure simultaneous users
+
+In the selected profile under `ui_performance-config.yml`, configure the number of virtual users.
+
+Example:
+
+```yaml
+profiles:
+  load:
+    test_type: load
+    headless: true
+    simultaneous_start: true
+    stages:
+      - name: normal-load
+        users: 10
+        iterations_per_user: 1
+        ramp_up_seconds: 0
+        hold_seconds: 0
+```
+
+With this configuration:
+
+- **10 real browser virtual users** are prepared.
+- The users are released through the UI Performance start gate.
+- The journey is executed concurrently.
+- The report measures the resulting browser-journey timings and outcomes.
+
+For a first validation run, use a smaller approved number such as **2–5 users**. Increase users only after confirming that the target environment, test data, and application owners approve the load level.
+
+---
+
+## How to run UI Performance Testing
+
+Run the dedicated Maven profile from the project root:
+
+```bash
+mvn clean test -Pui_performance
+```
+
+This profile uses the dedicated UI Performance TestNG suite and runner. It does not use the normal UI runner.
+
+> Do not use the standard parallel UI runner as a replacement for UI Performance Testing. Standard parallel execution is intended for faster functional-test execution; the `ui_performance` engine is designed to control browser virtual users, stages, synchronized starts, performance measurements, thresholds, and dedicated load reports.
+
+---
+
+## Reports and evidence
+
+UI Performance reports are generated under:
+
+```text
+test-output/ui_performance/
+```
+
+Each run creates a separate timestamped report directory.
+
+Typical outputs include:
+
+```text
+test-output/ui_performance/<run-folder>/
+├── ui-performance-report.html
+├── ui-performance-report.pdf
+├── ui-performance-summary.csv
+├── ui-performance-results.json
+├── ui-performance-summary.txt
+├── existing-performance-reporter/
+└── failed-screenshots/
+```
+
+The reports should be reviewed before sharing externally because screenshots may contain application information.
+
+---
+
+## Recommended team process
+
+1. Confirm the target is an **approved non-production environment**.
+2. Confirm the test type: load, stress, spike, or soak.
+3. Set the initial user count to a safe number, such as 2–5 users.
+4. Confirm whether CSV user data is required.
+5. Set `headless: true` for larger runs; use `headless: false` only for troubleshooting.
+6. Run `mvn clean test -Pui_performance`.
+7. Review the generated UI Performance report, error rate, percentile timings, failed screenshots, and thresholds.
+8. Increase the configured user count gradually only after approval and successful lower-load results.
+
+For full details, refer to:
+
+```text
+ReadMe.md
+guides/reference/chapters/11-ui-performance-load-stress.md
+src/test/resources/ui_performance/config/ui_performance-config.yml
+```
+
+---
