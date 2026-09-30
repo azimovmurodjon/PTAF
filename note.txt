@@ -1,16 +1,11 @@
-Hi Matthew,
+Just wanted to add one more detail based on our testing. We are currently seeing two separate security restrictions with the Android application.
 
-I wanted to provide a quick update regarding the Android mobile automation effort.
+On the physical device, the application detects when ADB/USB Debugging is enabled and prevents the app from running. Since ADB connectivity is required for our Appium/UiAutomator2 automation, debugging needs to remain enabled during automated test execution.
 
-We have received the physical Android device and completed the required automation framework setup from our end. The device connectivity with our automation environment is working as expected, and we have successfully validated communication between the device and the framework.
+On the Android emulator, we are seeing a separate device-integrity restriction where the application identifies the emulator environment as a rooted/unsupported device and prevents it from running there as well.
 
-During testing, we identified an application-level security restriction related to Android debugging. The application currently detects when USB Debugging is enabled and prevents the application from running. Since device-level debugging connectivity is required for our approved mobile automation framework to communicate with the physical device, this is currently blocking execution of the automated tests.
+So, when coordinating with Fiserv regarding the QA/automation build, it would be helpful if they could review both the ADB/debugging restriction and the root/emulator/device-integrity restriction for the QA version. The production security configuration would not need to be affected.
 
-From the application/vendor side, we would need an automation-compatible QA configuration/build that allows the application to operate in our approved test environment while maintaining the existing security controls for production.
+I just wanted to share these additional details in case they are helpful when discussing the request with Fiserv.
 
-Once this configuration is available, we should be able to proceed with the next phase of mobile automation testing.
-
-Please let us know if you would like us to provide any additional technical details or supporting information.
-
-Thank you,
-Murad
+Thank you!
