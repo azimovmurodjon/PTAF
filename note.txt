@@ -1,9 +1,22 @@
-Hi Saurabh, good morning. I wanted to check something with you before I reach out to the Digital Channels team.
+MJ,
 
-Do you think there is any possibility of requesting access to the Fiserv application source code, or potentially a separate QA/automation branch, so I could make the necessary testing-specific configuration changes and rebuild the APK from our side?
 
-The idea would be to keep this completely isolated from the production/release code and use it only for our internal automation testing. This could potentially allow me to configure the QA build to support ADB/debugging and our approved automation environment without requiring Fiserv to prepare a separate APK for us each time.
 
-I’m not sure whether Fiserv would allow source-code access due to their security and ownership restrictions, but I wanted to confirm with you first before asking the Digital Channels team or taking this discussion any further.
+Thank you for the update and for getting the Pixel device and framework connected so quickly.
 
-Please let me know what you think.
+
+
+After giving this more thought, I'd like to shift our starting point for automated testing from Mobility to Bud.
+
+
+
+Why the change:
+
+
+
+Bud is our future state. Automation built for Mobility will largely become throwaway work once it's retired. Starting with Bud means our investment carries forward into all future enhancement and regression testing.
+Scale requires automation. Bud will support roughly 1,000 customer relationship combinations across the portfolio. Automated test cases are the only practical way to validate that the Bud UI displays correctly across all of them.
+It supports Customer360. As our largest initiative going forward, starting with Bud lays the groundwork for a well-validated, sustainable solution.
+
+
+Given the timing, I'd like to move on this quickly. I'll send an invite for this Monday to kick off a detailed discussion on our approach. In the meantime, please hold on further Mobility automation work.
