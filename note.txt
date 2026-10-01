@@ -1,17 +1,10 @@
-MJ,
+Hi Matthew,
 
-Thank you for the update and for getting the Pixel device and framework connected so quickly.
+Thank you for the update and for the additional context. This direction makes sense, especially considering Bud will be the future-state platform and the scale of the Customer360 testing that will be required.
 
-After giving this more thought, I'd like to shift our starting point for automated testing from Mobility to Bud.
+I’ll hold off on any further Mobility automation work and shift my focus to Bud. I’ll also start thinking through the automation approach so we can have a productive discussion on Monday, particularly around how we can make the framework scalable and data-driven for the different customer relationship combinations.
 
-Why the change:
+Looking forward to discussing the approach and next steps on Monday.
 
-•	Bud is our future state. Automation built for Mobility will largely become throwaway work once it's retired. Starting with Bud means our investment carries forward into all future enhancement and regression testing.
-•	Scale requires automation. Bud will support roughly 1,000 customer relationship combinations across the portfolio. Automated test cases are the only practical way to validate that the Bud UI displays correctly across all of them.
-•	It supports Customer360. As our largest initiative going forward, starting with Bud lays the groundwork for a well-validated, sustainable solution.
-
-Given the timing, I'd like to move on this quickly. I'll send an invite for this Monday to kick off a detailed discussion on our approach. In the meantime, please hold on further Mobility automation work.
-
-Please let me know if you have any questions.
-
-Thanks!
+Thanks,
+MJ
