@@ -1,11 +1,9 @@
-Just wanted to add one more detail based on our testing. We are currently seeing two separate security restrictions with the Android application.
+Hi Saurabh, good morning. I wanted to check something with you before I reach out to the Digital Channels team.
 
-On the physical device, the application detects when ADB/USB Debugging is enabled and prevents the app from running. Since ADB connectivity is required for our Appium/UiAutomator2 automation, debugging needs to remain enabled during automated test execution.
+Do you think there is any possibility of requesting access to the Fiserv application source code, or potentially a separate QA/automation branch, so I could make the necessary testing-specific configuration changes and rebuild the APK from our side?
 
-On the Android emulator, we are seeing a separate device-integrity restriction where the application identifies the emulator environment as a rooted/unsupported device and prevents it from running there as well.
+The idea would be to keep this completely isolated from the production/release code and use it only for our internal automation testing. This could potentially allow me to configure the QA build to support ADB/debugging and our approved automation environment without requiring Fiserv to prepare a separate APK for us each time.
 
-So, when coordinating with Fiserv regarding the QA/automation build, it would be helpful if they could review both the ADB/debugging restriction and the root/emulator/device-integrity restriction for the QA version. The production security configuration would not need to be affected.
+I’m not sure whether Fiserv would allow source-code access due to their security and ownership restrictions, but I wanted to confirm with you first before asking the Digital Channels team or taking this discussion any further.
 
-I just wanted to share these additional details in case they are helpful when discussing the request with Fiserv.
-
-Thank you!
+Please let me know what you think.
