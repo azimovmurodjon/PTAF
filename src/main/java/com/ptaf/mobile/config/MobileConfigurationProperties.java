@@ -27,6 +27,9 @@ public final class MobileConfigurationProperties {
     // Nested root for permission-handling settings (system permission dialogs)
     private static final String PERMISSIONS_ROOT = ROOT + "permissions.";
 
+    // Nested root for explicit native Android/iOS hierarchy capture and review-only locator drafts.
+    private static final String HIERARCHY_CAPTURE_ROOT = ROOT + "hierarchy_capture.";
+
     // Legacy/legacy-nested browser configuration root (kept for backward compatibility)
     private static final String BROWSER_ROOT = ROOT + "browser.";
 
@@ -186,6 +189,47 @@ public final class MobileConfigurationProperties {
      * @return true to attach video to report; default is false.
      */
     public static boolean attachVideoToReport() { return MobileYamlReader.getBoolean(EVIDENCE_ROOT + "attach_video_to_report", false); }
+
+    /**
+     * Whether the explicit mobile UI hierarchy capture step is allowed to write artifacts.
+     *
+     * <p>This switch does not add automatic Hooks behavior. It only controls the dedicated
+     * on-demand hierarchy-capture steps, leaving existing mobile execution unchanged.</p>
+     */
+    public static boolean isHierarchyCaptureEnabled() {
+        return MobileYamlReader.getBoolean(HIERARCHY_CAPTURE_ROOT + "enabled", true);
+    }
+
+    /**
+     * Root folder for redacted Android/iOS UI hierarchy artifacts and review-only locator drafts.
+     */
+    public static String getHierarchyCaptureOutputDirectory() {
+        return MobileYamlReader.getString(HIERARCHY_CAPTURE_ROOT + "output_directory", "test-output/mobile-ui-hierarchy");
+    }
+
+    /**
+     * Whether the hierarchy service should generate a review-only platform-aware locator draft.
+     */
+    public static boolean generateHierarchyLocatorDraft() {
+        return MobileYamlReader.getBoolean(HIERARCHY_CAPTURE_ROOT + "generate_locator_draft", true);
+    }
+
+    /**
+     * Whether user-facing hierarchy attribute values should be redacted before artifact persistence.
+     */
+    public static boolean redactHierarchyValues() {
+        return MobileYamlReader.getBoolean(HIERARCHY_CAPTURE_ROOT + "redact_values", true);
+    }
+
+    /**
+     * Whether a later capture may replace an existing generated value for the same screen/key/platform.
+     *
+     * <p>This does not affect active {@code mobile_elements}; generated drafts are always stored
+     * below test output and still require tester review.</p>
+     */
+    public static boolean overwriteGeneratedHierarchyDraftValues() {
+        return MobileYamlReader.getBoolean(HIERARCHY_CAPTURE_ROOT + "overwrite_generated_draft_values", false);
+    }
 
     /**
      * Timeout used only for optional permission/system-dialog checks.

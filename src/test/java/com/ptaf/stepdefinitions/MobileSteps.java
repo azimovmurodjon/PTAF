@@ -4,6 +4,8 @@ import com.ptaf.mobile.assertions.MobileAssert;
 import com.ptaf.mobile.config.MobilePlatform;
 import com.ptaf.mobile.drivers.MobileDriverManager;
 import com.ptaf.mobile.evidence.MobileEvidenceManager;
+import com.ptaf.mobile.hierarchy.MobileHierarchyCaptureResult;
+import com.ptaf.mobile.hierarchy.MobileUiHierarchyCaptureService;
 import com.ptaf.mobile.implementation.MobileActionImpl;
 import com.ptaf.mobile.permissions.MobilePermissionHandler;
 import com.ptaf.mobile.interfaces.MobileAction;
@@ -45,6 +47,12 @@ public class MobileSteps {
      * </p>
      */
     private final MobileAction mobileAction = new MobileActionImpl();
+
+    /**
+     * Explicit on-demand hierarchy capture. This service is intentionally independent from Hooks
+     * so existing native and mobile-browser scenario lifecycles remain unchanged.
+     */
+    private final MobileUiHierarchyCaptureService uiHierarchyCaptureService = new MobileUiHierarchyCaptureService();
 
     /**
      * Helper factory method that creates a MobilePermissionHandler bound to the
@@ -590,6 +598,42 @@ public class MobileSteps {
     @When("I capture mobile screenshot named {string}")
     public void iCaptureMobileScreenshotNamed(String screenshotName) {
         MobileEvidenceManager.captureNamedScreenshot(MobileDriverManager.getDriver(), screenshotName);
+    }
+
+    /**
+     * Capture the current native Android/iOS UI hierarchy and, when enabled in mobile-config.yml,
+     * produce a review-only platform-aware locator YAML draft under test output.
+     *
+     * <p>The step never modifies active files in {@code src/test/resources/mobile/elements}.
+     * It should be used after the desired native application screen is visible.</p>
+     *
+     * @param screenName logical name used for the artifact and draft folder
+     */
+    @When("I capture current mobile UI hierarchy for screen {string}")
+    public void iCaptureCurrentMobileUiHierarchyForScreen(String screenName) {
+        MobileHierarchyCaptureResult result = uiHierarchyCaptureService.capture(
+                MobileDriverManager.getDriver(),
+                MobileDriverManager.getPlatform(),
+                screenName
+        );
+        System.out.printf(
+                "PTAF MOBILE UI HIERARCHY | screen=%s | platform=%s | xml=%s | locatorDraft=%s | candidates=%d | redacted=%s%n",
+                result.screenName(),
+                result.platform(),
+                result.hierarchyXmlPath(),
+                result.locatorDraftPath(),
+                result.candidateCount(),
+                result.redacted()
+        );
+    }
+
+    /**
+     * Clear alias for teams that want the Gherkin wording to make the optional locator draft
+     * explicit. The actual draft behavior remains controlled by mobile-config.yml.
+     */
+    @When("I capture and generate mobile locator candidates for screen {string}")
+    public void iCaptureAndGenerateMobileLocatorCandidatesForScreen(String screenName) {
+        iCaptureCurrentMobileUiHierarchyForScreen(screenName);
     }
 
     /**

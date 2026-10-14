@@ -53,3 +53,19 @@ mobile:
     video_recording_enabled: false
     video_on_failure_only: true
     attach_video_to_report: false
+
+  # Explicit on-demand Android/iOS UI hierarchy capture and locator-draft generation.
+  # This does not change Hooks or capture data automatically. It runs only when a feature uses:
+  #   When I capture current mobile UI hierarchy for screen "<screen-name>"
+  # Raw hierarchy evidence and review-only locator drafts stay under test-output, never under
+  # src/test/resources/mobile/elements. Review a draft, then copy only approved locators manually.
+  hierarchy_capture:
+    enabled: true
+    output_directory: "test-output/mobile-ui-hierarchy"
+    generate_locator_draft: true
+    # Redacts visible values such as text, labels, names, and content descriptions in saved XML.
+    # The in-memory hierarchy is still used to generate only conservative locator candidates.
+    redact_values: true
+    # False preserves an already-generated platform value in the draft during later captures.
+    # Active mobile_elements YAML is never changed by this feature.
+    overwrite_generated_draft_values: false
