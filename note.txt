@@ -1,10 +1,260 @@
-Hi Matthew,
 
-Thank you for the update and for the additional context. This direction makes sense, especially considering Bud will be the future-state platform and the scale of the Customer360 testing that will be required.
+@eStore @LastScenario
+Scenario Outline: Consumer Deposit End to End Flow with one product verifying Payment Switch                         # src/test/resources/features/eStore.feature:23
+  Given we navigate to HARNESS_PREPROD_STAGE url                                                                     # com.ptaf.ui.stepdefinitions.FrameCommonSteps.weNavigateToURL(java.lang.String)
+Page title: Form
+  Given get title of page                                                                                            # com.ptaf.ui.stepdefinitions.FrameCommonSteps.getTitleOfPage()
+  Then we enter value on page TestHarness locator email_flt value "sanjayn@fnb-corp.com"                             # com.ptaf.ui.stepdefinitions.PageCommonSteps.weEnterValueOnPage(java.lang.String,java.lang.String,java.lang.String)
+  When we enter value on page TestHarness locator phoneNumber_flt value "779-902-2577"                               # com.ptaf.ui.stepdefinitions.PageCommonSteps.weEnterValueOnPage(java.lang.String,java.lang.String,java.lang.String)
+  And we select on page TestHarness locator product_group_flt value "Consumer Deposit"                               # com.ptaf.ui.stepdefinitions.PageCommonSteps.weSelectValueOnPage(java.lang.String,java.lang.String,java.lang.String)
+  And we select on page TestHarness locator consumer_deposit_product_name value "23901 | Freestyle Checking | (DDA)" # com.ptaf.ui.stepdefinitions.PageCommonSteps.weSelectValueOnPage(java.lang.String,java.lang.String,java.lang.String)
+  Then time out for 2 seconds                                                                                        # com.ptaf.ui.stepdefinitions.FrameCommonSteps.timeOutFoSeconds(java.lang.String)
+2026-10-19T19:12:07.430106400Z main ERROR 
+========== FNB-ETAF UI ACTION FAILURE ==========
+Action       : hastext
+Element      : TestHarness
+Locator key  : phoneNumber_flt
+Input value  : [779-902-2577] (length=12)
+Frame path   : top-level page
+URL          : https://staging.fnb.avoka-transact.com/workspaces-preprod/servlet/SmartForm.html?formCode=testharness2
+Title        : Form
+Locator      : Locator@#phoneNumber
+Match count  : 1
+Cause type   : java.lang.AssertionError
+Cause message: Text mismatch. Expected to contain: [779-902-2577] (length=12), Actual: [] (length=0)
+==================================================
+java.lang.AssertionError: Text mismatch. Expected to contain: [779-902-2577] (length=12), Actual: [] (length=0)
+	at com.ptaf.ui.action_performer.ActionPerformer.assertCondition(ActionPerformer.java:742)
+	at com.ptaf.ui.action_performer.ActionPerformer.performAction(ActionPerformer.java:636)
+	at com.ptaf.ui.action_performer.ElementActionImpl.performAction(ElementActionImpl.java:340)
+	at com.ptaf.ui.action_performer.ElementActionImpl.performActionPage(ElementActionImpl.java:139)
+	at com.ptaf.ui.pages.PageCommonMethods.lambda$performAction$0(PageCommonMethods.java:761)
+	at com.ptaf.ui.pages.PageCommonMethods.executeStep(PageCommonMethods.java:1062)
+	at com.ptaf.ui.pages.PageCommonMethods.performAction(PageCommonMethods.java:758)
+	at com.ptaf.ui.pages.PageCommonMethods.contain(PageCommonMethods.java:719)
+	at com.ptaf.ui.stepdefinitions.PageCommonSteps.weContainOnPageLocatorValue(PageCommonSteps.java:108)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at io.cucumber.java.Invoker.doInvoke(Invoker.java:66)
+	at io.cucumber.java.Invoker.invoke(Invoker.java:24)
+	at io.cucumber.java.AbstractGlueDefinition.invokeMethod(AbstractGlueDefinition.java:47)
+	at io.cucumber.java.JavaStepDefinition.execute(JavaStepDefinition.java:29)
+	at io.cucumber.core.runner.CoreStepDefinition.execute(CoreStepDefinition.java:66)
+	at io.cucumber.core.runner.PickleStepDefinitionMatch.runStep(PickleStepDefinitionMatch.java:62)
+	at io.cucumber.core.runner.ExecutionMode$1.execute(ExecutionMode.java:10)
+	at io.cucumber.core.runner.TestStep.executeStep(TestStep.java:81)
+	at io.cucumber.core.runner.TestStep.run(TestStep.java:53)
+	at io.cucumber.core.runner.PickleStepTestStep.run(PickleStepTestStep.java:51)
+	at io.cucumber.core.runner.TestCase.run(TestCase.java:84)
+	at io.cucumber.core.runner.Runner.runPickle(Runner.java:75)
+	at io.cucumber.junit.PickleRunners$NoStepDescriptions.lambda$run$0(PickleRunners.java:151)
+	at io.cucumber.core.runtime.CucumberExecutionContext.lambda$runTestCase$5(CucumberExecutionContext.java:136)
+	at io.cucumber.core.runtime.RethrowingThrowableCollector.executeAndThrow(RethrowingThrowableCollector.java:23)
+	at io.cucumber.core.runtime.CucumberExecutionContext.runTestCase(CucumberExecutionContext.java:136)
+	at io.cucumber.junit.PickleRunners$NoStepDescriptions.run(PickleRunners.java:148)
+	at io.cucumber.junit.FeatureRunner.runChild(FeatureRunner.java:144)
+	at io.cucumber.junit.FeatureRunner.runChild(FeatureRunner.java:28)
+	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+	at io.cucumber.junit.FeatureRunner.run(FeatureRunner.java:137)
+	at io.cucumber.junit.Cucumber.runChild(Cucumber.java:199)
+	at io.cucumber.junit.Cucumber.runChild(Cucumber.java:89)
+	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+	at io.cucumber.core.runtime.CucumberExecutionContext.lambda$runFeatures$6(CucumberExecutionContext.java:147)
+	at io.cucumber.core.runtime.CucumberExecutionContext.execute(CucumberExecutionContext.java:162)
+	at io.cucumber.core.runtime.CucumberExecutionContext.runFeatures(CucumberExecutionContext.java:145)
+	at io.cucumber.junit.Cucumber$StartAndFinishTestRun.evaluate(Cucumber.java:229)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+	at org.junit.runner.JUnitCore.run(JUnitCore.java:137)
+	at com.intellij.junit4.JUnit4IdeaTestRunner.startRunnerWithArgs(JUnit4IdeaTestRunner.java:73)
+	at com.intellij.rt.junit.IdeaTestRunner$Repeater$1.execute(IdeaTestRunner.java:38)
+	at com.intellij.rt.execution.junit.TestsRepeater.repeat(TestsRepeater.java:11)
+	at com.intellij.rt.junit.IdeaTestRunner$Repeater.startRunnerWithArgs(IdeaTestRunner.java:35)
+	at com.intellij.rt.junit.JUnitStarter.prepareStreamsAndStart(JUnitStarter.java:226)
+	at com.intellij.rt.junit.JUnitStarter.main(JUnitStarter.java:62)
 
-I’ll hold off on any further Mobility automation work and shift my focus to Bud. I’ll also start thinking through the automation approach so we can have a productive discussion on Monday, particularly around how we can make the framework scalable and data-driven for the different customer relationship combinations.
 
-Looking forward to discussing the approach and next steps on Monday.
+    Embedding Screenshot of the Failure Step: Consumer Deposit End to End Flow with one product verifying Payment Switch [image/png 168427 bytes]
 
-Thanks,
-MJ
+  Then we contain on page TestHarness of locator phoneNumber_flt value "779-902-2577"                                # com.ptaf.ui.stepdefinitions.PageCommonSteps.weContainOnPageLocatorValue(java.lang.String,java.lang.String,java.lang.String)
+      com.ptaf.ui.action_performer.UiActionFailureException: 
+========== FNB-ETAF UI ACTION FAILURE ==========
+Action       : hastext
+Element      : TestHarness
+Locator key  : phoneNumber_flt
+Input value  : [779-902-2577] (length=12)
+Frame path   : top-level page
+URL          : https://staging.fnb.avoka-transact.com/workspaces-preprod/servlet/SmartForm.html?formCode=testharness2
+Title        : Form
+Locator      : Locator@#phoneNumber
+Match count  : 1
+Cause type   : java.lang.AssertionError
+Cause message: Text mismatch. Expected to contain: [779-902-2577] (length=12), Actual: [] (length=0)
+==================================================
+	at com.ptaf.ui.action_performer.UiActionFailureContext.toException(UiActionFailureContext.java:139)
+	at com.ptaf.ui.pages.PageCommonMethods.handleFailure(PageCommonMethods.java:1153)
+	at com.ptaf.ui.pages.PageCommonMethods.lambda$performAction$0(PageCommonMethods.java:771)
+	at com.ptaf.ui.pages.PageCommonMethods.executeStep(PageCommonMethods.java:1062)
+	at com.ptaf.ui.pages.PageCommonMethods.performAction(PageCommonMethods.java:758)
+	at com.ptaf.ui.pages.PageCommonMethods.contain(PageCommonMethods.java:719)
+	at com.ptaf.ui.stepdefinitions.PageCommonSteps.weContainOnPageLocatorValue(PageCommonSteps.java:108)
+	at ✽.we contain on page TestHarness of locator phoneNumber_flt value "779-902-2577"(file:///C:/Users/azimovm/IdeaProjects/FNB-Corp%20PTAF/src/test/resources/features/eStore.feature:13)
+Caused by: java.lang.AssertionError: Text mismatch. Expected to contain: [779-902-2577] (length=12), Actual: [] (length=0)
+	at com.ptaf.ui.action_performer.ActionPerformer.assertCondition(ActionPerformer.java:742)
+	at com.ptaf.ui.action_performer.ActionPerformer.performAction(ActionPerformer.java:636)
+	at com.ptaf.ui.action_performer.ElementActionImpl.performAction(ElementActionImpl.java:340)
+	at com.ptaf.ui.action_performer.ElementActionImpl.performActionPage(ElementActionImpl.java:139)
+	at com.ptaf.ui.pages.PageCommonMethods.lambda$performAction$0(PageCommonMethods.java:761)
+	at com.ptaf.ui.pages.PageCommonMethods.executeStep(PageCommonMethods.java:1062)
+	at com.ptaf.ui.pages.PageCommonMethods.performAction(PageCommonMethods.java:758)
+	at com.ptaf.ui.pages.PageCommonMethods.contain(PageCommonMethods.java:719)
+	at com.ptaf.ui.stepdefinitions.PageCommonSteps.weContainOnPageLocatorValue(PageCommonSteps.java:108)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at io.cucumber.java.Invoker.doInvoke(Invoker.java:66)
+	at io.cucumber.java.Invoker.invoke(Invoker.java:24)
+	at io.cucumber.java.AbstractGlueDefinition.invokeMethod(AbstractGlueDefinition.java:47)
+	at io.cucumber.java.JavaStepDefinition.execute(JavaStepDefinition.java:29)
+	at io.cucumber.core.runner.CoreStepDefinition.execute(CoreStepDefinition.java:66)
+	at io.cucumber.core.runner.PickleStepDefinitionMatch.runStep(PickleStepDefinitionMatch.java:62)
+	at io.cucumber.core.runner.ExecutionMode$1.execute(ExecutionMode.java:10)
+	at io.cucumber.core.runner.TestStep.executeStep(TestStep.java:81)
+	at io.cucumber.core.runner.TestStep.run(TestStep.java:53)
+	at io.cucumber.core.runner.PickleStepTestStep.run(PickleStepTestStep.java:51)
+	at io.cucumber.core.runner.TestCase.run(TestCase.java:84)
+	at io.cucumber.core.runner.Runner.runPickle(Runner.java:75)
+	at io.cucumber.junit.PickleRunners$NoStepDescriptions.lambda$run$0(PickleRunners.java:151)
+	at io.cucumber.core.runtime.CucumberExecutionContext.lambda$runTestCase$5(CucumberExecutionContext.java:136)
+	at io.cucumber.core.runtime.RethrowingThrowableCollector.executeAndThrow(RethrowingThrowableCollector.java:23)
+	at io.cucumber.core.runtime.CucumberExecutionContext.runTestCase(CucumberExecutionContext.java:136)
+	at io.cucumber.junit.PickleRunners$NoStepDescriptions.run(PickleRunners.java:148)
+	at io.cucumber.junit.FeatureRunner.runChild(FeatureRunner.java:144)
+	at io.cucumber.junit.FeatureRunner.runChild(FeatureRunner.java:28)
+	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+	at io.cucumber.junit.FeatureRunner.run(FeatureRunner.java:137)
+	at io.cucumber.junit.Cucumber.runChild(Cucumber.java:199)
+	at io.cucumber.junit.Cucumber.runChild(Cucumber.java:89)
+	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+	at io.cucumber.core.runtime.CucumberExecutionContext.lambda$runFeatures$6(CucumberExecutionContext.java:147)
+	at io.cucumber.core.runtime.CucumberExecutionContext.execute(CucumberExecutionContext.java:162)
+	at io.cucumber.core.runtime.CucumberExecutionContext.runFeatures(CucumberExecutionContext.java:145)
+	at io.cucumber.junit.Cucumber$StartAndFinishTestRun.evaluate(Cucumber.java:229)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+	at org.junit.runner.JUnitCore.run(JUnitCore.java:137)
+	at com.intellij.junit4.JUnit4IdeaTestRunner.startRunnerWithArgs(JUnit4IdeaTestRunner.java:73)
+	at com.intellij.rt.junit.IdeaTestRunner$Repeater$1.execute(IdeaTestRunner.java:38)
+	at com.intellij.rt.execution.junit.TestsRepeater.repeat(TestsRepeater.java:11)
+	at com.intellij.rt.junit.IdeaTestRunner$Repeater.startRunnerWithArgs(IdeaTestRunner.java:35)
+	at com.intellij.rt.junit.JUnitStarter.prepareStreamsAndStart(JUnitStarter.java:226)
+	at com.intellij.rt.junit.JUnitStarter.main(JUnitStarter.java:62)
+
+  And we click on page TestHarness locator createURL_btn                                                             # com.ptaf.ui.stepdefinitions.PageCommonSteps.weClickActionOnPage(java.lang.String,java.lang.String)
+  Then we switch to popup TestHarness locator openURL_btn                                                            # com.ptaf.ui.stepdefinitions.NewPageCommonSteps.weSwitchToPopupLocator(java.lang.String,java.lang.String)
+  Then we close all browsers                                                                                         # com.ptaf.ui.stepdefinitions.PageCommonSteps.weCloseAllBrowsers()
+2026-10-19T19:12:08.726046100Z main ERROR Scenario [Consumer Deposit End to End Flow with one product verifying Payment Switch] failed in @LastScenario feature [file:///C:/Users/azimovm/IdeaProjects/FNB-Corp%20PTAF/src/test/resources/features/eStore.feature]. Remaining scenarios will fail immediately.
+2026-10-19T19:12:08.727045700Z main ERROR Shared browser/session became unavailable in @LastScenario feature [file:///C:/Users/azimovm/IdeaProjects/FNB-Corp%20PTAF/src/test/resources/features/eStore.feature] after scenario [Consumer Deposit End to End Flow with one product verifying Payment Switch]. Remaining scenarios will fail immediately.
+
+com.ptaf.ui.action_performer.UiActionFailureException: 
+========== FNB-ETAF UI ACTION FAILURE ==========
+Action       : hastext
+Element      : TestHarness
+Locator key  : phoneNumber_flt
+Input value  : [779-902-2577] (length=12)
+Frame path   : top-level page
+URL          : https://staging.fnb.avoka-transact.com/workspaces-preprod/servlet/SmartForm.html?formCode=testharness2
+Title        : Form
+Locator      : Locator@#phoneNumber
+Match count  : 1
+Cause type   : java.lang.AssertionError
+Cause message: Text mismatch. Expected to contain: [779-902-2577] (length=12), Actual: [] (length=0)
+==================================================
+
+	at com.ptaf.ui.action_performer.UiActionFailureContext.toException(UiActionFailureContext.java:139)
+	at com.ptaf.ui.pages.PageCommonMethods.handleFailure(PageCommonMethods.java:1153)
+	at com.ptaf.ui.pages.PageCommonMethods.lambda$performAction$0(PageCommonMethods.java:771)
+	at com.ptaf.ui.pages.PageCommonMethods.executeStep(PageCommonMethods.java:1062)
+	at com.ptaf.ui.pages.PageCommonMethods.performAction(PageCommonMethods.java:758)
+	at com.ptaf.ui.pages.PageCommonMethods.contain(PageCommonMethods.java:719)
+	at com.ptaf.ui.stepdefinitions.PageCommonSteps.weContainOnPageLocatorValue(PageCommonSteps.java:108)
+	at ✽.we contain on page TestHarness of locator phoneNumber_flt value "779-902-2577"(file:///C:/Users/azimovm/IdeaProjects/FNB-Corp%20PTAF/src/test/resources/features/eStore.feature:13)
+Caused by: java.lang.AssertionError: Text mismatch. Expected to contain: [779-902-2577] (length=12), Actual: [] (length=0)
+	at com.ptaf.ui.action_performer.ActionPerformer.assertCondition(ActionPerformer.java:742)
+	at com.ptaf.ui.action_performer.ActionPerformer.performAction(ActionPerformer.java:636)
+	at com.ptaf.ui.action_performer.ElementActionImpl.performAction(ElementActionImpl.java:340)
+	at com.ptaf.ui.action_performer.ElementActionImpl.performActionPage(ElementActionImpl.java:139)
+	at com.ptaf.ui.pages.PageCommonMethods.lambda$performAction$0(PageCommonMethods.java:761)
+	at com.ptaf.ui.pages.PageCommonMethods.executeStep(PageCommonMethods.java:1062)
+	at com.ptaf.ui.pages.PageCommonMethods.performAction(PageCommonMethods.java:758)
+	at com.ptaf.ui.pages.PageCommonMethods.contain(PageCommonMethods.java:719)
+	at com.ptaf.ui.stepdefinitions.PageCommonSteps.weContainOnPageLocatorValue(PageCommonSteps.java:108)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at io.cucumber.java.Invoker.doInvoke(Invoker.java:66)
+	at io.cucumber.java.Invoker.invoke(Invoker.java:24)
+	at io.cucumber.java.AbstractGlueDefinition.invokeMethod(AbstractGlueDefinition.java:47)
+	at io.cucumber.java.JavaStepDefinition.execute(JavaStepDefinition.java:29)
+	at io.cucumber.core.runner.CoreStepDefinition.execute(CoreStepDefinition.java:66)
+	at io.cucumber.core.runner.PickleStepDefinitionMatch.runStep(PickleStepDefinitionMatch.java:62)
+	at io.cucumber.core.runner.ExecutionMode$1.execute(ExecutionMode.java:10)
+	at io.cucumber.core.runner.TestStep.executeStep(TestStep.java:81)
+	at io.cucumber.core.runner.TestStep.run(TestStep.java:53)
+	at io.cucumber.core.runner.PickleStepTestStep.run(PickleStepTestStep.java:51)
+	at io.cucumber.core.runner.TestCase.run(TestCase.java:84)
+	at io.cucumber.core.runner.Runner.runPickle(Runner.java:75)
+	at io.cucumber.junit.PickleRunners$NoStepDescriptions.lambda$run$0(PickleRunners.java:151)
+	at io.cucumber.core.runtime.CucumberExecutionContext.lambda$runTestCase$5(CucumberExecutionContext.java:136)
+	at io.cucumber.core.runtime.RethrowingThrowableCollector.executeAndThrow(RethrowingThrowableCollector.java:23)
+	at io.cucumber.core.runtime.CucumberExecutionContext.runTestCase(CucumberExecutionContext.java:136)
+	at io.cucumber.junit.PickleRunners$NoStepDescriptions.run(PickleRunners.java:148)
+	at io.cucumber.junit.FeatureRunner.runChild(FeatureRunner.java:144)
+	at io.cucumber.junit.FeatureRunner.runChild(FeatureRunner.java:28)
+	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+	at io.cucumber.junit.FeatureRunner.run(FeatureRunner.java:137)
+	at io.cucumber.junit.Cucumber.runChild(Cucumber.java:199)
+	at io.cucumber.junit.Cucumber.runChild(Cucumber.java:89)
+	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+	at io.cucumber.core.runtime.CucumberExecutionContext.lambda$runFeatures$6(CucumberExecutionContext.java:147)
+	at io.cucumber.core.runtime.CucumberExecutionContext.execute(CucumberExecutionContext.java:162)
+	at io.cucumber.core.runtime.CucumberExecutionContext.runFeatures(CucumberExecutionContext.java:145)
+	at io.cucumber.junit.Cucumber$StartAndFinishTestRun.evaluate(Cucumber.java:229)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+	at org.junit.runner.JUnitCore.run(JUnitCore.java:137)
+	at com.intellij.junit4.JUnit4IdeaTestRunner.startRunnerWithArgs(JUnit4IdeaTestRunner.java:73)
+	at com.intellij.rt.junit.IdeaTestRunner$Repeater$1.execute(IdeaTestRunner.java:38)
+	at com.intellij.rt.execution.junit.TestsRepeater.repeat(TestsRepeater.java:11)
+	at com.intellij.rt.junit.IdeaTestRunner$Repeater.startRunnerWithArgs(IdeaTestRunner.java:35)
+	at com.intellij.rt.junit.JUnitStarter.prepareStreamsAndStart(JUnitStarter.java:226)
+	at com.intellij.rt.junit.JUnitStarter.main(JUnitStarter.java:62)
+
