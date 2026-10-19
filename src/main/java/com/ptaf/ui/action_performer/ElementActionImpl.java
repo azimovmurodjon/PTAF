@@ -242,19 +242,22 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
      */
     @Override
     public String performActionPageWithReturn(Page page, String action, String element, String key, String value) {
+        UiActionFailureContext.clear();
+        Locator targetLocator = null;
         try {
             // Resolve the target locator using the Page context.
-            Locator targetLocator = getLocatorBasedOnPage(page, element, key);
+            targetLocator = getLocatorBasedOnPage(page, element, key);
             if (targetLocator == null) {
-                logger.error("Locator not found for element: {} with key: {}", element, key);
+                recordFailure(action, element, key, value, page, targetLocator, null,
+                        new IllegalStateException("Locator was not resolved for element '" + element + "' and key '" + key + "'."));
                 return null;
             }
             // Ensure the element is present/visible as required by the performer.
             actionPerformer.waitForLocator(targetLocator);
             // Delegate the actual action that returns a value to the ActionPerformer.
             return actionPerformer.performActionWithReturn(page, action, targetLocator, value);
-        } catch (Exception e) {
-            logger.error("Exception in performActionPageWithReturn for element '{}' and action '{}':", element, action, e);
+        } catch (Exception | AssertionError e) {
+            recordFailure(action, element, key, value, page, targetLocator, null, e);
             return null;
         }
     }
@@ -275,17 +278,20 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
      */
     @Override
     public String performActionPageFrameWithReturn(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
+        UiActionFailureContext.clear();
+        Locator targetLocator = null;
         try {
             // Get locator using nested iframe selectors
-            Locator targetLocator = getLocatorBasedOnPageFrame(page, iFrame, iFrame_2, iFrame_3, element, key);
+            targetLocator = getLocatorBasedOnPageFrame(page, iFrame, iFrame_2, iFrame_3, element, key);
             if (targetLocator == null) {
-                logger.error("Locator not found for nested frame element: {} with key: {}", element, key);
+                recordFailure(action, element, key, value, page, targetLocator, frameContext(iFrame, iFrame_2, iFrame_3),
+                        new IllegalStateException("Locator was not resolved for nested-frame element '" + element + "' and key '" + key + "'."));
                 return null;
             }
             actionPerformer.waitForLocator(targetLocator);
             return actionPerformer.performActionWithReturn(page, action, targetLocator, value);
-        } catch (Exception e) {
-            logger.error("Exception in performActionPageFrameWithReturn for element '{}' and action '{}':", element, action, e);
+        } catch (Exception | AssertionError e) {
+            recordFailure(action, element, key, value, page, targetLocator, frameContext(iFrame, iFrame_2, iFrame_3), e);
             return null;
         }
     }
@@ -308,6 +314,7 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
      * @return true if action executed successfully, false on any error.
      */
     private boolean performAction(Page page, String iFrame, String iFrame_2, String iFrame_3, String action, String element, String key, String value, FrameLocator frameLocator) {
+        UiActionFailureContext.clear();
         Locator targetLocator = null;
         try {
             // Determine context and resolve locator appropriately.
@@ -332,12 +339,62 @@ public class ElementActionImpl extends PageHelper implements ElementAction {
             // Delegate to the performer to execute the specified action.
             actionPerformer.performAction(page, action, targetLocator, value);
             return true;
-        } catch (Exception e) {
-            // Log the failure with context for easier debugging during tests.
-            logger.error("Error while performing action '{}' on element '{}' with key '{}'", action, element, key, e);
+        } catch (Exception | AssertionError e) {
+            recordFailure(action, element, key, value, page, targetLocator, frameContext(iFrame, iFrame_2, iFrame_3), e);
         }
 
         return false;
+    }
+
+    /**
+     * Stores a handled action failure before the legacy boolean/string API returns failure.
+     * The page and frame facades retrieve this context and retain the original cause in the
+     * final Cucumber/TestNG exception.
+     */
+    private void recordFailure(
+            String action,
+            String element,
+            String key,
+            String value,
+            Page page,
+            Locator locator,
+            String frameContext,
+            Throwable cause) {
+        Throwable originalCause = unwrapActionPerformerCause(cause);
+        UiActionFailureContext.record(action, element, key, value, page, locator, frameContext, originalCause);
+        // The page/frame/UIAssert boundary emits the single final error after evidence capture.
+        // Logging the same exception here would duplicate console and report output.
+        logger.debug("Stored handled UI action failure for action '{}' and element '{}'.", action, element);
+    }
+
+    /**
+     * ActionPerformer wraps operational failures only to preserve its legacy return contract.
+     * Expose its original Playwright or AssertionError cause to the final report instead.
+     */
+    private Throwable unwrapActionPerformerCause(Throwable cause) {
+        if (cause instanceof RuntimeException && cause.getCause() != null) {
+            return cause.getCause();
+        }
+        return cause;
+    }
+
+    /** Builds a readable iframe context without changing how locators are resolved. */
+    private String frameContext(String iFrame, String iFrame2, String iFrame3) {
+        StringBuilder frames = new StringBuilder();
+        appendFrame(frames, iFrame);
+        appendFrame(frames, iFrame2);
+        appendFrame(frames, iFrame3);
+        return frames.isEmpty() ? "top-level page" : frames.toString();
+    }
+
+    private void appendFrame(StringBuilder frames, String frame) {
+        if (frame == null || frame.trim().isEmpty()) {
+            return;
+        }
+        if (!frames.isEmpty()) {
+            frames.append(" -> ");
+        }
+        frames.append(frame.trim());
     }
 
     /**

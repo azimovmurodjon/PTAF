@@ -3,6 +3,8 @@ package com.ptaf.ui.pages;
 import com.microsoft.playwright.Download;
 import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Locator;
+import com.ptaf.ui.action_performer.UiActionFailureContext;
+import com.ptaf.ui.action_performer.UiActionFailureException;
 import com.ptaf.ui.action_performer.ElementActionImpl;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.ui.interfaces.ElementAction;
@@ -692,7 +694,7 @@ public class PageCommonMethods {
      * @param value   The value to compare against.
      */
     public void hasEqualValue(Page page, String element, String locator, String value) {
-        performAction("hasqualvalue", page, element, locator, value);
+        performAction("hasequalvalue", page, element, locator, value);
     }
 
     /**
@@ -760,8 +762,15 @@ public class PageCommonMethods {
             // performActionPage returns a boolean indicating success/failure of the operation.
             boolean actionStatus = elementAction.performActionPage(page, action, element, locator, value);
             if (!actionStatus) {
-                // If the action failed, perform centralized failure handling (logging, screenshots, closing resources).
-                handleFailure(page, action, element);
+                UiActionFailureContext.Failure failure = takeFailureOrCreateFallback(action, element, locator, value, page);
+                if (ConfigurationProperties.isSoftAssertionsEnabled()) {
+                    // Preserve the original action context while the soft-assertion wrapper captures
+                    // evidence and continues to the next step without closing the browser.
+                    throw UiActionFailureContext.toException(failure);
+                }
+                // Normal mode retains the original screenshot/cleanup behavior, but now surfaces
+                // the actual Playwright/assertion reason to Cucumber/TestNG.
+                handleFailure(page, action, element, failure);
             }
         });
     }
@@ -786,7 +795,11 @@ public class PageCommonMethods {
 
             // If a result was expected but not returned, treat it as a failure scenario.
             if (result[0] == null && actionRequiresResult(action)) {
-                handleFailure(page, action, element);
+                UiActionFailureContext.Failure failure = takeFailureOrCreateFallback(action, element, locator, value, page);
+                if (ConfigurationProperties.isSoftAssertionsEnabled()) {
+                    throw UiActionFailureContext.toException(failure);
+                }
+                handleFailure(page, action, element, failure);
             } else if (result[0] != null && !result[0].isEmpty()) {
                 // Log successful result retrieval for debugging and traceability.
                 logger.info("Action '{}' returned result: {}", action, result[0]);
@@ -1049,6 +1062,10 @@ public class PageCommonMethods {
             // NORMAL MODE (existing behavior — unchanged):
             try {
                 step.run();
+            } catch (UiActionFailureException e) {
+                // The page action already captured evidence and preserved the original cause.
+                // Do not replace it with a second generic failure message.
+                throw e;
             } catch (Exception e) {
                 // Mark failed, capture screenshot, close browser, throw to stop execution.
                 isFailed = true;
@@ -1116,14 +1133,52 @@ public class PageCommonMethods {
      * @param element The logical name of the element involved.
      */
     private void handleFailure(Page page, String action, String element) {
+        handleFailure(page, action, element, takeFailureOrCreateFallback(action, element, null, null, page));
+    }
+
+    /**
+     * Captures evidence and ends a normal-mode scenario without hiding the original UI action error.
+     */
+    private void handleFailure(
+            Page page,
+            String action,
+            String element,
+            UiActionFailureContext.Failure failure) {
         isFailed = true; // update internal status to prevent subsequent steps
-        logger.error("Action '{}' failed on element '{}'", action, element); // detailed logging for debugging
+        logger.error(UiActionFailureContext.describe(failure), failure.cause());
         // Capture failure screenshot and perform scenario teardown
         ScreenshotHandler.handleScenarioTeardown(getCurrentScenario(), page, "Failure Step");
         // Attempt to gracefully close browser resources
         closeBrowserOnFailure();
         // Throw to ensure test execution does not continue silently after a critical failure.
-        throw new RuntimeException(String.format("Action '%s' failed on element '%s', skipping further steps", action, element));
+        // The original Playwright/assertion throwable stays attached as the cause.
+        throw UiActionFailureContext.toException(failure);
+    }
+
+    /**
+     * Retrieves the adapter's original failure context or creates an explicit fallback when an
+     * action returned no result without throwing. This keeps every visible failure actionable.
+     */
+    private UiActionFailureContext.Failure takeFailureOrCreateFallback(
+            String action,
+            String element,
+            String locator,
+            String value,
+            Page page) {
+        UiActionFailureContext.Failure failure = UiActionFailureContext.take();
+        if (failure != null) {
+            return failure;
+        }
+        return UiActionFailureContext.create(
+                action,
+                element,
+                locator,
+                value,
+                page,
+                null,
+                "top-level page",
+                new IllegalStateException(
+                        "The UI action returned no successful result and did not provide a lower-level exception."));
     }
 
     /**

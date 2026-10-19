@@ -146,7 +146,7 @@ public class ActionPerformer {
             Page page = null;
             try { page = locator.page(); } catch (Exception ignored) {}
             String debug = buildExactFailureMessage(page, "waitIfNeededVisible", null, locator, e);
-            logger.error(debug, e);
+            logger.debug("Captured lower-level UI visibility failure for upper-layer reporting.");
             throw new RuntimeException(debug, e);
         }
     }
@@ -178,7 +178,7 @@ public class ActionPerformer {
             Page page = null;
             try { page = locator.page(); } catch (Exception ignored) {}
             String debug = buildExactFailureMessage(page, "waitIfNeededClickable", null, locator, e);
-            logger.error(debug, e);
+            logger.debug("Captured lower-level UI clickability failure for upper-layer reporting.");
             throw new RuntimeException(debug, e);
         }
     }
@@ -539,7 +539,9 @@ public class ActionPerformer {
                 case "hasvalue": {
                     waitIfNeededVisible(targetLocator);
                     String currentValue = targetLocator.first().inputValue();
-                    assertCondition(currentValue.equals(value), "Expected: " + value + ", but found: " + currentValue);
+                    assertCondition(
+                            java.util.Objects.equals(currentValue, value),
+                            valueMismatchMessage("hasvalue", value, currentValue, targetLocator));
                     return currentValue;
                 }
 
@@ -632,7 +634,10 @@ public class ActionPerformer {
                 case "hastext": {
                     waitIfNeededVisible(targetLocator);
                     String locatorText = targetLocator.first().textContent();
-                    assertCondition(locatorText != null && locatorText.contains(value), "Text mismatch.");
+                    assertCondition(
+                            locatorText != null && locatorText.contains(value),
+                            "Text mismatch. Expected to contain: " + comparableValue(value, targetLocator)
+                                    + ", Actual: " + comparableValue(locatorText, targetLocator));
                     return locatorText;
                 }
 
@@ -640,21 +645,28 @@ public class ActionPerformer {
                     waitIfNeededVisible(targetLocator);
                     String cls = targetLocator.first().getAttribute("class");
                     boolean hasClass = cls != null && cls.contains(value);
-                    assertCondition(hasClass, "Class mismatch.");
+                    assertCondition(
+                            hasClass,
+                            "Class mismatch. Expected to contain: " + comparableValue(value, targetLocator)
+                                    + ", Actual: " + comparableValue(cls, targetLocator));
                     return String.valueOf(hasClass);
                 }
 
                 case "hasequalvalue": {
                     waitIfNeededVisible(targetLocator);
                     String actualValue = targetLocator.first().inputValue();
-                    assertCondition(actualValue.equals(value), "Value mismatch.");
+                    assertCondition(
+                            java.util.Objects.equals(actualValue, value),
+                            valueMismatchMessage("hasequalvalue", value, actualValue, targetLocator));
                     return actualValue;
                 }
 
                 case "isempty": {
                     waitIfNeededVisible(targetLocator);
                     String inputValue = targetLocator.first().inputValue();
-                    assertCondition(inputValue.isEmpty(), "Element is not empty.");
+                    assertCondition(
+                            inputValue.isEmpty(),
+                            "Element is not empty. Actual: " + comparableValue(inputValue, targetLocator));
                     return inputValue;
                 }
 
@@ -662,7 +674,9 @@ public class ActionPerformer {
                     waitIfNeededVisible(targetLocator);
                     String txt = targetLocator.first().textContent();
                     if (txt == null || !txt.contains(value)) {
-                        throw new AssertionError("Text not found: " + value);
+                        throw new AssertionError(
+                                "Text not found. Expected to contain: " + comparableValue(value, targetLocator)
+                                        + ", Actual: " + comparableValue(txt, targetLocator));
                     }
                     return txt;
                 }
@@ -670,8 +684,8 @@ public class ActionPerformer {
                 case "waitforvalue": {
                     waitIfNeededVisible(targetLocator);
                     String val = targetLocator.first().inputValue();
-                    if (!val.equals(value)) {
-                        throw new AssertionError("Value mismatch.");
+                    if (!java.util.Objects.equals(val, value)) {
+                        throw new AssertionError(valueMismatchMessage("waitforvalue", value, val, targetLocator));
                     }
                     return val;
                 }
@@ -692,10 +706,10 @@ public class ActionPerformer {
                 default:
                     throw new IllegalArgumentException("Unknown action: " + action);
             }
-        } catch (Exception e) {
+        } catch (Exception | AssertionError e) {
             // Build a helpful debug message and rethrow as RuntimeException for upstream handling
             String debug = buildExactFailureMessage(page, action, value, targetLocator, e);
-            logger.error(debug, e);
+            logger.debug("Captured lower-level UI action failure for action '{}'; the page/frame handler will report it.", action);
             throw new RuntimeException(debug, e);
         }
     }
@@ -712,7 +726,7 @@ public class ActionPerformer {
             targetLocator.first().click();
         } catch (Exception e) {
             // Log the concise error message and wrap into RuntimeException for callers
-            logger.error("Error while clicking on target locator: {}", e.getMessage());
+            logger.debug("Captured lower-level click helper failure for upper-layer reporting.");
             throw new RuntimeException("Click action failed: " + e.getMessage(), e);
         }
     }
@@ -746,7 +760,7 @@ public class ActionPerformer {
             Page page = null;
             try { page = locator.page(); } catch (Exception ignored) {}
             String debug = buildExactFailureMessage(page, "waitForLocator", null, locator, e);
-            logger.error(debug, e);
+            logger.debug("Captured lower-level locator wait failure for upper-layer reporting.");
             throw new RuntimeException(debug, e);
         }
     }
@@ -766,12 +780,12 @@ public class ActionPerformer {
      * @param e exception that was thrown
      * @return detailed multi-line debug string
      */
-    private String buildExactFailureMessage(Page page, String action, String value, Locator locator, Exception e) {
+    private String buildExactFailureMessage(Page page, String action, String value, Locator locator, Throwable e) {
         StringBuilder sb = new StringBuilder();
 
         sb.append("\n========== PTAF FAILURE (EXACT WHY) ==========\n");
         sb.append("Action     : ").append(safe(action)).append("\n");
-        sb.append("Value      : ").append(safe(value)).append("\n");
+        sb.append("Value      : ").append(comparableValue(value, locator)).append("\n");
 
         try {
             if (page != null) {
@@ -794,6 +808,41 @@ public class ActionPerformer {
         sb.append("=============================================\n");
 
         return sb.toString();
+    }
+
+    /**
+     * Builds an exact value mismatch message with readable values and lengths.
+     * The comparison remains strict and unchanged; this method only improves diagnostics.
+     */
+    private String valueMismatchMessage(String action, String expected, String actual, Locator locator) {
+        return "Value mismatch during " + action
+                + ". Expected: " + comparableValue(expected, locator)
+                + ", Actual: " + comparableValue(actual, locator);
+    }
+
+    /**
+     * Renders a value safely for console and report diagnostics.
+     * Values for selectors that identify passwords, tokens, or similar credentials are redacted.
+     */
+    private String comparableValue(String value, Locator locator) {
+        if (value == null) {
+            return "null";
+        }
+        if (looksSensitive(locator)) {
+            return "[REDACTED; length=" + value.length() + "]";
+        }
+        return "[" + value.replace("\n", "\\n").replace("\r", "\\r") + "] (length=" + value.length() + ")";
+    }
+
+    private boolean looksSensitive(Locator locator) {
+        String locatorText = locatorToString(locator).toLowerCase();
+        return locatorText.contains("password")
+                || locatorText.contains("passwd")
+                || locatorText.contains("secret")
+                || locatorText.contains("token")
+                || locatorText.contains("credential")
+                || locatorText.contains("authorization")
+                || locatorText.contains("auth");
     }
 
     /**

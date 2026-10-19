@@ -4,6 +4,8 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.ui.action_performer.ElementActionImpl;
+import com.ptaf.ui.action_performer.UiActionFailureContext;
+import com.ptaf.ui.action_performer.UiActionFailureException;
 import com.ptaf.ui.interfaces.ElementAction;
 import com.ptaf.utils.ScreenshotHandler;
 import io.cucumber.java.Scenario;
@@ -75,6 +77,8 @@ public class UIAssert {
             // Get the text from the element via ElementAction implementation.
             String actual = elementAction.performActionPageFrameWithReturn(
                     page, iFrame, iFrame_2, iFrame_3, "gettext", element, locator, null, null);
+            throwIfRecordedActionFailure(page, iFrame, iFrame_2, iFrame_3, element, locator,
+                    "textEquals could not read the element");
             if (actual == null) actual = "";
             // Compare strictly; account for null expected by converting to String.
             if (!String.valueOf(expectedText).equals(actual)) {
@@ -85,6 +89,8 @@ public class UIAssert {
                 // Log success for traceability.
                 logger.info("✅ textEquals passed [{}]", expectedText);
             }
+        } catch (UiActionFailureException failure) {
+            throw failure;
         } catch (Exception e) {
             // Any exception during retrieval is treated as a failure: capture screenshot and fail.
             failWithScreenshot(page, iFrame, iFrame_2, iFrame_3, element, locator,
@@ -111,7 +117,7 @@ public class UIAssert {
     public void valueEquals(Page page, String iFrame, String iFrame_2, String iFrame_3,
                             String element, String locator, String expected) {
         delegateBooleanish(page, iFrame, iFrame_2, iFrame_3, element, locator, "hasequalvalue", expected,
-                "Value mismatch. Expected: " + expected);
+                "Value mismatch");
     }
 
     /**
@@ -125,6 +131,8 @@ public class UIAssert {
             // Request attribute value from ElementAction. attribute is passed as the action value.
             String actual = elementAction.performActionPageFrameWithReturn(
                     page, iFrame, iFrame_2, iFrame_3, "getattribute", element, locator, attribute, null);
+            throwIfRecordedActionFailure(page, iFrame, iFrame_2, iFrame_3, element, locator,
+                    "attributeEquals could not read attribute '" + attribute + "'");
             if (actual == null) actual = "";
             if (!String.valueOf(expected).equals(actual)) {
                 // On mismatch, capture screenshot and fail.
@@ -133,6 +141,8 @@ public class UIAssert {
             } else {
                 logger.info("✅ attributeEquals passed attr={} [{}]", attribute, expected);
             }
+        } catch (UiActionFailureException failure) {
+            throw failure;
         } catch (Exception e) {
             // Any exception is treated as failure and triggers screenshot capture.
             failWithScreenshot(page, iFrame, iFrame_2, iFrame_3, element, locator,
@@ -151,6 +161,8 @@ public class UIAssert {
             // Retrieve attribute value.
             String actual = elementAction.performActionPageFrameWithReturn(
                     page, iFrame, iFrame_2, iFrame_3, "getattribute", element, locator, attribute, null);
+            throwIfRecordedActionFailure(page, iFrame, iFrame_2, iFrame_3, element, locator,
+                    "attributeContains could not read attribute '" + attribute + "'");
             // Null or not containing substring is a failure.
             if (actual == null || !actual.contains(mustContain)) {
                 failWithScreenshot(page, iFrame, iFrame_2, iFrame_3, element, locator,
@@ -158,6 +170,8 @@ public class UIAssert {
             } else {
                 logger.info("✅ attributeContains passed attr={} contains [{}]", attribute, mustContain);
             }
+        } catch (UiActionFailureException failure) {
+            throw failure;
         } catch (Exception e) {
             // Any exception triggers screenshot capture and failure.
             failWithScreenshot(page, iFrame, iFrame_2, iFrame_3, element, locator,
@@ -349,6 +363,8 @@ public class UIAssert {
             // Get text raw from element
             String actual = elementAction.performActionPageFrameWithReturn(
                     page, iFrame, iFrame_2, iFrame_3, "gettext", element, locator, null, null);
+            throwIfRecordedActionFailure(page, iFrame, iFrame_2, iFrame_3, element, locator,
+                    "textEqualsTrimmed could not read the element");
             if (actual == null) actual = "";
             // Normalize whitespace for both expected and actual
             String normActual = actual.trim().replaceAll("\\s+", " ");
@@ -360,6 +376,8 @@ public class UIAssert {
             } else {
                 logger.info("✅ textEqualsTrimmed passed [{}]", normExpected);
             }
+        } catch (UiActionFailureException failure) {
+            throw failure;
         } catch (Exception e) {
             // Any exception handled as failure
             failWithScreenshot(page, iFrame, iFrame_2, iFrame_3, element, locator,
@@ -438,20 +456,55 @@ public class UIAssert {
             String result = elementAction.performActionPageFrameWithReturn(
                     page, iFrame, iFrame_2, iFrame_3, action, element, locator, valueIfAny, null);
 
+            // The legacy adapter returns null for a handled failure. Only treat that null as a
+            // failure when it carries a recorded action context; a legitimate nullable getter
+            // without context retains existing behavior.
+            UiActionFailureContext.Failure failure = UiActionFailureContext.take();
+            if (result == null && failure != null) {
+                failWithScreenshot(page, iFrame, iFrame_2, iFrame_3, element, locator,
+                        friendlyFailure + " | " + UiActionFailureContext.describe(failure), failure.cause());
+            }
+
             // If there's a returned result, log it; otherwise a simple pass log is sufficient.
             if (result != null) {
                 logger.info("✅ {} passed; result={}", action, result);
             } else {
                 logger.info("✅ {} passed", action);
             }
+        } catch (UiActionFailureException failure) {
+            // The recorded UI failure already has its screenshot attempt and original cause.
+            // Propagate it unchanged rather than producing a second generic assertion error.
+            throw failure;
         } catch (AssertionError ae) {
             // Underlying assertion thrown by ElementAction - capture screenshot and fail with friendly message.
             failWithScreenshot(page, iFrame, iFrame_2, iFrame_3, element, locator,
-                    friendlyFailure + " | " + ae.getMessage());
+                    friendlyFailure + " | " + ae.getMessage(), ae);
         } catch (Exception e) {
             // Any other exception is also treated as assertion failure for ergonomics.
+            Throwable originalCause = e instanceof UiActionFailureException && e.getCause() != null
+                    ? e.getCause()
+                    : e;
             failWithScreenshot(page, iFrame, iFrame_2, iFrame_3, element, locator,
-                    friendlyFailure + " | " + e.getMessage());
+                    friendlyFailure + " | " + e.getMessage(), originalCause);
+        }
+    }
+
+    /**
+     * Converts a handled null-return action failure into one screenshot-backed assertion error.
+     * A genuine nullable result without a recorded failure remains compatible with prior behavior.
+     */
+    private void throwIfRecordedActionFailure(
+            Page page,
+            String iFrame,
+            String iFrame2,
+            String iFrame3,
+            String element,
+            String locator,
+            String friendlyFailure) {
+        UiActionFailureContext.Failure failure = UiActionFailureContext.take();
+        if (failure != null) {
+            failWithScreenshot(page, iFrame, iFrame2, iFrame3, element, locator,
+                    friendlyFailure + " | " + UiActionFailureContext.describe(failure), failure.cause());
         }
     }
 
@@ -473,7 +526,7 @@ public class UIAssert {
      * @param message descriptive failure message to include in thrown RuntimeException
      */
     private void failWithScreenshot(Page page, String iFrame, String iFrame_2, String iFrame_3,
-                                    String element, String locator, String message) {
+                                    String element, String locator, String message, Throwable cause) {
         // Log the failure at error level for CI logs and local debugging.
         logger.error("❌ Assertion failed: {}", message);
         try {
@@ -494,7 +547,16 @@ public class UIAssert {
             logger.error("Screenshot capture failed: {}", shotEx.getMessage(), shotEx);
         }
         // Finally, throw an unchecked exception so calling test frameworks mark the test as failed.
-        throw new RuntimeException(message);
+        throw new UiActionFailureException(message, cause);
+    }
+
+    /**
+     * Compatibility overload for assertion methods that build their own comparison message.
+     * New adapter-originated failures should use the overload with an explicit root cause.
+     */
+    private void failWithScreenshot(Page page, String iFrame, String iFrame_2, String iFrame_3,
+                                    String element, String locator, String message) {
+        failWithScreenshot(page, iFrame, iFrame_2, iFrame_3, element, locator, message, null);
     }
 
     /**

@@ -3,6 +3,8 @@ package com.ptaf.ui.pages;
 import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.ptaf.ui.action_performer.UiActionFailureContext;
+import com.ptaf.ui.action_performer.UiActionFailureException;
 import com.ptaf.ui.action_performer.ElementActionImpl;
 import com.ptaf.hooks.Hooks;
 import com.ptaf.ui.helpers.ElementLocatorHelper;
@@ -722,7 +724,7 @@ public class FrameCommonMethods {
      * @param value    The expected value to compare against.
      */
     public void hasEqualValue(Page page, String iFrame, String iFrame_2, String iFrame_3, String element, String locator, String value) {
-        performAction("hasqualvalue", page, iFrame, iFrame_2, iFrame_3, element, locator, value); // Perform value equality check
+        performAction("hasequalvalue", page, iFrame, iFrame_2, iFrame_3, element, locator, value); // Perform value equality check
     }
 
     /**
@@ -884,14 +886,14 @@ public class FrameCommonMethods {
         executeStep(() -> {
             boolean actionStatus = elementAction.performActionPageFrame(page, iFrame, iFrame_2, iFrame_3, action, element, locator, value, null);
             if (!actionStatus) {
+                UiActionFailureContext.Failure failure = takeFailureOrCreateFallback(
+                        action, element, locator, value, page, iFrame, iFrame_2, iFrame_3);
                 if (com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
-                    // SOFT ASSERTION MODE: throw a simple exception WITHOUT closing the browser.
-                    // The catch block in executeStep() will handle it, record the failure,
-                    // and continue to the next step with the browser still open.
-                    throw new RuntimeException("Action '" + action + "' failed on element '" + element + "', skipping further steps");
+                    // The soft-assertion wrapper will capture evidence and continue without
+                    // closing the browser, while retaining the original Playwright reason.
+                    throw UiActionFailureContext.toException(failure);
                 } else {
-                    // NORMAL MODE: call handleFailure which closes the browser and throws.
-                    handleFailure(page, action, element);
+                    handleFailure(page, action, element, failure);
                 }
             }
         });
@@ -918,11 +920,12 @@ public class FrameCommonMethods {
 
             // Handle failure if result is expected but null
             if (result[0] == null && actionRequiresResult(action)) {
+                UiActionFailureContext.Failure failure = takeFailureOrCreateFallback(
+                        action, element, locator, value, page, iFrame, iFrame_2, iFrame_3);
                 if (com.ptaf.utils.ConfigurationProperties.isSoftAssertionsEnabled()) {
-                    // SOFT ASSERTION MODE: throw without closing the browser
-                    throw new RuntimeException("Action '" + action + "' failed on element '" + element + "', skipping further steps");
+                    throw UiActionFailureContext.toException(failure);
                 } else {
-                    handleFailure(page, action, element);
+                    handleFailure(page, action, element, failure);
                 }
             } else if (result[0] != null && !result[0].isEmpty()) {
                 logger.info("Action '{}' returned result: {}", action, result[0]);
@@ -1107,6 +1110,10 @@ public class FrameCommonMethods {
             }
             try {
                 step.run();
+            } catch (UiActionFailureException e) {
+                // The action-level handler has already captured evidence and retained its cause.
+                // Do not replace it with a second generic message.
+                throw e;
             } catch (Exception e) {
                 isFailed = true;
                 logger.error("Step execution failed: {}", e.getMessage(), e);
@@ -1124,11 +1131,70 @@ public class FrameCommonMethods {
      * @param element The logical name of the element involved.
      */
     private void handleFailure(Page page, String action, String element) {
+        handleFailure(page, action, element,
+                takeFailureOrCreateFallback(action, element, null, null, page, null, null, null));
+    }
+
+    /**
+     * Captures normal-mode frame failure evidence while preserving the exact lower-level cause.
+     */
+    private void handleFailure(
+            Page page,
+            String action,
+            String element,
+            UiActionFailureContext.Failure failure) {
         isFailed = true; // Update internal state to indicate failure
-        logger.error("Action '{}' failed on element '{}'", action, element); // Log details of the failure
+        logger.error(UiActionFailureContext.describe(failure), failure.cause());
         ScenarioUtil.handleScenarioTeardownFailier(getCurrentScenario(), page, "Failure Step"); // Cleanup the scenario context
         closeBrowserOnFailure(); // Attempt to close any resources on failure
-        throw new RuntimeException(String.format("Action '%s' failed on element '%s', skipping further steps", action, element)); // Throw exception to indicate failure
+        throw UiActionFailureContext.toException(failure); // Throw exception to indicate failure
+    }
+
+    /**
+     * Consumes the adapter diagnostic for the current thread or creates a clear fallback
+     * when an action returned no result without exposing an underlying exception.
+     */
+    private UiActionFailureContext.Failure takeFailureOrCreateFallback(
+            String action,
+            String element,
+            String locator,
+            String value,
+            Page page,
+            String iFrame,
+            String iFrame2,
+            String iFrame3) {
+        UiActionFailureContext.Failure failure = UiActionFailureContext.take();
+        if (failure != null) {
+            return failure;
+        }
+        return UiActionFailureContext.create(
+                action,
+                element,
+                locator,
+                value,
+                page,
+                null,
+                frameContext(iFrame, iFrame2, iFrame3),
+                new IllegalStateException(
+                        "The frame UI action returned no successful result and did not provide a lower-level exception."));
+    }
+
+    private String frameContext(String iFrame, String iFrame2, String iFrame3) {
+        StringBuilder frames = new StringBuilder();
+        appendFrame(frames, iFrame);
+        appendFrame(frames, iFrame2);
+        appendFrame(frames, iFrame3);
+        return frames.isEmpty() ? "top-level page" : frames.toString();
+    }
+
+    private void appendFrame(StringBuilder frames, String frame) {
+        if (frame == null || frame.trim().isEmpty()) {
+            return;
+        }
+        if (!frames.isEmpty()) {
+            frames.append(" -> ");
+        }
+        frames.append(frame.trim());
     }
 
     /**
