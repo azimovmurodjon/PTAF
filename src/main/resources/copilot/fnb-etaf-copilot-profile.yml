@@ -1,0 +1,193 @@
+# FNB-ETAF GitHub Copilot profile
+#
+# This is the single human-maintained source for FNB-ETAF AI coding guidance.
+# Run the explicit CopilotInstructionTool sync command to generate .github files.
+# Do not add credentials, JWTs, passwords, customer data, internal URLs, or test evidence here.
+# The optional discovery_policy below controls a local review-draft tool only. It never starts an MCP server.
+version: "1.1.0"
+
+repository_instruction: |
+  # FNB-ETAF repository guidance
+
+  FNB-ETAF is an enterprise Java 21 and Maven test automation framework. It supports web UI, API, database, mobile native, mobile browser, XML, CSV, ZIP, PDF, protocol-level API performance, concurrent real-browser UI performance, and governed reporting/evidence.
+
+  ## Preserve working framework contracts
+
+  - Make minimal, targeted, backward-compatible changes. Reuse existing steps, methods, configuration, and YAML resources before creating new abstractions.
+  - Do not modify Hooks, BrowserFactory, standard runners, browser lifecycle, report lifecycle, video lifecycle, @LastScenario behavior, or TestNG/Cucumber execution technology unless the task explicitly requires that coordinated change.
+  - Do not change normal UI, API, DB, mobile, PDF, file, performance, or reporting behavior while solving an unrelated defect.
+  - Add a focused regression test before changing lifecycle, concurrency, shared error handling, or other cross-cutting behavior.
+  - Keep feature files readable and business-focused. Keep selectors, request bodies, queries, data, and environment configuration in the approved resource directories.
+
+  ## Safety and confidentiality
+
+  - Never put passwords, tokens, cookies, authorization values, customer data, account details, real internal endpoints, screenshots, videos, or report output into source-controlled instructions, example features, YAML, prompts, or generated code.
+  - Use placeholders such as https://<approved-target> and ${SECRET_FROM_CI}. Never bypass TLS validation, authentication, WAF/rate limits, or application security as an automatic fix.
+  - Treat generated Copilot advice as guidance only. Preserve code review, architecture review, and normal test validation.
+
+  ## Required validation
+
+  - Compile before presenting a Java change: mvn clean test-compile -DskipTests.
+  - Run focused tests that cover the changed behavior. Do not weaken tests or thresholds simply to make a build pass.
+  - Run git diff --check before delivering changes.
+  - Do not claim an internal application run passed unless the actual approved run completed successfully and its result was verified.
+
+  ## Optional local Playwright MCP discovery
+
+  - Use the local Playwright MCP workflow only when a human explicitly enables it in IntelliJ, approves the exact non-sensitive target origin, and confirms the read-only locator-discovery purpose.
+  - Playwright MCP is not part of FNB-ETAF runtime. It must not be started by a framework runner, Hook, BrowserFactory, Maven lifecycle, CI pipeline, or generated test.
+  - Use the approved target alias already maintained in src/test/resources/config/config.yml. Never copy a resolved URL into instructions, generated drafts, feature files, reports, or source code.
+  - Inspect only a non-sensitive test view. Do not log in, submit forms, type values, accept dialogs, upload/download, capture screenshots/PDFs/videos, collect page source, inspect network traffic, access storage/cookies, or run arbitrary browser JavaScript.
+  - Never use persistent browser profiles, CDP endpoints, extensions, storage-state/secrets files, TLS-error bypass, unrestricted file access, proxy changes, service-worker persistence, or cloud coding agents for this workflow.
+  - Generate only review-only locator and clean feature drafts beneath .fnb-etaf/discovery-drafts. Never edit active locators, feature files, configuration, Hooks, BrowserFactory, runners, reports, or tests automatically.
+  - A human must confirm locator stability and copy approved entries into active test resources, then run the focused test manually.
+
+  ## Architecture overview
+
+  - Production framework code: src/main/java/com/ptaf.
+  - Cucumber steps and runners: src/test/java/com/ptaf.
+  - Standard test resources: src/test/resources.
+  - Standard UI locators: src/test/resources/elements.
+  - Standard configuration: src/test/resources/config/config.yml.
+  - Normal browser lifecycle: com.ptaf.hooks.Hooks and com.ptaf.utils.BrowserFactory.
+  - Protocol/API performance: com.ptaf.performance with resources under src/test/resources/performance.
+  - UI performance: com.ptaf.ui_performance with resources under src/test/resources/ui_performance. It is deliberately isolated from normal Hooks, normal browser lifecycle, and standard Cucumber reporting.
+
+# One central policy for the optional local IntelliJ Playwright MCP template and review-only drafts.
+# Update this section and rerun the explicit local tools; do not edit generated .fnb-etaf files.
+discovery_policy:
+  draft_output_directory: ".fnb-etaf/discovery-drafts"
+  mcp_template_output_path: ".fnb-etaf/copilot/mcp.json"
+  mcp_server_name: "fnb-etaf-playwright-local"
+  playwright_mcp_package: "@playwright/mcp@0.0.83"
+  default_browser: "chrome"
+  default_headless: true
+  idle_timeout_millis: 300000
+  console_level: "error"
+  # Use stable element representations. Add types only after validating LocatorHandler support.
+  allowed_locator_types:
+    - "TESTID"
+    - "ID"
+    - "LABEL"
+    - "PLACEHOLDER"
+    - "BUTTON"
+    - "LINKTEXT"
+    - "HEADING"
+    - "TEXTBOX"
+    - "CHECKBOX"
+    - "RADIOBUTTON"
+    - "DROPDOWN"
+    - "ROLE"
+    - "CSS"
+    - "XPATH"
+    - "TEXT"
+  # No typing, selection, submission, download, upload, frame, popup, or authentication actions are generated.
+  allowed_actions:
+    - "click"
+    - "verify_visible"
+    - "verify_enabled"
+    - "verify_exists"
+  # Recommendation: keep review batches small (10–25). Raise only with an approved review process.
+  maximum_candidates: 25
+
+path_instructions:
+  .github/instructions/fnb-etaf-java.instructions.md: |
+    ---
+    applyTo: "src/main/java/**/*.java,src/test/java/**/*.java"
+    ---
+    # FNB-ETAF Java and test-code guidance
+
+    - Preserve public method names, existing Gherkin bindings, and boolean/string return contracts unless an approved requirement explicitly changes them.
+    - Keep framework modules focused. Use existing package ownership: ui, api, db, mobile, performance, ui_performance, reporting, softassert, hooks, and utils.
+    - Do not launch browsers directly from ordinary step definitions. Standard browser/context creation remains the responsibility of BrowserFactory and Hooks.
+    - Preserve the detailed UI failure path. A failure must retain the original Playwright or assertion cause rather than replacing it with a generic mismatch.
+    - Catch exceptions only where the framework can add useful context or evidence. Preserve the original cause when rethrowing.
+    - Use existing configuration accessors instead of hard-coding browser settings, timeouts, report settings, or environment values.
+    - Add narrow local tests for a changed behavior. Avoid broad refactoring unless explicitly requested.
+
+  .github/instructions/fnb-etaf-feature.instructions.md: |
+    ---
+    applyTo: "src/test/resources/features/**/*.feature,src/test/java/com/ptaf/stepdefinitions/**/*.java"
+    ---
+    # FNB-ETAF feature and step-definition guidance
+
+    - Keep Gherkin business-readable. Use existing steps before adding a new step definition.
+    - A new step must map cleanly to a Java binding, a focused framework/page/business method, and approved YAML/configuration resources.
+    - Use has value for input, textarea, or select value verification. Use contain/text assertions only for visible text content, labels, headings, messages, buttons, or table cells.
+    - Do not embed CSS/XPath selectors, credentials, tokens, large request bodies, query text, internal URLs, or customer data in feature files.
+    - Preserve @LastScenario semantics and explicit close-all-browsers sequencing. Do not change scenario lifecycle behavior to fix a feature-only problem.
+    - Keep API and performance routes relative when the existing target configuration assembles the host, protocol, port, or base path.
+
+  .github/instructions/fnb-etaf-ui.instructions.md: |
+    ---
+    applyTo: "src/main/java/com/ptaf/ui/**/*.java,src/test/resources/elements/**/*.yml,src/test/java/com/ptaf/stepdefinitions/PageCommonSteps.java,src/test/java/com/ptaf/stepdefinitions/NewPageCommonSteps.java,src/test/java/com/ptaf/stepdefinitions/FrameCommonSteps.java"
+    ---
+    # FNB-ETAF web UI and locator guidance
+
+    - Store logical UI locators in src/test/resources/elements YAML files. Prefer stable data attributes, IDs, and accessibility-aware selectors over fragile positional XPath.
+    - Preserve existing frame, nested-frame, popup, new-page, viewport, maximize, headless, video, and screenshot behavior.
+    - Do not use arbitrary sleeps when an existing wait action or configured timeout is appropriate.
+    - Do not change Hooks or BrowserFactory to resolve a single locator or assertion issue.
+    - UI action errors must identify the action, logical element, YAML key, page/frame context, and original failure cause. Redact values for password-, token-, secret-, credential-, or authorization-like fields.
+    - Ensure screenshots, videos, downloads, and feature-name artifact directories retain their existing lifecycle and naming behavior.
+
+  .github/instructions/fnb-etaf-api-db-data.instructions.md: |
+    ---
+    applyTo: "src/main/java/com/ptaf/api/**/*.java,src/main/java/com/ptaf/db/**/*.java,src/main/java/com/ptaf/csv/**/*.java,src/main/java/com/ptaf/xml/**/*.java,src/main/java/com/ptaf/zip/**/*.java,src/main/java/com/ptaf/pdf/**/*.java,src/test/resources/api_requests/**/*.yml,src/test/resources/queries/**/*.yml,src/test/resources/data/**/*,src/test/resources/features/api_*.feature,src/test/resources/features/db/**/*.feature,src/test/resources/features/csv/**/*.feature,src/test/resources/features/xml/**/*.feature,src/test/resources/features/pdf/**/*.feature"
+    ---
+    # FNB-ETAF API, database, file-data, and PDF guidance
+
+    - Store API requests, request bodies, headers, database queries, CSV/XML data, ZIP settings, and PDF expectations in their approved resources. Keep features concise.
+    - Validate expected API response statuses and meaningful response content. A 4xx or 5xx response is a failure unless an approved negative test explicitly expects it.
+    - Use parameterized database access and preserve connection cleanup. Never embed credentials or real connection values in generated code.
+    - Do not log raw authorization values, passwords, account data, or confidential file content.
+    - Preserve existing CSV, XML, ZIP extraction/conversion, and PDF validation behavior when adding a new data use case.
+
+  .github/instructions/fnb-etaf-mobile.instructions.md: |
+    ---
+    applyTo: "src/main/java/com/ptaf/mobile/**/*.java,src/test/resources/mobile/**/*.yml,src/test/resources/mobile_browser/**/*,src/test/resources/features/mobile/**/*.feature,src/test/resources/features/mobile_browser/**/*.feature,src/test/java/com/ptaf/stepdefinitions/MobileSteps.java"
+    ---
+    # FNB-ETAF mobile native and mobile-browser guidance
+
+    - Keep Android and iOS handling separate where platform behavior differs, while using shared locators only where they are valid for both platforms.
+    - Use stable accessibility IDs, resource IDs, and approved locator YAML. Do not hard-code device-specific selectors in feature files.
+    - Preserve Appium driver lifecycle, native-app/native-browser separation, screenshot/video evidence, configured waits, and mobile hierarchy-capture protections.
+    - Hierarchy capture output is sensitive evidence. Do not add captured XML or discovered values directly to source-controlled YAML without review and redaction.
+    - Do not start a regular web browser for a native mobile-only scenario.
+
+  .github/instructions/fnb-etaf-performance.instructions.md: |
+    ---
+    applyTo: "src/main/java/com/ptaf/performance/**/*.java,src/main/java/com/ptaf/ui_performance/**/*.java,src/test/resources/performance/**/*,src/test/resources/ui_performance/**/*,src/test/java/com/ptaf/ui_performance/**/*.java,src/test/resources/features/performance/**/*.feature"
+    ---
+    # FNB-ETAF API and UI performance guidance
+
+    - Keep protocol/API performance and UI performance separate. API performance uses the performance module and JMeter DSL. UI performance uses isolated concurrent real-browser virtual users in ui_performance.
+    - Do not merge ui_performance into normal Hooks, standard UI runners, standard browser lifecycle, or Extent/PDF Cucumber reporting. Its isolation is intentional.
+    - UI performance concurrency belongs to UiPerformanceEngine and its synchronized start gate, not TestNG/Cucumber scenario parallelism.
+    - Keep user count, ramp stages, hold duration, headless mode, safety caps, thresholds, target details, and report formats configurable in the dedicated YAML resources.
+    - Respect configured safety limits and approved targets. Never escalate load automatically or create an unbounded virtual-user default.
+    - Preserve response-status validation, error thresholds, readable timing, sensitive-text sanitization, and shareable report accuracy.
+
+  .github/instructions/fnb-etaf-reporting.instructions.md: |
+    ---
+    applyTo: "src/main/java/com/ptaf/reporting/**/*.java,src/main/java/com/ptaf/performance/reports/**/*.java,src/main/java/com/ptaf/ui_performance/reporting/**/*.java,src/test/resources/extent.properties,src/test/resources/extent-config.xml"
+    ---
+    # FNB-ETAF reporting and evidence guidance
+
+    - Preserve report accuracy: passed, failed, skipped, soft-asserted, scenario, feature, duration, screenshot, video, download, and evidence information must remain correctly associated.
+    - Do not mark a failed action as passed or replace the original failure reason with generic reporting text.
+    - Preserve existing Extent, HTML, PDF, per-feature, JMeter/performance, and UI-performance artifact behaviors unless a coordinated reporting change is explicitly approved.
+    - Keep timings readable while retaining raw values when needed for analysis.
+    - Do not put sensitive values or internal application details into report messages, filenames, generated HTML, PDFs, JSON, or CSV output.
+
+  .github/instructions/fnb-etaf-maven.instructions.md: |
+    ---
+    applyTo: "pom.xml,src/test/resources/testng.xml,src/test/resources/ui_performance/testng-*.xml"
+    ---
+    # FNB-ETAF Maven and runner guidance
+
+    - Preserve Java 21, the existing TestNG Surefire provider selection, runner suite paths, and current Maven dependency alignment unless a change is specifically required and tested.
+    - Do not remove JUnit, TestNG, Cucumber, Playwright, Appium, JMeter, Extent, or reporting dependencies as an incidental cleanup.
+    - Keep ui_performance as an explicit isolated profile. Its profile changes only the relevant Surefire suite and lets its internal engine own browser-user concurrency.
+    - Do not bind Copilot sync or file-writing behavior to mvn test, mvn clean install, or normal IDE test runs.
+    - Validate Maven changes with compilation and focused tests. Use dependency analysis before changing versions or exclusions.

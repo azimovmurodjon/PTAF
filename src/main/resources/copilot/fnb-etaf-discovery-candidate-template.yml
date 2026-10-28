@@ -1,0 +1,21 @@
+# Local review input only. Keep this file under .fnb-etaf/discovery-inputs in a consumer repository.
+# Do not add URLs, credentials, cookies, tokens, customer data, screenshots, HTML, or input values.
+# target_alias must be a pre-existing key in src/test/resources/config/config.yml.
+# The draft tool writes only under .fnb-etaf/discovery-drafts and never modifies active test resources.
+
+discovery_draft:
+  target_alias: "approved_target_alias"
+  locator_file_name: "sample_page_elements"
+  element_group: "sample_page"
+  feature_name: "Sample page navigation"
+  scenario_name: "User completes the approved sample page action"
+  page_context: "page"
+  candidates:
+    - key: "continue_button"
+      locator_type: "TESTID"
+      locator_value: "continue"
+      action: "click"
+    - key: "confirmation_heading"
+      locator_type: "HEADING"
+      locator_value: "Confirmation"
+      action: "verify_visible"

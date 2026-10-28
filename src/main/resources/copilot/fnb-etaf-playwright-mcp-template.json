@@ -1,0 +1,28 @@
+{
+  "servers": {
+    "${MCP_SERVER_NAME}": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "${PLAYWRIGHT_MCP_PACKAGE}",
+        "--isolated",
+        "${HEADLESS_ARGUMENT}",
+        "--sandbox",
+        "--browser=${BROWSER}",
+        "--codegen=java",
+        "--no-webmcp",
+        "--block-service-workers",
+        "--image-responses=omit",
+        "--file-paths=relative",
+        "--console-level=${CONSOLE_LEVEL}",
+        "--idle-timeout=${IDLE_TIMEOUT_MILLIS}",
+        "--allowed-origins=https://<APPROVED_TARGET_ORIGIN>",
+        "--blocked-origins=http://localhost:*;http://127.0.0.1:*;http://169.254.169.254;http://metadata.google.internal"
+      ],
+      "env": {
+        "PLAYWRIGHT_MCP_SAVE_SESSION": "false",
+        "PLAYWRIGHT_MCP_WEBMCP": "false"
+      }
+    }
+  }
+}
