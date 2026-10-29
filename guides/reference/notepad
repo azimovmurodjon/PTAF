@@ -1,40 +1,80 @@
-Yes. Use **this exact PowerShell block**. It is not LaTeX—copy it into your IntelliJ **Windows PowerShell** terminal and press Enter.
+Now we found the real issue. Your script is starting correctly, but **Maven is not available in the Windows PowerShell PATH**:
+
+```text
+mvn : The term 'mvn' is not recognized
+```
+
+The script path is correct. Do not retry the Copilot script yet.
+
+## Step 1: Find the Maven path IntelliJ is using
+
+In IntelliJ, open:
+
+```text
+File → Settings → Build, Execution, Deployment → Build Tools → Maven
+```
+
+Look for **Maven home path**.
+
+If it shows an actual folder path, copy that full path. It should be the Maven home folder, which contains a `bin` folder.
+
+For example only:
+
+```text
+C:\Program Files\JetBrains\IntelliJ IDEA <version>\plugins\maven\lib\maven3
+```
+
+## Step 2: Run this in IntelliJ Windows PowerShell
+
+Replace the sample Maven path below with the exact Maven home path you copied from IntelliJ:
+
+```powershell
+$mavenHome = 'C:\Program Files\JetBrains\IntelliJ IDEA <version>\plugins\maven\lib\maven3'
+
+$env:MAVEN_HOME = $mavenHome
+$env:Path = "$env:MAVEN_HOME\bin;$env:Path"
+
+mvn -version
+```
+
+You must see Maven version information and **Java 21**.
+
+## Step 3: Run the Copilot verification again
+
+Only after `mvn -version` works, run:
 
 ```powershell
 $projectRoot = (Get-Location).Path
 $syncScript = (Resolve-Path -LiteralPath ".\scripts\sync-copilot-instructions.ps1").Path
 
-Write-Host "Script found: $syncScript"
-
 & $syncScript -Operation verify -ConsumerRoot $projectRoot
 ```
 
-You should first see:
+## If IntelliJ shows `Bundled (Maven 3)` instead of a real path
+
+Run this discovery command in PowerShell:
+
+```powershell
+Get-ChildItem -Path 'C:\Program Files\JetBrains' -Recurse -File -Filter mvn.cmd -ErrorAction SilentlyContinue |
+    Select-Object -First 1 -ExpandProperty FullName
+```
+
+It should print a path ending in:
 
 ```text
-Script found: C:\Users\azimov\IdeaProjects\FNB-Corp PTAF\scripts\sync-copilot-instructions.ps1
+\bin\mvn.cmd
 ```
 
-Then the instruction verification should run.
-
-After that succeeds, only if MCP is approved, run this separate block to create the local `.fnb-etaf` folder:
+Then run this block:
 
 ```powershell
-$discoveryScript = (Resolve-Path -LiteralPath ".\scripts\copilot-discovery.ps1").Path
+$mvnCommand = Get-ChildItem -Path 'C:\Program Files\JetBrains' -Recurse -File -Filter mvn.cmd -ErrorAction SilentlyContinue |
+    Select-Object -First 1 -ExpandProperty FullName
 
-& $discoveryScript -Operation mcp-template -ConsumerRoot $projectRoot
+$mavenBin = Split-Path -Parent $mvnCommand
+$env:Path = "$mavenBin;$env:Path"
+
+mvn -version
 ```
 
-Finally, confirm it is ignored by Git:
-
-```powershell
-git check-ignore -v .fnb-etaf/copilot/mcp.json
-```
-
-Do **not** run the older command starting with:
-
-```powershell
-.\scripts\sync-copilot-instructions.ps1
-```
-
-Use the exact blocks above.
+Once `mvn -version` works, the PowerShell Copilot scripts will work too.
