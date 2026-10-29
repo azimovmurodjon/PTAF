@@ -1,80 +1,46 @@
-Now we found the real issue. Your script is starting correctly, but **Maven is not available in the Windows PowerShell PATH**:
+It is not generated yet because the commands you ran so far only **tested** and **verified** the Copilot files. They do not create `.fnb-etaf`.
+
+Since you are using the Windows **Command Prompt** terminal (`C:\...\>`), copy and paste this exact one-line command now:
+
+```cmd
+powershell.exe -NoProfile -File ".\scripts\copilot-discovery.ps1" -Operation mcp-template -ConsumerRoot "."
+```
+
+This is the command that creates:
 
 ```text
-mvn : The term 'mvn' is not recognized
+.fnb-etaf\copilot\mcp.json
 ```
 
-The script path is correct. Do not retry the Copilot script yet.
+After it finishes, run:
 
-## Step 1: Find the Maven path IntelliJ is using
+```cmd
+dir .fnb-etaf\copilot
+```
 
-In IntelliJ, open:
+You should see:
 
 ```text
-File → Settings → Build, Execution, Deployment → Build Tools → Maven
+mcp.json
 ```
 
-Look for **Maven home path**.
+Then confirm Git ignores it:
 
-If it shows an actual folder path, copy that full path. It should be the Maven home folder, which contains a `bin` folder.
+```cmd
+git check-ignore -v .fnb-etaf/copilot/mcp.json
+```
 
-For example only:
+Expected output contains:
 
 ```text
-C:\Program Files\JetBrains\IntelliJ IDEA <version>\plugins\maven\lib\maven3
+.gitignore:...:/.fnb-etaf/    .fnb-etaf/copilot/mcp.json
 ```
 
-## Step 2: Run this in IntelliJ Windows PowerShell
-
-Replace the sample Maven path below with the exact Maven home path you copied from IntelliJ:
-
-```powershell
-$mavenHome = 'C:\Program Files\JetBrains\IntelliJ IDEA <version>\plugins\maven\lib\maven3'
-
-$env:MAVEN_HOME = $mavenHome
-$env:Path = "$env:MAVEN_HOME\bin;$env:Path"
-
-mvn -version
-```
-
-You must see Maven version information and **Java 21**.
-
-## Step 3: Run the Copilot verification again
-
-Only after `mvn -version` works, run:
-
-```powershell
-$projectRoot = (Get-Location).Path
-$syncScript = (Resolve-Path -LiteralPath ".\scripts\sync-copilot-instructions.ps1").Path
-
-& $syncScript -Operation verify -ConsumerRoot $projectRoot
-```
-
-## If IntelliJ shows `Bundled (Maven 3)` instead of a real path
-
-Run this discovery command in PowerShell:
-
-```powershell
-Get-ChildItem -Path 'C:\Program Files\JetBrains' -Recurse -File -Filter mvn.cmd -ErrorAction SilentlyContinue |
-    Select-Object -First 1 -ExpandProperty FullName
-```
-
-It should print a path ending in:
+Do not run these on Windows:
 
 ```text
-\bin\mvn.cmd
+./scripts/...
+scripts/*.sh
 ```
 
-Then run this block:
-
-```powershell
-$mvnCommand = Get-ChildItem -Path 'C:\Program Files\JetBrains' -Recurse -File -Filter mvn.cmd -ErrorAction SilentlyContinue |
-    Select-Object -First 1 -ExpandProperty FullName
-
-$mavenBin = Split-Path -Parent $mvnCommand
-$env:Path = "$mavenBin;$env:Path"
-
-mvn -version
-```
-
-Once `mvn -version` works, the PowerShell Copilot scripts will work too.
+Use only the `powershell.exe ... .ps1` commands in your current terminal.
