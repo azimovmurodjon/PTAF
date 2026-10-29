@@ -1,0 +1,54 @@
+Your screenshot confirms the scripts **are present**:
+
+```text
+Test-Path ...sync-copilot-instructions.ps1  → True
+Test-Path ...copilot-discovery.ps1          → True
+```
+
+So my previous “scripts folder is missing” conclusion was wrong. The issue is PowerShell is not invoking the relative script path correctly in this IntelliJ terminal. Your project folder has a space in its name:
+
+```text
+FNB-Corp PTAF
+```
+
+Use the full resolved path through PowerShell’s call operator.
+
+Run these exact commands, one block at a time:
+
+```powershell
+$root = (Get-Location).Path
+$syncScript = Join-Path $root 'scripts\sync-copilot-instructions.ps1'
+
+Get-Item -LiteralPath $syncScript |
+    Select-Object FullName, Name, Length, Extension, Attributes
+```
+
+You should see the full script path and extension `.ps1`.
+
+Then run:
+
+```powershell
+& $syncScript -Operation verify -ConsumerRoot $root
+```
+
+This is the correct Windows-safe command because `& $syncScript` handles the full path correctly, including the space in `FNB-Corp PTAF`.
+
+If it succeeds, you should see a successful instruction verification message.
+
+After that, only if you have approval to create local MCP configuration, run:
+
+```powershell
+$discoveryScript = Join-Path $root 'scripts\copilot-discovery.ps1'
+
+& $discoveryScript -Operation mcp-template -ConsumerRoot $root
+```
+
+Then verify the generated local file remains ignored:
+
+```powershell
+git check-ignore -v .fnb-etaf/copilot/mcp.json
+```
+
+Do not run the `mcp-template` command yet if you do not have the approved non-production origin and MCP approval.
+
+If `& $syncScript ...` gives a different error, copy the full new error text. If it says that running scripts is blocked or unsigned, stop there—do not bypass your company PowerShell policy.
