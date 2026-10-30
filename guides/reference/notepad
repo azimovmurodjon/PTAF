@@ -1,24 +1,23 @@
-<plugin>
-    <groupId>org.apache.maven.plugins</groupId>
-    <artifactId>maven-surefire-plugin</artifactId>
-    <version>2.22.3</version>
-
-    <configuration>
-        <suiteXmlFiles>
-            <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
-        </suiteXmlFiles>
-
-        <parallel>methods</parallel>
-        <threadCount>4</threadCount>
-        <useUnlimitedThreads>false</useUnlimitedThreads>
-
-        <systemPropertyVariables>
-            <cucumber.plugin>
-                json:target/cucumber-reports/cucumber.json,junit:cucumber.xml
-            </cucumber.plugin>
-        </systemPropertyVariables>
-
-        <reportsDirectory>target/surefire-reports</reportsDirectory>
-        <useFile>true</useFile>
-    </configuration>
-</plugin>
+Configure it from GitHub Copilot Chat instead
+In the Copilot Chat panel on the right:
+Make sure the lower-left mode says:
+text
+Agent
+Click the small Tools / sliders icon at the bottom of the Copilot Chat box, next to Auto.
+Look for one of these options:
+text
+Configure MCP Server
+Add MCP Tools
+Manage MCP Servers
+Open that option from Copilot Chat, not IntelliJ Settings / Agent Customizations.
+Copilot should open an MCP configuration file.
+Copy the entire content of your local:
+text
+.fnb-etaf\copilot\mcp.json
+into the Copilot MCP configuration file.
+Save it.
+Reload/restart Copilot Chat if it asks.
+After that, open Copilot’s Tools list. You must see:
+text
+fnb-etaf-playwright-local
+Only then is GitHub Copilot connected to the local Playwright MCP server.
