@@ -37,7 +37,7 @@ headless: "false"
 # HTTPS / SSL Certificate Error Handling.
 # Set to "true" to bypass SSL/HTTPS certificate errors for QA, DEV, SIT, UAT environments.
 # Set to "false" to enforce certificate validation.
-ignoreHTTPSErrors: "true"
+ignoreHTTPSErrors: "false"
 
 # Time to wait in seconds.
 # Recommended minimum value is 1.
