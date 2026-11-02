@@ -114,8 +114,9 @@ public class CopilotDiscoveryDraftContractTest {
             Assert.assertFalse(content.contains("--allow-unrestricted-file-access"));
             Assert.assertFalse(content.contains("--no-sandbox"));
 
-            Assert.expectThrows(CopilotProfileException.class,
-                    () -> new CopilotDiscoveryDraftExporter().writeMcpTemplate(policy, root));
+            Assert.assertEquals(new CopilotDiscoveryDraftExporter().writeMcpTemplate(policy, root), template);
+            Assert.assertEquals(Files.readString(template, StandardCharsets.UTF_8), content);
+            Assert.assertTrue(Files.isRegularFile(root.resolve(CopilotMcpEnvironmentSetup.SELECTION_PATH)));
         } finally {
             deleteRecursively(root);
         }
@@ -241,6 +242,7 @@ public class CopilotDiscoveryDraftContractTest {
 
     private Path createConsumerRoot() throws IOException {
         Path root = Files.createTempDirectory("fnb-etaf-copilot-discovery-");
+        Files.writeString(root.resolve(".gitignore"), "/.fnb-etaf/\n", StandardCharsets.UTF_8);
         Files.createDirectories(root.resolve("src/test/resources/config"));
         Files.createDirectories(root.resolve("src/test/resources/elements"));
         Files.createDirectories(root.resolve("src/test/resources/features"));

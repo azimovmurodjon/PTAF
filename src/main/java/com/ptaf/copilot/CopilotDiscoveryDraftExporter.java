@@ -12,8 +12,9 @@ import java.util.List;
  * Explicit filesystem boundary for the optional discovery workflow.
  *
  * <p>The exporter can write only beneath a consumer-root-local {@code .fnb-etaf} folder. It rejects
- * existing files rather than overwriting them. It has no access to active framework configuration,
- * test resources, reports, browser state, or network services.</p>
+ * existing draft files rather than overwriting them; MCP template initialization preserves existing
+ * files idempotently. It has no write access to active framework configuration, test resources,
+ * reports, browser state, or network services.</p>
  */
 public final class CopilotDiscoveryDraftExporter {
     private final CopilotPlaywrightMcpTemplateRenderer mcpTemplateRenderer;
@@ -31,12 +32,9 @@ public final class CopilotDiscoveryDraftExporter {
         this.draftRenderer = draftRenderer;
     }
 
-    /** Writes the local-only IntelliJ MCP configuration template once, without launching an MCP server. */
+    /** Initializes local selection and MCP templates without replacing existing files or launching a server. */
     public Path writeMcpTemplate(CopilotDiscoveryPolicy policy, Path consumerRoot) throws IOException {
-        Path root = validatedRoot(consumerRoot);
-        Path output = resolveBelow(root, policy.mcpTemplateOutputPath());
-        writeNew(output, mcpTemplateRenderer.render(policy));
-        return output;
+        return new CopilotMcpEnvironmentSetup(mcpTemplateRenderer).writeMcpTemplate(policy, consumerRoot);
     }
 
     /** Writes an isolated locator/feature draft directory only after strict validation. */

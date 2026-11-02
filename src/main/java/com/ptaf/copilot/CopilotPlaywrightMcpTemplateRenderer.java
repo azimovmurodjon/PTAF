@@ -8,8 +8,9 @@ import java.nio.charset.StandardCharsets;
  * Renders the local-only JetBrains {@code mcp.json} template from the central policy.
  *
  * <p>The rendered file deliberately keeps an approved-origin placeholder. A tester must replace
- * that placeholder manually in IntelliJ's local MCP configuration and obtain the appropriate
- * approval before enabling the server. FNB-ETAF never launches the server or supplies a target.</p>
+ * only that marker after owner approval, either manually or through explicit
+ * {@link CopilotMcpEnvironmentSetup} using local approvals and standard configuration.
+ * Rendering alone never selects a target or launches an MCP server.</p>
  */
 public final class CopilotPlaywrightMcpTemplateRenderer {
     /** Classpath resource containing the static JSON template. */

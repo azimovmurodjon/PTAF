@@ -1,0 +1,6 @@
+# Local-only MCP selection. Enter approvals manually only after application/data-owner approval.
+# An alias or an environment name never constitutes approval on its own.
+environment: 'QA'
+selected_target_alias: ''
+approved_target_aliases: []
+non_sensitive_target_approved: false

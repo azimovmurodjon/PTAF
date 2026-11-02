@@ -8,6 +8,7 @@ import java.nio.file.Path;
  * <p>Usage:</p>
  * <pre>
  * CopilotDiscoveryTool mcp-template --root /consumer/root
+ * CopilotDiscoveryTool mcp-setup --root /consumer/root
  * CopilotDiscoveryTool validate --input .fnb-etaf/discovery-inputs/request.yml
  * CopilotDiscoveryTool draft --input .fnb-etaf/discovery-inputs/request.yml --root /consumer/root
  * </pre>
@@ -15,7 +16,8 @@ import java.nio.file.Path;
  * <p>This tool does not start Playwright MCP, navigate to a URL, open a browser, inspect page data,
  * authenticate, execute tests, or write active FNB-ETAF resources. During {@code draft}, it only
  * verifies in memory that a named standard configuration alias exists and is HTTP(S); it never
- * prints, returns, or writes the resolved address.</p>
+ * prints, returns, or writes the resolved address. Explicit {@code mcp-setup} writes only an
+ * approved origin to ignored local MCP configuration and never prints the resolved URL.</p>
  */
 public final class CopilotDiscoveryTool {
     private CopilotDiscoveryTool() {
@@ -41,8 +43,16 @@ public final class CopilotDiscoveryTool {
             switch (command.operation()) {
                 case "mcp-template" -> {
                     Path output = exporter.writeMcpTemplate(policy, command.root());
-                    System.out.println("FNB-ETAF local Playwright MCP template written to " + output);
-                    System.out.println("It is not enabled. Review it and replace only the approved-origin placeholder in IntelliJ.");
+                    System.out.println("FNB-ETAF local Playwright MCP template available at " + output + "; existing files preserved.");
+                    System.out.println("Edit local selection.yml manually after owner approval, then run mcp-setup.");
+                    printMcpRegistrationReminder();
+                }
+                case "mcp-setup" -> {
+                    CopilotMcpEnvironmentSetup.SetupOutput output =
+                            new CopilotMcpEnvironmentSetup().setup(policy, command.root());
+                    System.out.println("FNB-ETAF local MCP configuration " + (output.changed() ? "updated" : "unchanged")
+                            + " for approved alias '" + output.selectedTargetAlias() + "'.");
+                    printMcpRegistrationReminder();
                 }
                 case "validate" -> {
                     CopilotDiscoveryRequest request = CopilotDiscoveryRequestLoader.load(command.input());
@@ -69,9 +79,14 @@ public final class CopilotDiscoveryTool {
         }
     }
 
+    private static void printMcpRegistrationReminder() {
+        System.out.println("No MCP server or browser was started. Personal Copilot/IntelliJ MCP registration or reload is still required.");
+    }
+
     private static void printUsage() {
         System.err.println("Usage:");
         System.err.println("  CopilotDiscoveryTool mcp-template --root <consumer-repository-root>");
+        System.err.println("  CopilotDiscoveryTool mcp-setup --root <consumer-repository-root>");
         System.err.println("  CopilotDiscoveryTool validate --input <candidate.yml>");
         System.err.println("  CopilotDiscoveryTool draft --input <candidate.yml> --root <consumer-repository-root>");
     }
@@ -81,8 +96,9 @@ public final class CopilotDiscoveryTool {
             if (args == null || args.length < 3) {
                 throw new IllegalArgumentException("An operation and required arguments are needed.");
             }
-            if ("mcp-template".equals(args[0]) && args.length == 3 && "--root".equals(args[1])) {
-                return new Command("mcp-template", null, path(args[2], "Consumer repository root"));
+            if (("mcp-template".equals(args[0]) || "mcp-setup".equals(args[0]))
+                    && args.length == 3 && "--root".equals(args[1])) {
+                return new Command(args[0], null, path(args[2], "Consumer repository root"));
             }
             if ("validate".equals(args[0]) && args.length == 3 && "--input".equals(args[1])) {
                 return new Command("validate", path(args[2], "Candidate input"), null);

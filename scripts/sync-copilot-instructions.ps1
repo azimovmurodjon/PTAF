@@ -1,16 +1,13 @@
 <#
-Generates or verifies IntelliJ/GitHub Copilot repository instructions from the FNB-ETAF embedded profile.
+Explicit sync/verification of instructions from the embedded FNB-ETAF profile.
+Not invoked by normal Maven/test/browser runtime. Supports Artifactory consumers.
 Usage: .\scripts\sync-copilot-instructions.ps1 [-Operation sync|verify] [-ConsumerRoot .]
-This command is explicit by design and is never called by Maven test or normal framework execution.
 #>
 param(
-    [ValidateSet('sync', 'verify')]
-    [string]$Operation = 'sync',
+    [ValidateSet('sync', 'verify')][string]$Operation = 'sync',
     [string]$ConsumerRoot = '.'
 )
-
 $ErrorActionPreference = 'Stop'
-
-mvn -q -DskipTests test-compile dependency:build-classpath '-Dmdep.outputFile=target/copilot-runtime-classpath.txt'
-$classPath = "target/classes;$(Get-Content -Raw 'target/copilot-runtime-classpath.txt')"
-java -cp $classPath com.ptaf.copilot.CopilotInstructionTool $Operation --root $ConsumerRoot
+. (Join-Path $PSScriptRoot 'copilot-common.ps1')
+$ConsumerRoot = (Resolve-Path -LiteralPath $ConsumerRoot).Path
+Invoke-FnbCopilotJava -ProjectRoot $ConsumerRoot -ToolClass 'com.ptaf.copilot.CopilotInstructionTool' -ToolArguments @($Operation, '--root', $ConsumerRoot)
